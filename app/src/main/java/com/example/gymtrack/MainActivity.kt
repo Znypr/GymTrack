@@ -204,10 +204,12 @@ fun formatRelativeTime(timestamp: Long): String {
     val now = System.currentTimeMillis()
     val date = Date(timestamp)
     val format = SimpleDateFormat("MMM dd HH:mm", Locale.getDefault())
+    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
     val diff = now - timestamp
     return when {
         diff < 60_000 -> "Just now"
-        diff < 86_400_000 -> "Yesterday " + SimpleDateFormat("HH:mm", Locale.getDefault()).format(date)
+        diff < 86_400_000 -> timeFormat.format(date)
+        diff < 172_800_000 -> "Yesterday " + timeFormat.format(date)
         else -> format.format(date)
     }
 }
