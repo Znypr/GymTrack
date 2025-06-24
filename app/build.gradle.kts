@@ -7,12 +7,12 @@ plugins {
 
 android {
     namespace = "com.example.gymtrack"
-    compileSdk = 36
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.example.gymtrack"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
@@ -42,7 +42,7 @@ android {
 
 dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
-    implementation(libs.androidx.navigation.compose.jvmstubs)
+    implementation(libs.androidx.navigation.compose)
     kapt("androidx.room:room-compiler:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     implementation(libs.androidx.core.ktx)
