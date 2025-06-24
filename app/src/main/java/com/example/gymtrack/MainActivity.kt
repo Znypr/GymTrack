@@ -184,20 +184,25 @@ fun NotesScreen(
 @Composable
 fun NoteEditor(note: NoteLine?, onSave: (String) -> Unit, onCancel: () -> Unit) {
     var text by remember { mutableStateOf(note?.text ?: "") }
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            IconButton(onClick = onCancel) { Icon(Icons.Default.Close, null) }
-            IconButton(onClick = { onSave(text) }) { Icon(Icons.Default.Check, null) }
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                IconButton(onClick = onCancel) { Icon(Icons.Default.Close, null) }
+                IconButton(onClick = { onSave(text) }) { Icon(Icons.Default.Check, null) }
+            }
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                modifier = Modifier.fillMaxSize(),
+                placeholder = { Text("Start typing") },
+                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onSave(text) })
+            )
         }
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
-            modifier = Modifier.fillMaxSize(),
-            placeholder = { Text("Start typing") },
-            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { onSave(text) })
-        )
     }
 }
 
