@@ -55,7 +55,8 @@ fun NavigationHost(navController: NavHostController) {
     var currentNote by remember { mutableStateOf<NoteLine?>(null) }
 
     LaunchedEffect(Unit) {
-        notes = dao.getAll().map { NoteLine(it.text, it.timestamp) }
+        val retrieved = withContext(Dispatchers.IO) { dao.getAll() }
+        notes = retrieved.map { NoteLine(it.text, it.timestamp) }
     }
 
     NavHost(navController = navController, startDestination = "main") {
