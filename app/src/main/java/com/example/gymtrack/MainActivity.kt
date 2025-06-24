@@ -21,6 +21,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -183,21 +190,53 @@ fun NotesScreen(
 
 @Composable
 fun NoteEditor(note: NoteLine?, onSave: (String) -> Unit, onCancel: () -> Unit) {
-    var text by remember { mutableStateOf(note?.text ?: "") }
+    var fieldValue by remember { mutableStateOf(TextFieldValue(note?.text ?: "")) }
+    var lastEnter by remember { mutableStateOf(System.currentTimeMillis()) }
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             IconButton(onClick = onCancel) { Icon(Icons.Default.Close, null) }
-            IconButton(onClick = { onSave(text) }) { Icon(Icons.Default.Check, null) }
+            IconButton(onClick = { onSave(fieldValue.text) }) { Icon(Icons.Default.Check, null) }
         }
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
+            value = fieldValue,
+            onValueChange = { newValue ->
+                // Detect Enter pressed at the end of the text
+                if (newValue.text.length > fieldValue.text.length &&
+                    newValue.text.endsWith("\n")) {
+                    val now = System.currentTimeMillis()
+                    val diffSec = (now - lastEnter) / 1000
+                    lastEnter = now
+
+                    val lines = fieldValue.text.split('\n').toMutableList()
+                    if (lines.isNotEmpty()) {
+                        val lastIndex = lines.lastIndex
+                        lines[lastIndex] = lines[lastIndex] + " (" + diffSec + "s)"
+                    }
+                    val updated = lines.joinToString("\n") + "\n"
+                    fieldValue = TextFieldValue(updated, TextRange(updated.length))
+                } else {
+                    fieldValue = newValue
+                }
+            },
+            visualTransformation = RestTimeVisualTransformation(),
             modifier = Modifier.fillMaxSize(),
             placeholder = { Text("Start typing") },
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { onSave(text) })
+            keyboardActions = KeyboardActions(onDone = { onSave(fieldValue.text) })
         )
+    }
+}
+
+class RestTimeVisualTransformation : VisualTransformation {
+    private val regex = "\\(\\d+s\\)".toRegex()
+    override fun filter(text: AnnotatedString): TransformedText {
+        val builder = AnnotatedString.Builder(text)
+        regex.findAll(text.text).forEach { match ->
+            builder.addStyle(SpanStyle(color = Color.LightGray), match.range.first, match.range.last + 1)
+        }
+        return TransformedText(builder.toAnnotatedString(), OffsetMapping.Identity)
     }
 }
 
