@@ -7,7 +7,7 @@ data class Category(
 
 data class Settings(
     val is24Hour: Boolean = true,
-    val roundingSeconds: Int = 15,
+    val roundingSeconds: Int = 5,
     val darkMode: Boolean = true,
     val categories: List<Category> = emptyList()
 )
