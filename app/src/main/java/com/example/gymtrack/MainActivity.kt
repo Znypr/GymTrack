@@ -8,6 +8,8 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -205,12 +207,6 @@ fun NotesScreen(
                 ) {
                     Column(Modifier.padding(12.dp)) {
                         Text(note.text.lines().firstOrNull() ?: "No text", fontSize = 16.sp)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = formatRelativeTime(note.timestamp, settings),
-                            fontSize = 12.sp,
-                            color = Color.Gray
-                        )
                     }
                 }
             }
@@ -222,11 +218,24 @@ fun NotesScreen(
 fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String) -> Unit, onCancel: () -> Unit) {
     var fieldValue by remember { mutableStateOf(TextFieldValue(note?.text ?: "")) }
     var lastEnter by remember { mutableStateOf(System.currentTimeMillis()) }
+    val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .systemBarsPadding()
+            .padding(16.dp)
+    ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             IconButton(onClick = onCancel) { Icon(Icons.Default.Close, null) }
             IconButton(onClick = { onSave(fieldValue.text) }) { Icon(Icons.Default.Check, null) }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth()) {
+            Text(formatRelativeTime(noteTimestamp, settings), color = Color.Gray)
+            Spacer(Modifier.weight(1f))
+            Text(formatFullDateTime(noteTimestamp, settings), color = Color.Gray)
         }
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
@@ -258,7 +267,9 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String) -> Unit, on
             keyboardActions = KeyboardActions(onDone = { onSave(fieldValue.text) }),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             )
         )
     }
@@ -347,6 +358,12 @@ fun formatRoundedTime(timestamp: Long, settings: Settings): String {
     val pattern = if (settings.is24Hour) "HH:mm:ss" else "hh:mm:ss a"
     val format = SimpleDateFormat(pattern, Locale.getDefault())
     return format.format(Date(rounded))
+}
+
+fun formatFullDateTime(timestamp: Long, settings: Settings): String {
+    val pattern = if (settings.is24Hour) "yyyy-MM-dd HH:mm" else "yyyy-MM-dd hh:mm a"
+    val format = SimpleDateFormat(pattern, Locale.getDefault())
+    return format.format(Date(timestamp))
 }
 
 data class Settings(
