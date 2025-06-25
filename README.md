@@ -6,7 +6,7 @@ A minimal Android notes application built with Jetpack Compose, designed to auto
 ## Features
 
 - **Line-based timestamps**  
-  Each time the user presses Enter, a new line is added with a relative timestamp (e.g., "Just now", "2 minutes ago", "Yesterday 17:41").
+  Each time the user presses Enter, a new line is added with a relative timestamp (e.g., "Just now", "Today 17:41", "Yesterday 17:41").
 
 - **Optimized for athletes and logging**  
   Ideal for tracking exercises and workout sets in chronological order. The timestamping system allows users to easily review the timing and sequence of their training sessions.
