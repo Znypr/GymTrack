@@ -484,33 +484,16 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
 
 fun formatRelativeTime(timestamp: Long, settings: Settings): String {
     val now = System.currentTimeMillis()
+    val diff = now - timestamp
     val date = Date(timestamp)
-    val pattern = if (settings.is24Hour) "HH:mm" else "hh:mm a"
-    val fullPattern = if (settings.is24Hour) "MMM dd HH:mm" else "MMM dd hh:mm a"
-    val format = SimpleDateFormat(fullPattern, Locale.getDefault())
-    val timeFormat = SimpleDateFormat(pattern, Locale.getDefault())
-    if (now - timestamp < 60_000) return "Just now"
+    val timeFormat = SimpleDateFormat(if (settings.is24Hour) "HH:mm" else "hh:mm a", Locale.getDefault())
+    val fullFormat = SimpleDateFormat(if (settings.is24Hour) "MMM dd HH:mm" else "MMM dd hh:mm a", Locale.getDefault())
 
-    val startOfToday = Calendar.getInstance().apply {
-        timeInMillis = now
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-    }
-    val startOfDate = Calendar.getInstance().apply {
-        timeInMillis = timestamp
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-    }
-    val days = ((startOfToday.timeInMillis - startOfDate.timeInMillis) / 86_400_000L).toInt()
-
-    return when (days) {
-        0 -> "Today ${timeFormat.format(date)}"
-        1 -> "Yesterday ${timeFormat.format(date)}"
-        else -> format.format(date)
+    return when {
+        diff < 60_000 -> "Just now"
+        diff < 86_400_000 -> "Today ${timeFormat.format(date)}"
+        diff < 172_800_000 -> "Yesterday ${timeFormat.format(date)}"
+        else -> fullFormat.format(date)
     }
 }
 
