@@ -47,7 +47,6 @@ import androidx.room.*
 import kotlinx.coroutines.*
 import java.text.SimpleDateFormat
 import java.util.*
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,7 +59,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-
 @Composable
 fun NavigationHost(navController: NavHostController, settingsState: MutableState<Settings>) {
     val context = LocalContext.current
@@ -351,6 +349,7 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
             )
         )
     }
+}
 }
 
 class RestTimeVisualTransformation : VisualTransformation {
