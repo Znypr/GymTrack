@@ -194,7 +194,7 @@ fun NoteEditor(
             Spacer(Modifier.height(8.dp))
             Text(
                 formatFullDateTime(noteTimestamp, settings),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Spacer(Modifier.height(8.dp))
             val scope = rememberCoroutineScope()
@@ -236,7 +236,7 @@ fun NoteEditor(
                                         timestamps.add(index + 1, "")
                                     }
                                     if (focusRequesters.size <= index + 1) {
-                                        focusRequesters.add(index + 1, FocusRequester())
+                                        focusRequesters.add(FocusRequester())
                                     } else {
                                         focusRequesters.add(index + 1, FocusRequester())
                                     }
