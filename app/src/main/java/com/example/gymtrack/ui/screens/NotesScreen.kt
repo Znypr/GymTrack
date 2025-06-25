@@ -99,7 +99,7 @@ fun NotesScreen(
                 .fillMaxSize()
                 .padding(8.dp),
         ) {
-            itemsIndexed(notes) { _, note ->
+            itemsIndexed(notes, key = { _, n -> n.timestamp }) { _, note ->
                 val isSelected = selectedNotes.contains(note)
                 Card(
                     modifier = Modifier
