@@ -77,6 +77,10 @@ fun ColorDropdown(
             readOnly = true,
             value = String.format("#%06X", 0xFFFFFF and selected.toInt()),
             onValueChange = {},
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.surface,
+                unfocusedBorderColor = MaterialTheme.colorScheme.surface,
+            ),
             modifier = modifier.menuAnchor(),
             label = { Text(label) },
             leadingIcon = { Box(Modifier.size(16.dp).background(Color(selected.toInt()))) },
@@ -363,6 +367,8 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
             modifier = Modifier.fillMaxWidth(),
             textStyle = LocalTextStyle.current.copy(lineHeight = 18.sp),
             colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.surface,
+                unfocusedBorderColor = MaterialTheme.colorScheme.surface,
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                 focusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -563,6 +569,10 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                     rounding = filtered
                     onChange(settings.copy(is24Hour = is24, roundingSeconds = filtered.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark, categories = categories))
                 },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.surface,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.surface,
+                ),
                 label = { Text("Rounding seconds") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
@@ -610,7 +620,11 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                     value = newName,
                     onValueChange = { newName = it },
                     modifier = Modifier.weight(1f),
-                    label = { Text("New category") }
+                    label = { Text("New category") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.surface,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.surface,
+                    ),
                 )
                 Spacer(Modifier.width(4.dp))
                 ColorDropdown(
