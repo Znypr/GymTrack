@@ -260,7 +260,9 @@ fun NotesScreen(
 @Composable
 fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Category?) -> Unit, onCancel: () -> Unit) {
     var titleValue by remember { mutableStateOf(TextFieldValue(note?.title ?: "")) }
-    var fieldValue by remember { mutableStateOf(TextFieldValue(note?.text ?: "")) }
+    val parsed = remember(note) { parseNoteText(note?.text ?: "") }
+    var textValue by remember { mutableStateOf(TextFieldValue(parsed.first.joinToString("\n"))) }
+    var timestamps by remember { mutableStateOf(parsed.second.toMutableList()) }
     var selectedCategory by remember { mutableStateOf<Category?>(settings.categories.find { it.name == note?.categoryName }) }
     var lastEnter by remember { mutableStateOf(System.currentTimeMillis()) }
     val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
@@ -270,7 +272,8 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
     val saveIfNeeded = {
         if (!saved) {
             saved = true
-            onSave(titleValue.text, fieldValue.text, selectedCategory)
+            val combined = combineTextAndTimes(textValue.text, timestamps)
+            onSave(titleValue.text, combined, selectedCategory)
         }
     }
 
@@ -360,41 +363,51 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
             }
             Spacer(Modifier.height(8.dp))
         }
-        OutlinedTextField(
-            value = fieldValue,
-            onValueChange = { newValue ->
-                // Detect Enter pressed at the end of the text
-                if (newValue.text.length > fieldValue.text.length && newValue.text.endsWith("\n")) {
-                    val now = System.currentTimeMillis()
-                    val diffSec = (now - lastEnter) / 1000
-                    lastEnter = now
-
-                    val lines = fieldValue.text.split('\n').toMutableList()
-                    if (lines.isNotEmpty()) {
-                        val lastIndex = lines.lastIndex
-                        if (lines[lastIndex].isNotBlank()) {
+        Row(Modifier.fillMaxWidth()) {
+            OutlinedTextField(
+                value = textValue,
+                onValueChange = { newValue ->
+                    val oldText = textValue.text
+                    val oldLines = oldText.split('\n')
+                    val newLines = newValue.text.split('\n')
+                    if (newValue.text.length > oldText.length && newValue.text.endsWith("\n")) {
+                        val now = System.currentTimeMillis()
+                        val diffSec = (now - lastEnter) / 1000
+                        lastEnter = now
+                        val idx = newLines.size - 2
+                        if (idx >= 0) {
                             val time = formatRoundedTime(now, settings)
-                            lines[lastIndex] = lines[lastIndex] + " (" + diffSec + "s) " + time
+                            if (timestamps.size <= idx) {
+                                timestamps = (timestamps + List(idx - timestamps.size + 1) { "" }).toMutableList()
+                            }
+                            timestamps = timestamps.toMutableList().also { it[idx] = "(${diffSec}s) $time" }
                         }
                     }
-                    val aligned = alignTimestamps(lines)
-                    val updated = aligned.joinToString("\n") + "\n"
-                    fieldValue = TextFieldValue(updated, TextRange(updated.length))
-                }
-                else {
-                    fieldValue = newValue
-                }
-            },
-            visualTransformation = WorkoutVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Start typing") },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    if (newLines.size < oldLines.size) {
+                        timestamps = timestamps.take(newLines.size).toMutableList()
+                    }
+                    textValue = newValue
+                },
+                visualTransformation = WorkoutVisualTransformation(),
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("Start typing") },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                )
             )
-        )
+            Column(
+                modifier = Modifier
+                    .width(96.dp)
+                    .padding(start = 4.dp)
+            ) {
+                timestamps.forEach { ts ->
+                    Text(ts, fontSize = 14.sp, lineHeight = 18.sp)
+                }
+            }
+        }
     }
 }
 }
@@ -625,6 +638,34 @@ fun alignTimestamps(lines: List<String>): List<String> {
             base
         }
     }
+}
+
+private val timeValueRegex = "\\d{2}:\\d{2}:\\d{2}(?:\\s[AP]M)?$".toRegex()
+
+fun parseNoteText(text: String): Pair<List<String>, List<String>> {
+    if (text.isBlank()) return Pair(emptyList(), emptyList())
+    val lines = text.trimEnd('\n').split('\n')
+    val base = mutableListOf<String>()
+    val times = mutableListOf<String>()
+    lines.forEach { line ->
+        val match = timeValueRegex.find(line.trimEnd())
+        if (match != null) {
+            base.add(line.substring(0, match.range.first).trimEnd())
+            times.add(match.value)
+        } else {
+            base.add(line)
+            times.add("")
+        }
+    }
+    return Pair(base, times)
+}
+
+fun combineTextAndTimes(text: String, times: List<String>): String {
+    val lines = if (text.isEmpty()) emptyList() else text.split('\n')
+    return lines.mapIndexed { index, l ->
+        val ts = times.getOrNull(index).orEmpty()
+        if (ts.isBlank()) l else "$l $ts"
+    }.joinToString("\n")
 }
 
 data class Category(
