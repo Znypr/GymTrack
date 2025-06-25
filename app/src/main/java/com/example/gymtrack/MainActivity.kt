@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import com.example.gymtrack.ui.theme.GymTrackTheme
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -151,7 +152,7 @@ fun NotesScreen(
         },
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.smallTopAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
                 title = {
                     Text(
                         if (selectedNotes.isNotEmpty()) "${selectedNotes.size} selected" else "Notes",
@@ -255,8 +256,9 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String) -> Unit, on
             placeholder = { Text("Start typing") },
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { onSave(fieldValue.text) }),
-            colors = TextFieldDefaults.outlinedTextFieldColors(
-                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
             )
         )
     }
@@ -273,6 +275,7 @@ class RestTimeVisualTransformation : VisualTransformation {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () -> Unit) {
     var is24 by remember { mutableStateOf(settings.is24Hour) }
