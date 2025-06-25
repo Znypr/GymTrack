@@ -35,6 +35,8 @@ import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.ParagraphStyle
+import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Alignment
@@ -356,7 +358,7 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                     fieldValue = newValue
                 }
             },
-            visualTransformation = RestTimeVisualTransformation(),
+            visualTransformation = WorkoutVisualTransformation(),
             modifier = Modifier.fillMaxSize(),
             placeholder = { Text("Start typing") },
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
@@ -372,13 +374,43 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
 }
 }
 
-class RestTimeVisualTransformation : VisualTransformation {
-    private val regex = "\\(\\d+s\\)".toRegex()
+class WorkoutVisualTransformation : VisualTransformation {
+    private val timeRegex = "\\(\\d+s\\)".toRegex()
     override fun filter(text: AnnotatedString): TransformedText {
         val builder = AnnotatedString.Builder(text)
-        regex.findAll(text.text).forEach { match ->
-            builder.addStyle(SpanStyle(color = Color(0xFFAAAAAA)), match.range.first, match.range.last + 1)
+
+
+        // Highlight rest time parentheses
+        timeRegex.findAll(text.text).forEach { match ->
+            builder.addStyle(SpanStyle(color = Color.LightGray), match.range.first, match.range.last + 1)
+
         }
+
+        // Style exercise headings and indent set lines
+        val lines = text.text.split('\n')
+        var index = 0
+        var previousBlank = true
+        lines.forEach { line ->
+            val end = index + line.length
+            if (line.isNotBlank()) {
+                if (previousBlank) {
+                    builder.addStyle(
+                        SpanStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold),
+                        index,
+                        end
+                    )
+                } else {
+                    builder.addStyle(
+                        ParagraphStyle(textIndent = TextIndent(firstLine = 16.sp)),
+                        index,
+                        end
+                    )
+                }
+            }
+            previousBlank = line.isBlank()
+            index = end + 1
+        }
+
         return TransformedText(builder.toAnnotatedString(), OffsetMapping.Identity)
     }
 }
