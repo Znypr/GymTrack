@@ -53,6 +53,45 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import kotlinx.coroutines.*
 import java.text.SimpleDateFormat
 import java.util.*
+
+private val presetColors = listOf(
+    0xFFE57373,
+    0xFF64B5F6,
+    0xFF81C784,
+    0xFFFFB74D,
+    0xFFBA68C8,
+    0xFFA1887F
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ColorDropdown(
+    selected: Long,
+    modifier: Modifier = Modifier,
+    label: String = "Color",
+    onSelected: (Long) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+        OutlinedTextField(
+            readOnly = true,
+            value = String.format("#%06X", 0xFFFFFF and selected.toInt()),
+            onValueChange = {},
+            modifier = modifier.menuAnchor(),
+            label = { Text(label) },
+            leadingIcon = { Box(Modifier.size(16.dp).background(Color(selected.toInt()))) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            presetColors.forEach { color ->
+                DropdownMenuItem(
+                    text = { Box(Modifier.size(24.dp).background(Color(color.toInt()))) },
+                    onClick = { onSelected(color); expanded = false }
+                )
+            }
+        }
+    }
+}
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -486,7 +525,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
     var dark by remember { mutableStateOf(settings.darkMode) }
     var categories by remember { mutableStateOf(settings.categories.toMutableList()) }
     var newName by remember { mutableStateOf("") }
-    var newColor by remember { mutableStateOf("#FF0000") }
+    var newColor by remember { mutableStateOf(presetColors.first()) }
 
     Scaffold(
         topBar = {
@@ -531,7 +570,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
             Text("Categories", fontWeight = FontWeight.Bold)
             categories.forEachIndexed { index, cat ->
                 var name by remember { mutableStateOf(cat.name) }
-                var colorText by remember { mutableStateOf(String.format("#%06X", 0xFFFFFF and cat.color.toInt())) }
+                var colorValue by remember { mutableStateOf(cat.color) }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = name,
@@ -546,19 +585,16 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                         label = { Text("Name") }
                     )
                     Spacer(Modifier.width(4.dp))
-                    OutlinedTextField(
-                        value = colorText,
-                        onValueChange = {
-                            colorText = it
-                            runCatching { it.trimStart('#').toLong(16) or 0xFF000000 }.getOrNull()?.let { clr ->
-                                categories = categories.toMutableList().also { list ->
-                                    list[index] = list[index].copy(color = clr)
-                                }
-                                onChange(settings.copy(is24Hour = is24, roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark, categories = categories))
-                            }
-                        },
+                    ColorDropdown(
+                        selected = colorValue,
                         modifier = Modifier.width(100.dp),
-                        label = { Text("Color") }
+                        onSelected = { clr ->
+                            colorValue = clr
+                            categories = categories.toMutableList().also { list ->
+                                list[index] = list[index].copy(color = clr)
+                            }
+                            onChange(settings.copy(is24Hour = is24, roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark, categories = categories))
+                        }
                     )
                     IconButton(onClick = {
                         categories = categories.toMutableList().also { it.removeAt(index) }
@@ -577,15 +613,13 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                     label = { Text("New category") }
                 )
                 Spacer(Modifier.width(4.dp))
-                OutlinedTextField(
-                    value = newColor,
-                    onValueChange = { newColor = it },
+                ColorDropdown(
+                    selected = newColor,
                     modifier = Modifier.width(100.dp),
-                    label = { Text("Color") }
+                    onSelected = { newColor = it }
                 )
                 IconButton(onClick = {
-                    val color = runCatching { newColor.trimStart('#').toLong(16) or 0xFF000000 }.getOrDefault(0xFFFF0000)
-                    categories = (categories + Category(newName.ifBlank { "Category" }, color)).toMutableList()
+                    categories = (categories + Category(newName.ifBlank { "Category" }, newColor)).toMutableList()
                     onChange(settings.copy(is24Hour = is24, roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark, categories = categories))
                     newName = ""
                 }) {
