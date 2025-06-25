@@ -142,7 +142,7 @@ fun NotesScreen(
     settings: Settings
 ) {
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         floatingActionButton = {
             if (selectedNotes.isEmpty()) {
                 FloatingActionButton(
@@ -242,28 +242,16 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String) -> 
     var lastEnter by remember { mutableStateOf(System.currentTimeMillis()) }
     val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
 
-    Surface(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .systemBarsPadding(),
-        color = MaterialTheme.colorScheme.background
+            .background(MaterialTheme.colorScheme.background)
+            .systemBarsPadding()
+            .padding(16.dp)
     ) {
-        Column(Modifier.padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            IconButton(onClick = onCancel) {
-                Icon(
-                    Icons.Default.Close,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onBackground
-                )
-            }
-            IconButton(onClick = { onSave(titleValue.text, fieldValue.text) }) {
-                Icon(
-                    Icons.Default.Check,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onBackground
-                )
-            }
+            IconButton(onClick = onCancel) { Icon(Icons.Default.Close, null) }
+            IconButton(onClick = { onSave(titleValue.text, fieldValue.text) }) { Icon(Icons.Default.Check, null) }
         }
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
