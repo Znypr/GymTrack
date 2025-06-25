@@ -1,6 +1,7 @@
 package com.example.gymtrack.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -27,7 +28,6 @@ import com.example.gymtrack.util.formatWeekRelativeTime
 import com.example.gymtrack.util.lighten
 import com.example.gymtrack.util.parseNoteText
 import com.example.gymtrack.util.parseDurationSeconds
-import kotlin.math.max
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -61,9 +61,10 @@ fun NotesScreen(
                         containerColor = MaterialTheme.colorScheme.surface
                     ),
                     navigationIcon = {
-                        Icon(
-                            painterResource(id = R.drawable.ic_launcher_foreground),
-                            contentDescription = "GymTrack logo"
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_gymtrack_logo),
+                            contentDescription = "GymTrack logo",
+                            modifier = Modifier.size(45.dp) // optional size
                         )
                     },
                     title = { Text("GymTrack", fontSize = 24.sp) },
