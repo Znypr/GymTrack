@@ -179,7 +179,7 @@ fun NotesScreen(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
                     title = {
                         Text(
-                            "${'$'}{selectedNotes.size} selected",
+                            "${selectedNotes.size} selected",
                             fontSize = 20.sp
                         )
                     },
