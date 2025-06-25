@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.BasicTextField
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -398,15 +399,20 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                     unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 )
             )
-            Column(
+            BasicTextField(
+                value = timestamps.joinToString("\n"),
+                onValueChange = {},
+                enabled = false,
+                readOnly = true,
+                textStyle = LocalTextStyle.current.copy(
+                    fontSize = 14.sp,
+                    lineHeight = 18.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
                 modifier = Modifier
                     .width(96.dp)
                     .padding(start = 4.dp)
-            ) {
-                timestamps.forEach { ts ->
-                    Text(ts, fontSize = 14.sp, lineHeight = 18.sp)
-                }
-            }
+            )
         }
     }
 }
