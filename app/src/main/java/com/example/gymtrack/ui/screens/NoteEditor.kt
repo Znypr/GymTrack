@@ -25,7 +25,8 @@ import com.example.gymtrack.data.Settings
 import com.example.gymtrack.util.WorkoutVisualTransformation
 import com.example.gymtrack.util.combineTextAndTimes
 import com.example.gymtrack.util.formatFullDateTime
-import com.example.gymtrack.util.formatElapsedTime
+import com.example.gymtrack.util.formatElapsedMinutesSeconds
+import com.example.gymtrack.util.formatSecondsToMinutesSeconds
 import com.example.gymtrack.util.parseNoteText
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.runtime.SideEffect
@@ -210,13 +211,12 @@ fun NoteEditor(
                         if (idx >= 0) {
                             val completedLineContent = oldLines.getOrNull(currentLineIndex).orEmpty().trim()
                             if (completedLineContent.isNotEmpty()) {
-                                val isMainLine = currentLineIndex == 0 || oldLines.getOrNull(currentLineIndex - 1).orEmpty().isBlank()
-                                val time = formatElapsedTime(noteTimestamp, now, settings, !isMainLine)
+                                val time = formatElapsedMinutesSeconds(noteTimestamp, now, settings)
                                 if (timestamps.size <= idx) {
                                     timestamps = (timestamps + List(idx - timestamps.size + 1) { "" }).toMutableList()
                                 }
                                 timestamps = timestamps.toMutableList().also { it[idx] = time }
-                                val rel = " (${diffSec}s)"
+                                val rel = " (${formatSecondsToMinutesSeconds(diffSec)})"
                                 val lines = newLines.toMutableList()
                                 lines[idx] = lines[idx] + rel
                                 val joined = lines.joinToString("\n")

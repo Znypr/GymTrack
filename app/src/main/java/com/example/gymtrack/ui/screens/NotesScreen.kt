@@ -23,6 +23,8 @@ import com.example.gymtrack.data.Settings
 import com.example.gymtrack.util.darken
 import com.example.gymtrack.util.formatWeekRelativeTime
 import com.example.gymtrack.util.lighten
+import com.example.gymtrack.util.parseNoteText
+import com.example.gymtrack.util.parseDurationSeconds
 import kotlin.math.max
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -132,12 +134,25 @@ fun NotesScreen(
                             .padding(12.dp)
                             .fillMaxWidth()
                     ) {
-                        Text(
-                            text = formatWeekRelativeTime(note.timestamp, settings),
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                            modifier = Modifier.align(Alignment.End)
-                        )
+                        val totalSec = parseNoteText(note.text).second.filter { it.isNotBlank() }.lastOrNull()?.let { parseDurationSeconds(it) }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            totalSec?.let {
+                                Text(
+                                    text = "${it / 60}'",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                            Text(
+                                text = formatWeekRelativeTime(note.timestamp, settings),
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = note.title,
