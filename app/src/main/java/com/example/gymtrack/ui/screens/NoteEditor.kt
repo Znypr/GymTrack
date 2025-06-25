@@ -3,7 +3,6 @@ package com.example.gymtrack.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -13,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
@@ -22,12 +22,15 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.example.gymtrack.data.Category
 import com.example.gymtrack.data.NoteLine
 import com.example.gymtrack.data.Settings
-import com.example.gymtrack.ui.components.ColorDropdown
 import com.example.gymtrack.util.WorkoutVisualTransformation
 import com.example.gymtrack.util.combineTextAndTimes
 import com.example.gymtrack.util.formatFullDateTime
 import com.example.gymtrack.util.formatRoundedTime
 import com.example.gymtrack.util.parseNoteText
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.toArgb
+import android.app.Activity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,6 +61,15 @@ fun NoteEditor(
     var expanded by remember { mutableStateOf(false) }
 
     BackHandler { saveIfNeeded() }
+
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            window.statusBarColor = MaterialTheme.colorScheme.background.toArgb()
+            WindowInsetsControllerCompat(window, view).isAppearanceLightStatusBars = !settings.darkMode
+        }
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
