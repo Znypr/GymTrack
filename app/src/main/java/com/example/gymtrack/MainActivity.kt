@@ -330,7 +330,8 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                         val time = formatRoundedTime(now, settings)
                         lines[lastIndex] = lines[lastIndex] + " (" + diffSec + "s) " + time
                     }
-                    val updated = lines.joinToString("\n") + "\n"
+                    val aligned = alignTimestamps(lines)
+                    val updated = aligned.joinToString("\n") + "\n"
                     fieldValue = TextFieldValue(updated, TextRange(updated.length))
                 } else {
                     fieldValue = newValue
@@ -357,7 +358,7 @@ class RestTimeVisualTransformation : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
         val builder = AnnotatedString.Builder(text)
         regex.findAll(text.text).forEach { match ->
-            builder.addStyle(SpanStyle(color = Color.LightGray), match.range.first, match.range.last + 1)
+            builder.addStyle(SpanStyle(color = Color(0xFFAAAAAA)), match.range.first, match.range.last + 1)
         }
         return TransformedText(builder.toAnnotatedString(), OffsetMapping.Identity)
     }
@@ -508,6 +509,23 @@ fun formatFullDateTime(timestamp: Long, settings: Settings): String {
     val pattern = if (settings.is24Hour) "yyyy-MM-dd HH:mm" else "yyyy-MM-dd hh:mm a"
     val format = SimpleDateFormat(pattern, Locale.getDefault())
     return format.format(Date(timestamp))
+}
+
+fun alignTimestamps(lines: List<String>): List<String> {
+    val timeRegex = "\\d{2}:\\d{2}:\\d{2}(?:\\s[AP]M)?$".toRegex()
+    val parsed = lines.map { line ->
+        val match = timeRegex.find(line)
+        val base = if (match != null) line.substring(0, match.range.first).trimEnd() else line
+        Pair(base, match?.value)
+    }
+    val maxBase = parsed.maxOfOrNull { it.first.length } ?: 0
+    return parsed.map { (base, time) ->
+        if (time != null) {
+            base.padEnd(maxBase) + " " + time
+        } else {
+            base
+        }
+    }
 }
 
 data class Category(
