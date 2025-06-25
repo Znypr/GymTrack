@@ -178,8 +178,9 @@ fun NotesScreen(
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
                     title = {
+                        val count = selectedNotes.size
                         Text(
-                            "${'$'}{selectedNotes.size} selected",
+                            text = if (count == 1) "1 Note selected" else "${count} Notes selected",
                             fontSize = 20.sp
                         )
                     },
