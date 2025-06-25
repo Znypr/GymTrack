@@ -234,9 +234,8 @@ fun NoteEditor(
                                     } else {
                                         lines[index] = TextFieldValue("")
                                         if (timestamps.size <= index) timestamps.add("") else timestamps[index] = ""
-                                        requestFocusIndex = index
-                                        return@OutlinedTextField
                                     }
+
                                     val indentNext = content.isNotBlank()
                                     val newValueText = if (indentNext) "\t" else ""
                                     lines.add(index + 1, TextFieldValue(newValueText))
