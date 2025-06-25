@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
@@ -341,7 +343,15 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
             .systemBarsPadding(),
         color = MaterialTheme.colorScheme.background
     ) {
-        Column(Modifier.padding(16.dp)) {
+        BoxWithConstraints {
+            val scroll = rememberScrollState()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = maxHeight)
+                    .verticalScroll(scroll)
+                    .padding(16.dp)
+            ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             IconButton(onClick = { saveIfNeeded() }) {
                 Icon(
@@ -408,7 +418,11 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
             }
             Spacer(Modifier.height(8.dp))
         }
-        Row(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f, fill = false)
+        ) {
             OutlinedTextField(
                 value = textValue,
                 onValueChange = { newValue ->
@@ -441,7 +455,9 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                     textValue = updatedValue
                 },
                 visualTransformation = WorkoutVisualTransformation(),
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
                 placeholder = { Text("Start typing") },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.surface,
@@ -459,7 +475,8 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                 enabled = false,
                 modifier = Modifier
                     .width(96.dp)
-                    .padding(start = 4.dp),
+                    .padding(start = 4.dp)
+                    .fillMaxHeight(),
                 textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, lineHeight = 18.sp),
                 colors = OutlinedTextFieldDefaults.colors(
                     disabledBorderColor = MaterialTheme.colorScheme.surface,
