@@ -14,8 +14,8 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -26,7 +26,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.TextRange
@@ -47,6 +46,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.room.*
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import kotlinx.coroutines.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -261,8 +263,29 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
     var lastEnter by remember { mutableStateOf(System.currentTimeMillis()) }
     val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
 
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var saved by remember { mutableStateOf(false) }
+    val saveIfNeeded = {
+        if (!saved) {
+            saved = true
+            onSave(titleValue.text, fieldValue.text, selectedCategory)
+        }
+    }
+
     var expanded by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf<Category?>(settings.categories.find { it.name == note?.categoryName }) }
+
+    BackHandler { saveIfNeeded() }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                saveIfNeeded()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Surface(
         modifier = Modifier
@@ -272,14 +295,14 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
     ) {
         Column(Modifier.padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            IconButton(onClick = onCancel) {
+            IconButton(onClick = { saveIfNeeded() }) {
                 Icon(
                     Icons.Default.Close,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onBackground
                 )
             }
-            IconButton(onClick = { onSave(titleValue.text, fieldValue.text, selectedCategory) }) {
+            IconButton(onClick = { saveIfNeeded() }) {
                 Icon(
                     Icons.Default.Check,
                     contentDescription = null,
@@ -361,8 +384,6 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
             visualTransformation = WorkoutVisualTransformation(),
             modifier = Modifier.fillMaxSize(),
             placeholder = { Text("Start typing") },
-            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { onSave(titleValue.text, fieldValue.text, selectedCategory) }),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface,
