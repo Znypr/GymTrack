@@ -122,15 +122,21 @@ fun NotesScreen(
     onCreate: () -> Unit
 ) {
     Scaffold(
+        containerColor = Color.Transparent,
         floatingActionButton = {
             if (selectedNotes.isEmpty()) {
-                FloatingActionButton(onClick = onCreate) {
+                FloatingActionButton(
+                    onClick = onCreate,
+                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                    shape = MaterialTheme.shapes.large
+                ) {
                     Icon(Icons.Default.Add, contentDescription = "Add Note")
                 }
             }
         },
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.smallTopAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
                 title = {
                     Text(
                         if (selectedNotes.isNotEmpty()) "${selectedNotes.size} selected" else "Notes",
@@ -172,7 +178,11 @@ fun NotesScreen(
                                 onSelect(selectedNotes.toMutableSet().also { it.add(note) })
                             }
                         ),
-                    colors = CardDefaults.cardColors(containerColor = if (isSelected) Color.DarkGray else Color.Black)
+                    shape = MaterialTheme.shapes.medium,
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                        else MaterialTheme.colorScheme.surface
+                    )
                 ) {
                     Column(Modifier.padding(12.dp)) {
                         Text(note.text.lines().firstOrNull() ?: "No text", fontSize = 16.sp)
@@ -228,7 +238,7 @@ fun NoteEditor(note: NoteLine?, onSave: (String) -> Unit, onCancel: () -> Unit) 
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { onSave(fieldValue.text) }),
             colors = TextFieldDefaults.outlinedTextFieldColors(
-                containerColor = MaterialTheme.colorScheme.surface
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
             )
         )
     }
