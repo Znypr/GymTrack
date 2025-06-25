@@ -4,6 +4,7 @@ package com.example.gymtrack
 import androidx.compose.ui.graphics.luminance
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -52,9 +53,12 @@ import androidx.room.*
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.style.LineHeightStyle
 import kotlinx.coroutines.*
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.text.append
+import kotlin.text.forEachIndexed
 
 private val presetColors = listOf(
     0xFFE57373,
@@ -486,23 +490,28 @@ fun NoteEditor(
                     val newLines = newValue.text.split('\n')
                     var updatedValue = newValue
                     if (newValue.text.length > oldText.length && newValue.text.endsWith("\n")) {
+                        val currentLineIndex = oldLines.size - 1
                         val now = System.currentTimeMillis()
                         val diffSec = (now - lastEnter) / 1000
                         lastEnter = now
                         val idx = newLines.size - 2
                         if (idx >= 0) {
-                            val time = formatRoundedTime(now, settings)
-                            if (timestamps.size <= idx) {
-                                timestamps =
-                                    (timestamps + List(idx - timestamps.size + 1) { "" }).toMutableList()
+                            val completedLineContent =
+                                oldLines.getOrNull(currentLineIndex).orEmpty().trim()
+                            if (completedLineContent.isNotEmpty()) {
+                                val time = formatRoundedTime(now, settings)
+                                if (timestamps.size <= idx) {
+                                    timestamps =
+                                        (timestamps + List(idx - timestamps.size + 1) { "" }).toMutableList()
+                                }
+                                timestamps = timestamps.toMutableList().also { it[idx] = time }
+                                val rel = " (${diffSec}s)"
+                                val lines = newLines.toMutableList()
+                                lines[idx] = lines[idx] + rel
+                                val joined = lines.joinToString("\n")
+                                val sel = TextRange(updatedValue.selection.end + rel.length)
+                                updatedValue = updatedValue.copy(text = joined, selection = sel)
                             }
-                            timestamps = timestamps.toMutableList().also { it[idx] = time }
-                            val rel = " (${diffSec}s)"
-                            val lines = newLines.toMutableList()
-                            lines[idx] = lines[idx] + rel
-                            val joined = lines.joinToString("\n")
-                            val sel = TextRange(updatedValue.selection.end + rel.length)
-                            updatedValue = updatedValue.copy(text = joined, selection = sel)
                         }
                     }
                     if (newLines.size < oldLines.size) {
@@ -531,20 +540,45 @@ fun NoteEditor(
 class WorkoutVisualTransformation(private val times: List<String>) : VisualTransformation {
     private val timeRegex = "\\(\\d+s\\)".toRegex()
     override fun filter(text: AnnotatedString): TransformedText {
-        val lines = text.text.split('\n')
+
+        val originalTrimmedLines = text.text.split('\n').map { it.trimStart() }
+
+        val lines = text.text.split('\n').map { it.trimStart() }
         val pairs = lines.mapIndexed { idx, l -> l to times.getOrNull(idx).orEmpty() }
-        val maxBase = pairs.filter { it.second.isNotBlank() }.maxOfOrNull { it.first.length } ?: 0
+        val maxBase = pairs.filter { it.second.isNotBlank() }
+            .map { it.first }            // Get the line text (which is now trimmed)
+            .filter { it.isNotBlank() }  // Consider only non-blank lines for max length
+            .maxOfOrNull { it.length } ?: 0
 
         // Build transformed string with padded timestamps
         val transformed = buildString {
-            pairs.forEachIndexed { i, (line, time) ->
-                append(line)
-                if (time.isNotBlank()) {
-                    repeat(maxBase - line.length) { append(' ') }
-                    append(' ')
-                    append(time)
+            var isPreviousLineBlankForBuildString = true // Local state for buildString
+            originalTrimmedLines.forEachIndexed { i, lineContent ->
+                val timeToDisplay = times.getOrNull(i).orEmpty()
+                val isCurrentLineBlank = lineContent.isBlank()
+
+                // Determine if this line should be indented (is a sub-entry)
+                val shouldIndent = !isCurrentLineBlank && !isPreviousLineBlankForBuildString
+
+                if (shouldIndent) {
+                    append('\t') // Prepend TAB for sub-entries
                 }
-                if (i != pairs.lastIndex) append('\n')
+                append(lineContent)
+
+                if (timeToDisplay.isNotBlank()) {
+                    // Your existing alignment logic for timestamps.
+                    // Note: lineContent.length does not include the tab.
+                    // The alignment might be visually okay if maxBase is based on non-tabbed content length.
+                    val spacesToAppend = (maxBase - lineContent.length).coerceAtLeast(0)
+                    repeat(spacesToAppend) { append(' ') }
+                    append(' ')
+                    append(timeToDisplay)
+                }
+
+                if (i != originalTrimmedLines.lastIndex) {
+                    append('\n')
+                }
+                isPreviousLineBlankForBuildString = isCurrentLineBlank
             }
         }
 
@@ -612,16 +646,20 @@ class WorkoutVisualTransformation(private val times: List<String>) : VisualTrans
         alignedLines.forEach { line ->
             val end = index + line.length
             if (line.isNotBlank()) {
+
+                // Heading
                 if (previousBlank) {
                     builder.addStyle(
-                        SpanStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold),
+                        SpanStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold),
                         index,
                         end
                     )
+                // Sub Entry
                 } else {
+                    // Apply SpanStyle for basic text properties (e.g., font size, color)
                     builder.addStyle(
-                        ParagraphStyle(
-                            textIndent = TextIndent(firstLine = 14.sp, restLine = 14.sp)
+                        SpanStyle(
+                            fontSize = 13.sp
                         ),
                         index,
                         end
@@ -759,7 +797,9 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                     Spacer(Modifier.width(4.dp))
                     ColorDropdown(
                         selected = colorValue,
-                        modifier = Modifier.width(100.dp).height(65.dp),
+                        modifier = Modifier
+                            .width(100.dp)
+                            .height(65.dp),
                         onSelected = { clr ->
                             colorValue = clr
                             categories = categories.toMutableList().also { list ->
@@ -807,7 +847,9 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                 Spacer(Modifier.width(4.dp))
                 ColorDropdown(
                     selected = newColor,
-                    modifier = Modifier.width(100.dp).height(65.dp),
+                    modifier = Modifier
+                        .width(100.dp)
+                        .height(65.dp),
                     onSelected = { newColor = it }
                 )
                 IconButton(onClick = {
