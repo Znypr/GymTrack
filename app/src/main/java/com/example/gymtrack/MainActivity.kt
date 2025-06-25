@@ -532,34 +532,87 @@ class WorkoutVisualTransformation(private val times: List<String>) : VisualTrans
     private val timeRegex = "\\(\\d+s\\)".toRegex()
     override fun filter(text: AnnotatedString): TransformedText {
         val lines = text.text.split('\n')
-        val combined = lines.mapIndexed { idx, l ->
-            val t = times.getOrNull(idx).orEmpty()
-            if (t.isBlank()) l else "$l $t"
+        val pairs = lines.mapIndexed { idx, l -> l to times.getOrNull(idx).orEmpty() }
+        val maxBase = pairs.filter { it.second.isNotBlank() }.maxOfOrNull { it.first.length } ?: 0
+
+        // Build transformed string with padded timestamps
+        val transformed = buildString {
+            pairs.forEachIndexed { i, (line, time) ->
+                append(line)
+                if (time.isNotBlank()) {
+                    repeat(maxBase - line.length) { append(' ') }
+                    append(' ')
+                    append(time)
+                }
+                if (i != pairs.lastIndex) append('\n')
+            }
         }
-        val aligned = alignTimestamps(combined).joinToString("\n")
-        val builder = AnnotatedString.Builder(aligned)
+
+        // Map offsets between original and transformed text
+        val offsetMapping = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int {
+                var remaining = offset
+                var result = 0
+                pairs.forEachIndexed { index, (line, time) ->
+                    val lineLen = line.length
+                    if (remaining <= lineLen) return result + remaining
+                    result += lineLen
+                    remaining -= lineLen
+                    if (time.isNotBlank()) {
+                        result += maxBase - line.length + 1 + time.length
+                    }
+                    if (index != pairs.lastIndex) {
+                        if (remaining == 0) return result
+                        result++
+                        remaining--
+                    }
+                }
+                return result
+            }
+
+            override fun transformedToOriginal(offset: Int): Int {
+                var remaining = offset
+                var result = 0
+                pairs.forEachIndexed { index, (line, time) ->
+                    val lineLen = line.length
+                    if (remaining <= lineLen) return result + remaining
+                    result += lineLen
+                    remaining -= lineLen
+                    if (time.isNotBlank()) {
+                        val extra = maxBase - line.length + 1 + time.length
+                        if (remaining <= extra) return result
+                        remaining -= extra
+                    }
+                    if (index != pairs.lastIndex) {
+                        if (remaining == 0) return result
+                        result++
+                        remaining--
+                    }
+                }
+                return result
+            }
+        }
+
+        val builder = AnnotatedString.Builder(transformed)
 
         // Highlight rest time parentheses
-        timeRegex.findAll(aligned).forEach { match ->
+        timeRegex.findAll(transformed).forEach { match ->
             builder.addStyle(
                 SpanStyle(color = Color.LightGray),
                 match.range.first,
                 match.range.last + 1
             )
-
         }
 
         // Style exercise headings and indent set lines
-        val alignedLines = aligned.split('\n')
+        val alignedLines = transformed.split('\n')
         var index = 0
         var previousBlank = true
-
 
         alignedLines.forEach { line ->
             val end = index + line.length
             if (line.isNotBlank()) {
                 if (previousBlank) {
-                    // Heading: bigger, bold
                     builder.addStyle(
                         SpanStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold),
                         index,
@@ -579,8 +632,7 @@ class WorkoutVisualTransformation(private val times: List<String>) : VisualTrans
             index = end + 1
         }
 
-
-        return TransformedText(builder.toAnnotatedString(), OffsetMapping.Identity)
+        return TransformedText(builder.toAnnotatedString(), offsetMapping)
     }
 }
 
