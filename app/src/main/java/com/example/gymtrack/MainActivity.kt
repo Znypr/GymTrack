@@ -221,8 +221,18 @@ fun NotesScreen(
                         containerColor = if (isSelected) {
                             MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
                         } else {
-                            note.categoryColor?.let { Color(it.toInt()) } ?: MaterialTheme.colorScheme.surface
-                        }
+                            val base = note.categoryColor?.let { Color(it.toInt()) }
+                                ?: if (settings.darkMode) MaterialTheme.colorScheme.surface
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            if (note.categoryColor == null) {
+                                base
+                            } else if (settings.darkMode) {
+                                base.darken(0.7f)
+                            } else {
+                                base.lighten(0.1f)
+                            }
+                        },
+                        contentColor = MaterialTheme.colorScheme.onSurface
                     )
                 ) {
                     Column(Modifier.padding(12.dp)) {
@@ -230,7 +240,11 @@ fun NotesScreen(
                         Spacer(Modifier.height(4.dp))
                         Text(note.text.lines().firstOrNull() ?: "", fontSize = 14.sp)
                         Spacer(Modifier.height(4.dp))
-                        Text(formatFullDateTime(note.timestamp, settings), fontSize = 12.sp, color = Color.Gray)
+                        Text(
+                            formatFullDateTime(note.timestamp, settings),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
                     }
                 }
             }
@@ -238,6 +252,7 @@ fun NotesScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Category?) -> Unit, onCancel: () -> Unit) {
     var titleValue by remember { mutableStateOf(TextFieldValue(note?.title ?: "")) }
@@ -287,7 +302,10 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
             )
         )
         Spacer(Modifier.height(8.dp))
-        Text(formatFullDateTime(noteTimestamp, settings), color = Color.Gray)
+        Text(
+            formatFullDateTime(noteTimestamp, settings),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+        )
         Spacer(Modifier.height(8.dp))
         if (settings.categories.isNotEmpty()) {
             ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
@@ -332,7 +350,8 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                         val time = formatRoundedTime(now, settings)
                         lines[lastIndex] = lines[lastIndex] + " (" + diffSec + "s) " + time
                     }
-                    val updated = lines.joinToString("\n") + "\n"
+                    val aligned = alignTimestamps(lines)
+                    val updated = aligned.joinToString("\n") + "\n"
                     fieldValue = TextFieldValue(updated, TextRange(updated.length))
                 } else {
                     fieldValue = newValue
@@ -359,9 +378,11 @@ class WorkoutVisualTransformation : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
         val builder = AnnotatedString.Builder(text)
 
+
         // Highlight rest time parentheses
         timeRegex.findAll(text.text).forEach { match ->
             builder.addStyle(SpanStyle(color = Color.LightGray), match.range.first, match.range.last + 1)
+
         }
 
         // Style exercise headings and indent set lines
@@ -538,6 +559,23 @@ fun formatFullDateTime(timestamp: Long, settings: Settings): String {
     val pattern = if (settings.is24Hour) "yyyy-MM-dd HH:mm" else "yyyy-MM-dd hh:mm a"
     val format = SimpleDateFormat(pattern, Locale.getDefault())
     return format.format(Date(timestamp))
+}
+
+fun alignTimestamps(lines: List<String>): List<String> {
+    val timeRegex = "\\d{2}:\\d{2}:\\d{2}(?:\\s[AP]M)?$".toRegex()
+    val parsed = lines.map { line ->
+        val match = timeRegex.find(line)
+        val base = if (match != null) line.substring(0, match.range.first).trimEnd() else line
+        Pair(base, match?.value)
+    }
+    val maxBase = parsed.maxOfOrNull { it.first.length } ?: 0
+    return parsed.map { (base, time) ->
+        if (time != null) {
+            base.padEnd(maxBase) + " " + time
+        } else {
+            base
+        }
+    }
 }
 
 data class Category(
