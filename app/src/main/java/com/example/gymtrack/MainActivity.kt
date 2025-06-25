@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
@@ -239,7 +241,7 @@ fun NotesScreen(
         }
     ) { padding ->
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(170.dp),
+            columns = GridCells.Adaptive(160.dp),
             contentPadding = padding,
             modifier = Modifier.fillMaxSize().padding(8.dp)
         ) {
@@ -341,108 +343,37 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
             .systemBarsPadding(),
         color = MaterialTheme.colorScheme.background
     ) {
-        Column(Modifier.padding(16.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            IconButton(onClick = { saveIfNeeded() }) {
-                Icon(
-                    Icons.Default.Close,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onBackground
-                )
-            }
-            IconButton(onClick = { saveIfNeeded() }) {
-                Icon(
-                    Icons.Default.Check,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onBackground
-                )
-            }
-
-        }
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
-            value = titleValue,
-            onValueChange = { titleValue = it },
-            placeholder = { Text("Title") },
-            modifier = Modifier.fillMaxWidth(),
-            textStyle = LocalTextStyle.current.copy(lineHeight = 18.sp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.surface,
-                unfocusedBorderColor = MaterialTheme.colorScheme.surface,
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-            )
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            formatFullDateTime(noteTimestamp, settings),
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-        )
-        Spacer(Modifier.height(8.dp))
-        if (settings.categories.isNotEmpty()) {
-            ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
-                OutlinedTextField(
-                    modifier = Modifier.menuAnchor().fillMaxWidth(),
-                    readOnly = true,
-                    value = selectedCategory?.name ?: "None",
-                    onValueChange = {},
-                    label = { Text("Category") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+        val scroll = rememberScrollState()
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(scroll)
+                .padding(16.dp)
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                IconButton(onClick = { saveIfNeeded() }) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onBackground
                     )
-                )
-                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                    DropdownMenuItem(text = { Text("None") }, onClick = { selectedCategory = null; expanded = false })
-                    settings.categories.forEach { cat ->
-                        DropdownMenuItem(
-                            text = { Text(cat.name) },
-                            leadingIcon = { Box(Modifier.size(16.dp).background(Color(cat.color.toInt()))) },
-                            onClick = { selectedCategory = cat; expanded = false }
-                        )
-                    }
                 }
+                IconButton(onClick = { saveIfNeeded() }) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+
             }
             Spacer(Modifier.height(8.dp))
-        }
-        Row(Modifier.fillMaxWidth()) {
             OutlinedTextField(
-                value = textValue,
-                onValueChange = { newValue ->
-                    val oldText = textValue.text
-                    val oldLines = oldText.split('\n')
-                    val newLines = newValue.text.split('\n')
-                    var updatedValue = newValue
-                    if (newValue.text.length > oldText.length && newValue.text.endsWith("\n")) {
-                        val now = System.currentTimeMillis()
-                        val diffSec = (now - lastEnter) / 1000
-                        lastEnter = now
-                        val idx = newLines.size - 2
-                        if (idx >= 0) {
-                            val time = formatRoundedTime(now, settings)
-                            if (timestamps.size <= idx) {
-                                timestamps = (timestamps + List(idx - timestamps.size + 1) { "" }).toMutableList()
-                            }
-                            timestamps = timestamps.toMutableList().also { it[idx] = time }
-                            val rel = " (${diffSec}s)"
-                            val lines = newLines.toMutableList()
-                            lines[idx] = lines[idx] + rel
-                            val joined = lines.joinToString("\n")
-                            val sel = TextRange(updatedValue.selection.end + rel.length)
-                            updatedValue = updatedValue.copy(text = joined, selection = sel)
-                        }
-                    }
-                    if (newLines.size < oldLines.size) {
-                        timestamps = timestamps.take(newLines.size).toMutableList()
-                    }
-                    textValue = updatedValue
-                },
-                visualTransformation = WorkoutVisualTransformation(),
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Start typing") },
+                value = titleValue,
+                onValueChange = { titleValue = it },
+                placeholder = { Text("Title") },
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = LocalTextStyle.current.copy(lineHeight = 18.sp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.surface,
                     unfocusedBorderColor = MaterialTheme.colorScheme.surface,
@@ -452,15 +383,109 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                     unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 )
             )
-            OutlinedTextField(
-                value = timestamps.joinToString("\n"),
-                onValueChange = {},
-                readOnly = true,
-                enabled = false,
+            Spacer(Modifier.height(8.dp))
+            Text(
+                formatFullDateTime(noteTimestamp, settings),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            )
+            Spacer(Modifier.height(8.dp))
+            if (settings.categories.isNotEmpty()) {
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded }) {
+                    OutlinedTextField(
+                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        readOnly = true,
+                        value = selectedCategory?.name ?: "None",
+                        onValueChange = {},
+                        label = { Text("Category") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                        )
+                    )
+                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        DropdownMenuItem(
+                            text = { Text("None") },
+                            onClick = { selectedCategory = null; expanded = false })
+                        settings.categories.forEach { cat ->
+                            DropdownMenuItem(
+                                text = { Text(cat.name) },
+                                leadingIcon = {
+                                    Box(
+                                        Modifier.size(16.dp)
+                                            .background(Color(cat.color.toInt()))
+                                    )
+                                },
+                                onClick = { selectedCategory = cat; expanded = false }
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+            Row(
                 modifier = Modifier
-                    .width(100.dp)
-                    .padding(start = 4.dp),
-                textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, lineHeight = 18.sp),
+                    .fillMaxWidth()
+                    .weight(1f, fill = false)
+            ) {
+                OutlinedTextField(
+                    value = textValue,
+                    onValueChange = { newValue ->
+                        val oldText = textValue.text
+                        val oldLines = oldText.split('\n')
+                        val newLines = newValue.text.split('\n')
+                        var updatedValue = newValue
+                        if (newValue.text.length > oldText.length && newValue.text.endsWith("\n")) {
+                            val now = System.currentTimeMillis()
+                            val diffSec = (now - lastEnter) / 1000
+                            lastEnter = now
+                            val idx = newLines.size - 2
+                            if (idx >= 0) {
+                                val time = formatRoundedTime(now, settings)
+                                if (timestamps.size <= idx) {
+                                    timestamps =
+                                        (timestamps + List(idx - timestamps.size + 1) { "" }).toMutableList()
+                                }
+                                timestamps = timestamps.toMutableList().also { it[idx] = time }
+                                val rel = " (${diffSec}s)"
+                                val lines = newLines.toMutableList()
+                                lines[idx] = lines[idx] + rel
+                                val joined = lines.joinToString("\n")
+                                val sel = TextRange(updatedValue.selection.end + rel.length)
+                                updatedValue = updatedValue.copy(text = joined, selection = sel)
+                            }
+                        }
+                        if (newLines.size < oldLines.size) {
+                            timestamps = timestamps.take(newLines.size).toMutableList()
+                        }
+                        textValue = updatedValue
+                    },
+                    visualTransformation = WorkoutVisualTransformation(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    placeholder = { Text("Start typing") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.surface,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.surface,
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    )
+                )
+                OutlinedTextField(
+                    value = timestamps.joinToString("\n"),
+                    onValueChange = {},
+                    readOnly = true,
+                    enabled = false,
+                    modifier = Modifier
+                        .width(100.dp)
+                        .fillMaxHeight()
+                        .padding(start = 4.dp),
+                    textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, lineHeight = 18.sp),
                 colors = OutlinedTextFieldDefaults.colors(
                     disabledBorderColor = MaterialTheme.colorScheme.surface,
                     disabledContainerColor = MaterialTheme.colorScheme.surface,
@@ -472,10 +497,10 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                     focusedTextColor = MaterialTheme.colorScheme.onSurface,
                     unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 )
-            )
+                )
+            }
         }
     }
-}
 }
 
 class WorkoutVisualTransformation : VisualTransformation {
@@ -709,7 +734,7 @@ fun alignTimestamps(lines: List<String>): List<String> {
     }
 }
 
-private val timeValueRegex = "\\d{2}:\\d{2}:\\d{2}(?:\\s[AP]M)?$".toRegex()
+val timeValueRegex = "\\d{2}:\\d{2}:\\d{2}(?:\\s[AP]M)?$".toRegex()
 
 fun parseNoteText(text: String): Pair<List<String>, List<String>> {
     if (text.isBlank()) return Pair(emptyList(), emptyList())
