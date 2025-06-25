@@ -24,12 +24,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -45,16 +47,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            GymTrackTheme(darkTheme = true) {
+            val settingsState = remember { mutableStateOf(Settings()) }
+            GymTrackTheme(darkTheme = settingsState.value.darkMode) {
                 val navController = rememberNavController()
-                NavigationHost(navController)
+                NavigationHost(navController, settingsState)
             }
         }
     }
 }
 
 @Composable
-fun NavigationHost(navController: NavHostController) {
+fun NavigationHost(navController: NavHostController, settingsState: MutableState<Settings>) {
     val context = LocalContext.current
     val db = remember { NoteDatabase.getDatabase(context) }
     val dao = db.noteDao()
@@ -89,12 +92,15 @@ fun NavigationHost(navController: NavHostController) {
                 onCreate = {
                     currentNote = null
                     navController.navigate("edit")
-                }
+                },
+                onOpenSettings = { navController.navigate("settings") },
+                settings = settingsState.value
             )
         }
         composable("edit") {
             NoteEditor(
                 note = currentNote,
+                settings = settingsState.value,
                 onSave = { text ->
                     val updated = currentNote?.copy(text = text) ?: NoteLine(text, System.currentTimeMillis())
                     CoroutineScope(Dispatchers.IO).launch {
@@ -108,6 +114,13 @@ fun NavigationHost(navController: NavHostController) {
                 onCancel = { navController.popBackStack() }
             )
         }
+        composable("settings") {
+            SettingsScreen(
+                settings = settingsState.value,
+                onChange = { settingsState.value = it },
+                onBack = { navController.popBackStack() }
+            )
+        }
     }
 }
 
@@ -119,7 +132,9 @@ fun NotesScreen(
     onSelect: (Set<NoteLine>) -> Unit,
     onEdit: (NoteLine) -> Unit,
     onDelete: (Set<NoteLine>) -> Unit,
-    onCreate: () -> Unit
+    onCreate: () -> Unit,
+    onOpenSettings: () -> Unit,
+    settings: Settings
 ) {
     Scaffold(
         floatingActionButton = {
@@ -142,6 +157,9 @@ fun NotesScreen(
                         IconButton(onClick = { onDelete(selectedNotes) }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete")
                         }
+                    }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 }
             )
@@ -178,7 +196,7 @@ fun NotesScreen(
                         Text(note.text.lines().firstOrNull() ?: "No text", fontSize = 16.sp)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = formatRelativeTime(note.timestamp),
+                            text = formatRelativeTime(note.timestamp, settings),
                             fontSize = 12.sp,
                             color = Color.Gray
                         )
@@ -190,7 +208,7 @@ fun NotesScreen(
 }
 
 @Composable
-fun NoteEditor(note: NoteLine?, onSave: (String) -> Unit, onCancel: () -> Unit) {
+fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String) -> Unit, onCancel: () -> Unit) {
     var fieldValue by remember { mutableStateOf(TextFieldValue(note?.text ?: "")) }
     var lastEnter by remember { mutableStateOf(System.currentTimeMillis()) }
 
@@ -213,7 +231,7 @@ fun NoteEditor(note: NoteLine?, onSave: (String) -> Unit, onCancel: () -> Unit) 
                     val lines = fieldValue.text.split('\n').toMutableList()
                     if (lines.isNotEmpty()) {
                         val lastIndex = lines.lastIndex
-                        val time = formatRoundedTime(now)
+                        val time = formatRoundedTime(now, settings)
                         lines[lastIndex] = lines[lastIndex] + " (" + diffSec + "s) " + time
                     }
                     val updated = lines.joinToString("\n") + "\n"
@@ -245,11 +263,62 @@ class RestTimeVisualTransformation : VisualTransformation {
     }
 }
 
-fun formatRelativeTime(timestamp: Long): String {
+@Composable
+fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () -> Unit) {
+    var is24 by remember { mutableStateOf(settings.is24Hour) }
+    var rounding by remember { mutableStateOf(settings.roundingSeconds.toString()) }
+    var dark by remember { mutableStateOf(settings.darkMode) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Settings") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(modifier = Modifier.padding(padding).padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("24-hour format", modifier = Modifier.weight(1f))
+                Switch(checked = is24, onCheckedChange = {
+                    is24 = it
+                    onChange(settings.copy(is24Hour = it, roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark))
+                })
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Dark mode", modifier = Modifier.weight(1f))
+                Switch(checked = dark, onCheckedChange = {
+                    dark = it
+                    onChange(settings.copy(is24Hour = is24, roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds, darkMode = it))
+                })
+            }
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = rounding,
+                onValueChange = {
+                    val filtered = it.filter { ch -> ch.isDigit() }
+                    rounding = filtered
+                    onChange(settings.copy(is24Hour = is24, roundingSeconds = filtered.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark))
+                },
+                label = { Text("Rounding seconds") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+        }
+    }
+}
+
+fun formatRelativeTime(timestamp: Long, settings: Settings): String {
     val now = System.currentTimeMillis()
     val date = Date(timestamp)
-    val format = SimpleDateFormat("MMM dd HH:mm", Locale.getDefault())
-    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+    val pattern = if (settings.is24Hour) "HH:mm" else "hh:mm a"
+    val fullPattern = if (settings.is24Hour) "MMM dd HH:mm" else "MMM dd hh:mm a"
+    val format = SimpleDateFormat(fullPattern, Locale.getDefault())
+    val timeFormat = SimpleDateFormat(pattern, Locale.getDefault())
     val diff = now - timestamp
     return when {
         diff < 60_000 -> "Just now"
@@ -259,11 +328,19 @@ fun formatRelativeTime(timestamp: Long): String {
     }
 }
 
-fun formatRoundedTime(timestamp: Long): String {
-    val rounded = ((timestamp + 7_500) / 15_000) * 15_000
-    val format = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+fun formatRoundedTime(timestamp: Long, settings: Settings): String {
+    val rounding = settings.roundingSeconds.coerceAtLeast(1) * 1000L
+    val rounded = ((timestamp + rounding / 2) / rounding) * rounding
+    val pattern = if (settings.is24Hour) "HH:mm:ss" else "hh:mm:ss a"
+    val format = SimpleDateFormat(pattern, Locale.getDefault())
     return format.format(Date(rounded))
 }
+
+data class Settings(
+    val is24Hour: Boolean = true,
+    val roundingSeconds: Int = 15,
+    val darkMode: Boolean = true
+)
 
 data class NoteLine(val text: String, val timestamp: Long)
 
