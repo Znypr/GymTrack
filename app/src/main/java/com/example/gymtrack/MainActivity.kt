@@ -360,6 +360,7 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
             },
             visualTransformation = WorkoutVisualTransformation(),
             modifier = Modifier.fillMaxSize(),
+            textStyle = LocalTextStyle.current.copy(lineHeight = 20.sp),
             placeholder = { Text("Start typing") },
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { onSave(titleValue.text, fieldValue.text, selectedCategory) }),
@@ -399,9 +400,14 @@ class WorkoutVisualTransformation : VisualTransformation {
                         index,
                         end
                     )
+                    builder.addStyle(
+                        ParagraphStyle(lineHeight = 20.sp),
+                        index,
+                        end
+                    )
                 } else {
                     builder.addStyle(
-                        ParagraphStyle(textIndent = TextIndent(firstLine = 16.sp)),
+                        ParagraphStyle(textIndent = TextIndent(firstLine = 16.sp), lineHeight = 20.sp),
                         index,
                         end
                     )
