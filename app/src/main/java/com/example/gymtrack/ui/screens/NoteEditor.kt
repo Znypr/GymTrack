@@ -31,6 +31,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
 import android.app.Activity
+import androidx.compose.foundation.background
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,12 +67,16 @@ fun NoteEditor(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
+<<<<<<< codex/verify-dark-mode-implementation-on-editor-screen
             window.statusBarColor = MaterialTheme.colorScheme.background.toArgb()
             window.navigationBarColor = MaterialTheme.colorScheme.background.toArgb()
             WindowInsetsControllerCompat(window, view).apply {
                 isAppearanceLightStatusBars = !settings.darkMode
                 isAppearanceLightNavigationBars = !settings.darkMode
             }
+=======
+            WindowInsetsControllerCompat(window, view).isAppearanceLightStatusBars = !settings.darkMode
+>>>>>>> master
         }
     }
 

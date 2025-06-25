@@ -36,3 +36,28 @@ fun formatFullDateTime(timestamp: Long, settings: Settings): String {
     val format = SimpleDateFormat(pattern, Locale.getDefault())
     return format.format(Date(timestamp))
 }
+
+fun formatWeekRelativeTime(timestamp: Long, settings: Settings): String {
+    val nowCal = Calendar.getInstance()
+    val dateCal = Calendar.getInstance().apply { timeInMillis = timestamp }
+    val timeFormat = SimpleDateFormat(if (settings.is24Hour) "HH:mm" else "hh:mm a", Locale.getDefault())
+    val dayNameFormat = SimpleDateFormat("EEEE", Locale.getDefault())
+    val fullFormat = SimpleDateFormat(if (settings.is24Hour) "yyyy-MM-dd HH:mm" else "yyyy-MM-dd hh:mm a", Locale.getDefault())
+
+    val sameDay = nowCal.get(Calendar.YEAR) == dateCal.get(Calendar.YEAR) &&
+            nowCal.get(Calendar.DAY_OF_YEAR) == dateCal.get(Calendar.DAY_OF_YEAR)
+
+    val yesterdayCal = (nowCal.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -1) }
+    val isYesterday = yesterdayCal.get(Calendar.YEAR) == dateCal.get(Calendar.YEAR) &&
+            yesterdayCal.get(Calendar.DAY_OF_YEAR) == dateCal.get(Calendar.DAY_OF_YEAR)
+
+    val sameWeek = nowCal.get(Calendar.YEAR) == dateCal.get(Calendar.YEAR) &&
+            nowCal.get(Calendar.WEEK_OF_YEAR) == dateCal.get(Calendar.WEEK_OF_YEAR)
+
+    return when {
+        sameDay -> "Today ${timeFormat.format(dateCal.time)}"
+        isYesterday -> "Yesterday ${timeFormat.format(dateCal.time)}"
+        sameWeek -> "${dayNameFormat.format(dateCal.time)} ${timeFormat.format(dateCal.time)}"
+        else -> fullFormat.format(dateCal.time)
+    }
+}
