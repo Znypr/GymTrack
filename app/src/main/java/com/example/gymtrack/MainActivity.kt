@@ -250,6 +250,7 @@ fun NotesScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Category?) -> Unit, onCancel: () -> Unit) {
     var titleValue by remember { mutableStateOf(TextFieldValue(note?.title ?: "")) }
