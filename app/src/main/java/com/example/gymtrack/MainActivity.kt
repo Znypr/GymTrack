@@ -409,6 +409,7 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                     val oldText = textValue.text
                     val oldLines = oldText.split('\n')
                     val newLines = newValue.text.split('\n')
+                    var updatedValue = newValue
                     if (newValue.text.length > oldText.length && newValue.text.endsWith("\n")) {
                         val now = System.currentTimeMillis()
                         val diffSec = (now - lastEnter) / 1000
@@ -419,13 +420,19 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                             if (timestamps.size <= idx) {
                                 timestamps = (timestamps + List(idx - timestamps.size + 1) { "" }).toMutableList()
                             }
-                            timestamps = timestamps.toMutableList().also { it[idx] = "(${diffSec}s) $time" }
+                            timestamps = timestamps.toMutableList().also { it[idx] = time }
+                            val rel = " (${diffSec}s)"
+                            val lines = newLines.toMutableList()
+                            lines[idx] = lines[idx] + rel
+                            val joined = lines.joinToString("\n")
+                            val sel = TextRange(updatedValue.selection.end + rel.length)
+                            updatedValue = updatedValue.copy(text = joined, selection = sel)
                         }
                     }
                     if (newLines.size < oldLines.size) {
                         timestamps = timestamps.take(newLines.size).toMutableList()
                     }
-                    textValue = newValue
+                    textValue = updatedValue
                 },
                 visualTransformation = WorkoutVisualTransformation(),
                 modifier = Modifier.weight(1f),
@@ -439,15 +446,27 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                     unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 )
             )
-            Column(
+            OutlinedTextField(
+                value = timestamps.joinToString("\n"),
+                onValueChange = {},
+                readOnly = true,
+                enabled = false,
                 modifier = Modifier
                     .width(96.dp)
-                    .padding(start = 4.dp)
-            ) {
-                timestamps.forEach { ts ->
-                    Text(ts, fontSize = 14.sp, lineHeight = 18.sp)
-                }
-            }
+                    .padding(start = 4.dp),
+                textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, lineHeight = 18.sp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    disabledBorderColor = MaterialTheme.colorScheme.surface,
+                    disabledContainerColor = MaterialTheme.colorScheme.surface,
+                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedBorderColor = MaterialTheme.colorScheme.surface,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.surface,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                )
+            )
         }
     }
 }
