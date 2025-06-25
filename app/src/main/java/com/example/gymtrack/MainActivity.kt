@@ -155,25 +155,40 @@ fun NotesScreen(
             }
         },
         topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
-                title = {
-                    Text(
-                        if (selectedNotes.isNotEmpty()) "${selectedNotes.size} selected" else "Notes",
-                        fontSize = 20.sp
-                    )
-                },
-                actions = {
-                    if (selectedNotes.isNotEmpty()) {
+            if (selectedNotes.isEmpty()) {
+                CenterAlignedTopAppBar(
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
+                    title = {
+                        Text(
+                            "GymTrack",
+                            fontSize = 24.sp
+                        )
+                    },
+                    actions = {
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        }
+                    }
+                )
+            } else {
+                TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
+                    title = {
+                        Text(
+                            "${'$'}{selectedNotes.size} selected",
+                            fontSize = 20.sp
+                        )
+                    },
+                    actions = {
                         IconButton(onClick = { onDelete(selectedNotes) }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete")
                         }
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        }
                     }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
-                    }
-                }
-            )
+                )
+            }
         }
     ) { padding ->
         LazyVerticalGrid(
