@@ -33,6 +33,7 @@ import com.example.gymtrack.util.formatFullDateTime
 import com.example.gymtrack.util.formatElapsedMinutesSeconds
 import com.example.gymtrack.util.formatSecondsToMinutesSeconds
 import com.example.gymtrack.util.parseNoteText
+import com.example.gymtrack.util.RelativeTimeVisualTransformation
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
@@ -233,6 +234,8 @@ fun NoteEditor(
                                     } else {
                                         lines[index] = TextFieldValue("")
                                         if (timestamps.size <= index) timestamps.add("") else timestamps[index] = ""
+                                        requestFocusIndex = index
+                                        return@OutlinedTextField
                                     }
                                     val indentNext = content.isNotBlank()
                                     val newValueText = if (indentNext) "\t" else ""
@@ -266,7 +269,8 @@ fun NoteEditor(
                                 focusedTextColor = MaterialTheme.colorScheme.onSurface,
                                 unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                             ),
-                            placeholder = { if (index == 0) Text("Start typing") }
+                            placeholder = { if (index == 0) Text("Start typing") },
+                            visualTransformation = RelativeTimeVisualTransformation()
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
