@@ -105,7 +105,11 @@ fun NavigationHost(
                             )
                         )
                         withContext(Dispatchers.Main) {
-                            notes = notes.filter { it.timestamp != updated.timestamp } + updated
+                            notes = if (notes.any { it.timestamp == updated.timestamp }) {
+                                notes.map { if (it.timestamp == updated.timestamp) updated else it }
+                            } else {
+                                notes + updated
+                            }
                         }
                     }
                 },

@@ -227,13 +227,22 @@ fun NoteEditor(
                                         lines[index] = TextFieldValue("")
                                         if (timestamps.size <= index) timestamps.add("") else timestamps[index] = ""
                                     }
-                                    lines.add(index + 1, TextFieldValue(""))
+                                    val indentNext = content.isNotBlank()
+                                    val newValueText = if (indentNext) "\t" else ""
+                                    lines.add(index + 1, TextFieldValue(newValueText))
                                     if (timestamps.size <= index + 1) {
                                         timestamps.add("")
                                     } else {
                                         timestamps.add(index + 1, "")
                                     }
-                                    scope.launch { if (focusRequesters.size > index + 1) focusRequesters[index + 1].requestFocus() }
+                                    if (focusRequesters.size <= index + 1) {
+                                        focusRequesters.add(index + 1, FocusRequester())
+                                    } else {
+                                        focusRequesters.add(index + 1, FocusRequester())
+                                    }
+                                    scope.launch {
+                                        focusRequesters[index + 1].requestFocus()
+                                    }
                                 } else {
                                     lines[index] = newValue
                                 }
@@ -241,7 +250,8 @@ fun NoteEditor(
                             modifier = Modifier
                                 .weight(1f)
                                 .focusRequester(fr)
-                                .defaultMinSize(minHeight = 0.dp),
+                                .defaultMinSize(minHeight = 0.dp)
+                                .heightIn(min = 28.dp),
                             textStyle = if (isMain) LocalTextStyle.current.copy(fontSize = 20.sp) else LocalTextStyle.current.copy(fontSize = 13.sp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color.Transparent,
