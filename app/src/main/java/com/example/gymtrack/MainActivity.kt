@@ -276,6 +276,7 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
 
     var expanded by remember { mutableStateOf(false) }
 
+
     BackHandler { saveIfNeeded() }
 
     DisposableEffect(lifecycleOwner) {
