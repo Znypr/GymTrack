@@ -106,7 +106,6 @@ fun NavigationHost(
                         )
                         withContext(Dispatchers.Main) {
                             notes = notes.filter { it.timestamp != updated.timestamp } + updated
-                            navController.popBackStack()
                         }
                     }
                 },
