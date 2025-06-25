@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.sp
 import com.example.gymtrack.data.NoteLine
 import com.example.gymtrack.data.Settings
 import com.example.gymtrack.util.darken
-import com.example.gymtrack.util.formatFullDateTime
+import com.example.gymtrack.util.formatWeekRelativeTime
 import com.example.gymtrack.util.lighten
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -131,7 +131,7 @@ fun NotesScreen(
                         Text(note.text.lines().firstOrNull() ?: "", fontSize = 14.sp)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            formatFullDateTime(note.timestamp, settings),
+                            formatWeekRelativeTime(note.timestamp, settings),
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                         )
