@@ -759,7 +759,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                     Spacer(Modifier.width(4.dp))
                     ColorDropdown(
                         selected = colorValue,
-                        modifier = Modifier.width(100.dp),
+                        modifier = Modifier.width(100.dp).height(65.dp),
                         onSelected = { clr ->
                             colorValue = clr
                             categories = categories.toMutableList().also { list ->
@@ -807,7 +807,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                 Spacer(Modifier.width(4.dp))
                 ColorDropdown(
                     selected = newColor,
-                    modifier = Modifier.width(100.dp),
+                    modifier = Modifier.width(100.dp).height(65.dp),
                     onSelected = { newColor = it }
                 )
                 IconButton(onClick = {
