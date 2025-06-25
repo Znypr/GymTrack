@@ -85,19 +85,24 @@ fun ColorDropdown(
             ),
             modifier = modifier.menuAnchor(),
             label = { Text(label) },
-            leadingIcon = { Box(Modifier.size(16.dp).background(Color(selected.toInt()))) },
+            leadingIcon = { Box(Modifier
+                .size(16.dp)
+                .background(Color(selected.toInt()))) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }
         )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             presetColors.forEach { color ->
                 DropdownMenuItem(
-                    text = { Box(Modifier.size(24.dp).background(Color(color.toInt()))) },
+                    text = { Box(Modifier
+                        .size(24.dp)
+                        .background(Color(color.toInt()))) },
                     onClick = { onSelected(color); expanded = false }
                 )
             }
         }
     }
 }
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -110,6 +115,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
 @Composable
 fun NavigationHost(navController: NavHostController, settingsState: MutableState<Settings>) {
     val context = LocalContext.current
@@ -121,7 +127,15 @@ fun NavigationHost(navController: NavHostController, settingsState: MutableState
 
     LaunchedEffect(Unit) {
         val retrieved = withContext(Dispatchers.IO) { dao.getAll() }
-        notes = retrieved.map { NoteLine(it.title, it.text, it.timestamp, it.categoryName, it.categoryColor) }
+        notes = retrieved.map {
+            NoteLine(
+                it.title,
+                it.text,
+                it.timestamp,
+                it.categoryName,
+                it.categoryColor
+            )
+        }
     }
 
     NavHost(navController = navController, startDestination = "main") {
@@ -136,7 +150,17 @@ fun NavigationHost(navController: NavHostController, settingsState: MutableState
                 },
                 onDelete = { toDelete ->
                     CoroutineScope(Dispatchers.IO).launch {
-                        toDelete.forEach { dao.delete(NoteEntity(it.timestamp, it.title, it.text, it.categoryName, it.categoryColor)) }
+                        toDelete.forEach {
+                            dao.delete(
+                                NoteEntity(
+                                    it.timestamp,
+                                    it.title,
+                                    it.text,
+                                    it.categoryName,
+                                    it.categoryColor
+                                )
+                            )
+                        }
                         withContext(Dispatchers.Main) {
                             notes = notes.filterNot { it in toDelete }
                             selectedNotes = emptySet()
@@ -156,9 +180,28 @@ fun NavigationHost(navController: NavHostController, settingsState: MutableState
                 note = currentNote,
                 settings = settingsState.value,
                 onSave = { title, text, category ->
-                    val updated = currentNote?.copy(title = title, text = text, categoryName = category?.name, categoryColor = category?.color) ?: NoteLine(title, text, System.currentTimeMillis(), category?.name, category?.color)
+                    val updated = currentNote?.copy(
+                        title = title,
+                        text = text,
+                        categoryName = category?.name,
+                        categoryColor = category?.color
+                    ) ?: NoteLine(
+                        title,
+                        text,
+                        System.currentTimeMillis(),
+                        category?.name,
+                        category?.color
+                    )
                     CoroutineScope(Dispatchers.IO).launch {
-                        dao.insert(NoteEntity(updated.timestamp, updated.title, updated.text, updated.categoryName, updated.categoryColor))
+                        dao.insert(
+                            NoteEntity(
+                                updated.timestamp,
+                                updated.title,
+                                updated.text,
+                                updated.categoryName,
+                                updated.categoryColor
+                            )
+                        )
                         withContext(Dispatchers.Main) {
                             notes = notes.filter { it.timestamp != updated.timestamp } + updated
                             navController.popBackStack()
@@ -243,7 +286,9 @@ fun NotesScreen(
         LazyVerticalGrid(
             columns = GridCells.Adaptive(160.dp),
             contentPadding = padding,
-            modifier = Modifier.fillMaxSize().padding(8.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp)
         ) {
             itemsIndexed(notes) { _, note ->
                 val isSelected = selectedNotes.contains(note)
@@ -303,7 +348,12 @@ fun NotesScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Category?) -> Unit, onCancel: () -> Unit) {
+fun NoteEditor(
+    note: NoteLine?,
+    settings: Settings,
+    onSave: (String, String, Category?) -> Unit,
+    onCancel: () -> Unit
+) {
     var titleValue by remember { mutableStateOf(TextFieldValue(note?.title ?: "")) }
     val parsed = remember(note) { parseNoteText(note?.text ?: "") }
     var textValue by remember { mutableStateOf(TextFieldValue(parsed.first.joinToString("\n"))) }
@@ -394,7 +444,9 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                     expanded = expanded,
                     onExpandedChange = { expanded = !expanded }) {
                     OutlinedTextField(
-                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth(),
                         readOnly = true,
                         value = selectedCategory?.name ?: "None",
                         onValueChange = {},
@@ -414,7 +466,8 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                                 text = { Text(cat.name) },
                                 leadingIcon = {
                                     Box(
-                                        Modifier.size(16.dp)
+                                        Modifier
+                                            .size(16.dp)
                                             .background(Color(cat.color.toInt()))
                                     )
                                 },
@@ -426,50 +479,50 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                 Spacer(Modifier.height(8.dp))
             }
             OutlinedTextField(
-                    value = textValue,
-                    onValueChange = { newValue ->
-                        val oldText = textValue.text
-                        val oldLines = oldText.split('\n')
-                        val newLines = newValue.text.split('\n')
-                        var updatedValue = newValue
-                        if (newValue.text.length > oldText.length && newValue.text.endsWith("\n")) {
-                            val now = System.currentTimeMillis()
-                            val diffSec = (now - lastEnter) / 1000
-                            lastEnter = now
-                            val idx = newLines.size - 2
-                            if (idx >= 0) {
-                                val time = formatRoundedTime(now, settings)
-                                if (timestamps.size <= idx) {
-                                    timestamps =
-                                        (timestamps + List(idx - timestamps.size + 1) { "" }).toMutableList()
-                                }
-                                timestamps = timestamps.toMutableList().also { it[idx] = time }
-                                val rel = " (${diffSec}s)"
-                                val lines = newLines.toMutableList()
-                                lines[idx] = lines[idx] + rel
-                                val joined = lines.joinToString("\n")
-                                val sel = TextRange(updatedValue.selection.end + rel.length)
-                                updatedValue = updatedValue.copy(text = joined, selection = sel)
+                value = textValue,
+                onValueChange = { newValue ->
+                    val oldText = textValue.text
+                    val oldLines = oldText.split('\n')
+                    val newLines = newValue.text.split('\n')
+                    var updatedValue = newValue
+                    if (newValue.text.length > oldText.length && newValue.text.endsWith("\n")) {
+                        val now = System.currentTimeMillis()
+                        val diffSec = (now - lastEnter) / 1000
+                        lastEnter = now
+                        val idx = newLines.size - 2
+                        if (idx >= 0) {
+                            val time = formatRoundedTime(now, settings)
+                            if (timestamps.size <= idx) {
+                                timestamps =
+                                    (timestamps + List(idx - timestamps.size + 1) { "" }).toMutableList()
                             }
+                            timestamps = timestamps.toMutableList().also { it[idx] = time }
+                            val rel = " (${diffSec}s)"
+                            val lines = newLines.toMutableList()
+                            lines[idx] = lines[idx] + rel
+                            val joined = lines.joinToString("\n")
+                            val sel = TextRange(updatedValue.selection.end + rel.length)
+                            updatedValue = updatedValue.copy(text = joined, selection = sel)
                         }
-                        if (newLines.size < oldLines.size) {
-                            timestamps = timestamps.take(newLines.size).toMutableList()
-                        }
-                        textValue = updatedValue
-                    },
-                    visualTransformation = WorkoutVisualTransformation(timestamps),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f, fill = false),
-                    placeholder = { Text("Start typing") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.surface,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.surface,
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-                    )
+                    }
+                    if (newLines.size < oldLines.size) {
+                        timestamps = timestamps.take(newLines.size).toMutableList()
+                    }
+                    textValue = updatedValue
+                },
+                visualTransformation = WorkoutVisualTransformation(timestamps),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false),
+                placeholder = { Text("Start typing") },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.surface,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.surface,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                )
             )
         }
     }
@@ -488,17 +541,21 @@ class WorkoutVisualTransformation(private val times: List<String>) : VisualTrans
 
         // Highlight rest time parentheses
         timeRegex.findAll(aligned).forEach { match ->
-            builder.addStyle(SpanStyle(color = Color.LightGray), match.range.first, match.range.last + 1)
+            builder.addStyle(
+                SpanStyle(color = Color.LightGray),
+                match.range.first,
+                match.range.last + 1
+            )
 
         }
 
         // Style exercise headings and indent set lines
-        val lines = aligned.split('\n')
+        val alignedLines = aligned.split('\n')
         var index = 0
         var previousBlank = true
 
 
-        lines.forEach { line ->
+        alignedLines.forEach { line ->
             val end = index + line.length
             if (line.isNotBlank()) {
                 if (previousBlank) {
@@ -512,7 +569,7 @@ class WorkoutVisualTransformation(private val times: List<String>) : VisualTrans
                     builder.addStyle(
                         ParagraphStyle(
                             textIndent = TextIndent(firstLine = 14.sp, restLine = 14.sp)
-                            ),
+                        ),
                         index,
                         end
                     )
@@ -567,12 +624,21 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding).padding(16.dp)) {
+        Column(modifier = Modifier
+            .padding(padding)
+            .padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("24-hour format", modifier = Modifier.weight(1f))
                 Switch(checked = is24, onCheckedChange = {
                     is24 = it
-                    onChange(settings.copy(is24Hour = it, roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark, categories = categories))
+                    onChange(
+                        settings.copy(
+                            is24Hour = it,
+                            roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds,
+                            darkMode = dark,
+                            categories = categories
+                        )
+                    )
                 })
             }
             Spacer(Modifier.height(8.dp))
@@ -580,7 +646,14 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                 Text("Dark mode", modifier = Modifier.weight(1f))
                 Switch(checked = dark, onCheckedChange = {
                     dark = it
-                    onChange(settings.copy(is24Hour = is24, roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds, darkMode = it, categories = categories))
+                    onChange(
+                        settings.copy(
+                            is24Hour = is24,
+                            roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds,
+                            darkMode = it,
+                            categories = categories
+                        )
+                    )
                 })
             }
             Spacer(Modifier.height(8.dp))
@@ -589,7 +662,14 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                 onValueChange = {
                     val filtered = it.filter { ch -> ch.isDigit() }
                     rounding = filtered
-                    onChange(settings.copy(is24Hour = is24, roundingSeconds = filtered.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark, categories = categories))
+                    onChange(
+                        settings.copy(
+                            is24Hour = is24,
+                            roundingSeconds = filtered.toIntOrNull() ?: settings.roundingSeconds,
+                            darkMode = dark,
+                            categories = categories
+                        )
+                    )
                 },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.surface,
@@ -611,7 +691,15 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                             categories = categories.toMutableList().also { list ->
                                 list[index] = list[index].copy(name = it)
                             }
-                            onChange(settings.copy(is24Hour = is24, roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark, categories = categories))
+                            onChange(
+                                settings.copy(
+                                    is24Hour = is24,
+                                    roundingSeconds = rounding.toIntOrNull()
+                                        ?: settings.roundingSeconds,
+                                    darkMode = dark,
+                                    categories = categories
+                                )
+                            )
                         },
                         modifier = Modifier.weight(1f),
                         label = { Text("Name") }
@@ -625,12 +713,28 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                             categories = categories.toMutableList().also { list ->
                                 list[index] = list[index].copy(color = clr)
                             }
-                            onChange(settings.copy(is24Hour = is24, roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark, categories = categories))
+                            onChange(
+                                settings.copy(
+                                    is24Hour = is24,
+                                    roundingSeconds = rounding.toIntOrNull()
+                                        ?: settings.roundingSeconds,
+                                    darkMode = dark,
+                                    categories = categories
+                                )
+                            )
                         }
                     )
                     IconButton(onClick = {
                         categories = categories.toMutableList().also { it.removeAt(index) }
-                        onChange(settings.copy(is24Hour = is24, roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark, categories = categories))
+                        onChange(
+                            settings.copy(
+                                is24Hour = is24,
+                                roundingSeconds = rounding.toIntOrNull()
+                                    ?: settings.roundingSeconds,
+                                darkMode = dark,
+                                categories = categories
+                            )
+                        )
                     }) {
                         Icon(Icons.Default.Delete, contentDescription = "Delete")
                     }
@@ -655,8 +759,18 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                     onSelected = { newColor = it }
                 )
                 IconButton(onClick = {
-                    categories = (categories + Category(newName.ifBlank { "Category" }, newColor)).toMutableList()
-                    onChange(settings.copy(is24Hour = is24, roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark, categories = categories))
+                    categories = (categories + Category(
+                        newName.ifBlank { "Category" },
+                        newColor
+                    )).toMutableList()
+                    onChange(
+                        settings.copy(
+                            is24Hour = is24,
+                            roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds,
+                            darkMode = dark,
+                            categories = categories
+                        )
+                    )
                     newName = ""
                 }) {
                     Icon(Icons.Default.Add, contentDescription = "Add")
@@ -670,8 +784,12 @@ fun formatRelativeTime(timestamp: Long, settings: Settings): String {
     val now = System.currentTimeMillis()
     val diff = now - timestamp
     val date = Date(timestamp)
-    val timeFormat = SimpleDateFormat(if (settings.is24Hour) "HH:mm" else "hh:mm a", Locale.getDefault())
-    val fullFormat = SimpleDateFormat(if (settings.is24Hour) "MMM dd HH:mm" else "MMM dd hh:mm a", Locale.getDefault())
+    val timeFormat =
+        SimpleDateFormat(if (settings.is24Hour) "HH:mm" else "hh:mm a", Locale.getDefault())
+    val fullFormat = SimpleDateFormat(
+        if (settings.is24Hour) "MMM dd HH:mm" else "MMM dd hh:mm a",
+        Locale.getDefault()
+    )
 
     return when {
         diff < 60_000 -> "Just now"
@@ -786,7 +904,8 @@ abstract class NoteDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
 
     companion object {
-        @Volatile private var INSTANCE: NoteDatabase? = null
+        @Volatile
+        private var INSTANCE: NoteDatabase? = null
 
         fun getDatabase(context: Context): NoteDatabase {
             return INSTANCE ?: synchronized(this) {
