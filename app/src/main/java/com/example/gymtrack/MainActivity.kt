@@ -8,9 +8,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.gymtrack.data.Settings
+import com.example.gymtrack.data.SettingsStore
 import com.example.gymtrack.ui.screens.NavigationHost
 import com.example.gymtrack.ui.theme.GymTrackTheme
 
@@ -19,6 +21,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val settingsState = remember { mutableStateOf(Settings()) }
+            val context = LocalContext.current
+            LaunchedEffect(Unit) {
+                settingsState.value = SettingsStore.load(context)
+            }
+            LaunchedEffect(settingsState.value) {
+                SettingsStore.save(context, settingsState.value)
+            }
             GymTrackTheme(darkTheme = settingsState.value.darkMode) {
                 val lastRoute = rememberSaveable { mutableStateOf("main") }
                 val navController = rememberNavController()
