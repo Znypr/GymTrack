@@ -16,6 +16,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.example.gymtrack.ui.theme.GymTrackTheme
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -30,7 +32,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -44,7 +45,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme()) {
+            GymTrackTheme(darkTheme = true) {
                 val navController = rememberNavController()
                 NavigationHost(navController)
             }
@@ -212,7 +213,8 @@ fun NoteEditor(note: NoteLine?, onSave: (String) -> Unit, onCancel: () -> Unit) 
                     val lines = fieldValue.text.split('\n').toMutableList()
                     if (lines.isNotEmpty()) {
                         val lastIndex = lines.lastIndex
-                        lines[lastIndex] = lines[lastIndex] + " (" + diffSec + "s)"
+                        val time = formatRoundedTime(now)
+                        lines[lastIndex] = lines[lastIndex] + " (" + diffSec + "s) " + time
                     }
                     val updated = lines.joinToString("\n") + "\n"
                     fieldValue = TextFieldValue(updated, TextRange(updated.length))
@@ -224,7 +226,10 @@ fun NoteEditor(note: NoteLine?, onSave: (String) -> Unit, onCancel: () -> Unit) 
             modifier = Modifier.fillMaxSize(),
             placeholder = { Text("Start typing") },
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { onSave(fieldValue.text) })
+            keyboardActions = KeyboardActions(onDone = { onSave(fieldValue.text) }),
+            colors = TextFieldDefaults.outlinedTextFieldColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            )
         )
     }
 }
@@ -252,6 +257,12 @@ fun formatRelativeTime(timestamp: Long): String {
         diff < 172_800_000 -> "Yesterday " + timeFormat.format(date)
         else -> format.format(date)
     }
+}
+
+fun formatRoundedTime(timestamp: Long): String {
+    val rounded = ((timestamp + 7_500) / 15_000) * 15_000
+    val format = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    return format.format(Date(rounded))
 }
 
 data class NoteLine(val text: String, val timestamp: Long)
