@@ -392,6 +392,8 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("Start typing") },
                 colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.surface,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.surface,
                     focusedContainerColor = MaterialTheme.colorScheme.surface,
                     unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                     focusedTextColor = MaterialTheme.colorScheme.onSurface,
