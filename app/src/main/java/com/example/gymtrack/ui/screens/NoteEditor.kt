@@ -61,7 +61,10 @@ fun NoteEditor(
 
     var expanded by remember { mutableStateOf(false) }
 
-    BackHandler { saveIfNeeded() }
+    BackHandler {
+        saveIfNeeded()
+        onCancel()
+    }
 
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -104,7 +107,10 @@ fun NoteEditor(
                 .imePadding(),
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                IconButton(onClick = { saveIfNeeded() }) {
+                IconButton(onClick = {
+                    saveIfNeeded()
+                    onCancel()
+                }) {
                     Icon(
                         Icons.Default.Close,
                         contentDescription = null,
