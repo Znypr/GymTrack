@@ -225,15 +225,14 @@ fun NoteEditor(
                                 if (newValue.text.endsWith("\n")) {
                                     val content = newValue.text.dropLast(1)
                                     val now = System.currentTimeMillis()
+                                    val diffSec = (now - lastEnter) / 1000
+                                    lastEnter = now
+                                    val abs = formatElapsedMinutesSeconds(noteTimestamp, now, settings)
+                                    if (timestamps.size <= index) timestamps.add(abs) else timestamps[index] = abs
                                     if (content.isNotBlank()) {
-                                        val diffSec = (now - lastEnter) / 1000
-                                        lastEnter = now
-                                        val abs = formatElapsedMinutesSeconds(noteTimestamp, now, settings)
-                                        if (timestamps.size <= index) timestamps.add(abs) else timestamps[index] = abs
                                         lines[index] = TextFieldValue(content + " (" + formatSecondsToMinutesSeconds(diffSec) + ")")
                                     } else {
                                         lines[index] = TextFieldValue("")
-                                        if (timestamps.size <= index) timestamps.add("") else timestamps[index] = ""
                                     }
 
                                     val indentNext = content.isNotBlank()
