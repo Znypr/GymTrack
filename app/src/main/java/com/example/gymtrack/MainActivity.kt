@@ -261,6 +261,7 @@ fun NotesScreen(
 fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Category?) -> Unit, onCancel: () -> Unit) {
     var titleValue by remember { mutableStateOf(TextFieldValue(note?.title ?: "")) }
     var fieldValue by remember { mutableStateOf(TextFieldValue(note?.text ?: "")) }
+    var selectedCategory by remember { mutableStateOf<Category?>(settings.categories.find { it.name == note?.categoryName }) }
     var lastEnter by remember { mutableStateOf(System.currentTimeMillis()) }
     val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
 
@@ -274,7 +275,6 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
     }
 
     var expanded by remember { mutableStateOf(false) }
-    var selectedCategory by remember { mutableStateOf<Category?>(settings.categories.find { it.name == note?.categoryName }) }
 
     BackHandler { saveIfNeeded() }
 
