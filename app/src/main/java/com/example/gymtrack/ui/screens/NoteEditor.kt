@@ -199,6 +199,13 @@ fun NoteEditor(
             Spacer(Modifier.height(8.dp))
             val scope = rememberCoroutineScope()
             val focusRequesters = remember { mutableStateListOf<FocusRequester>() }
+            var requestFocusIndex by remember { mutableStateOf(-1) }
+            LaunchedEffect(requestFocusIndex, lines.size) {
+                if (requestFocusIndex in focusRequesters.indices) {
+                    focusRequesters[requestFocusIndex].requestFocus()
+                    requestFocusIndex = -1
+                }
+            }
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -240,9 +247,7 @@ fun NoteEditor(
                                     } else {
                                         focusRequesters.add(index + 1, FocusRequester())
                                     }
-                                    scope.launch {
-                                        focusRequesters[index + 1].requestFocus()
-                                    }
+                                    requestFocusIndex = index + 1
                                 } else {
                                     lines[index] = newValue
                                 }
