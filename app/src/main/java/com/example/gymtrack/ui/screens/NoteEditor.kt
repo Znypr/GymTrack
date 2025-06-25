@@ -31,6 +31,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
 import android.app.Activity
+import androidx.compose.foundation.background
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,7 +67,6 @@ fun NoteEditor(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = MaterialTheme.colorScheme.background.toArgb()
             WindowInsetsControllerCompat(window, view).isAppearanceLightStatusBars = !settings.darkMode
         }
     }
