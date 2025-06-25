@@ -25,7 +25,7 @@ import com.example.gymtrack.data.Settings
 import com.example.gymtrack.util.WorkoutVisualTransformation
 import com.example.gymtrack.util.combineTextAndTimes
 import com.example.gymtrack.util.formatFullDateTime
-import com.example.gymtrack.util.formatRoundedTime
+import com.example.gymtrack.util.formatElapsedTime
 import com.example.gymtrack.util.parseNoteText
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.runtime.SideEffect
@@ -53,9 +53,15 @@ fun NoteEditor(
     var saved by remember { mutableStateOf(false) }
     val saveIfNeeded = {
         if (!saved) {
-            saved = true
-            val combined = combineTextAndTimes(textValue.text, timestamps)
-            onSave(titleValue.text, combined, selectedCategory)
+            val title = titleValue.text.trim()
+            val content = textValue.text.trim()
+            if (note != null || title.isNotEmpty() || content.isNotEmpty()) {
+                saved = true
+                val combined = combineTextAndTimes(textValue.text, timestamps)
+                onSave(titleValue.text, combined, selectedCategory)
+            } else {
+                saved = true
+            }
         }
     }
 
@@ -129,62 +135,65 @@ fun NoteEditor(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = titleValue,
-                onValueChange = { titleValue = it },
-                placeholder = { Text("Title") },
-                modifier = Modifier.fillMaxWidth(),
-                textStyle = LocalTextStyle.current.copy(lineHeight = 18.sp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.surface,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.surface,
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                ),
-            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = titleValue,
+                    onValueChange = { titleValue = it },
+                    placeholder = { Text("Title") },
+                    modifier = Modifier.weight(1f),
+                    textStyle = LocalTextStyle.current.copy(lineHeight = 18.sp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.surface,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.surface,
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    ),
+                )
+                if (settings.categories.isNotEmpty()) {
+                    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+                        OutlinedTextField(
+                            modifier = Modifier
+                                .menuAnchor()
+                                .width(140.dp),
+                            readOnly = true,
+                            value = selectedCategory?.name ?: "None",
+                            onValueChange = {},
+                            label = { Text("Category") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.surface,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.surface,
+                                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            ),
+                        )
+                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                            DropdownMenuItem(text = { Text("None") }, onClick = { selectedCategory = null; expanded = false })
+                            settings.categories.forEach { cat ->
+                                DropdownMenuItem(
+                                    text = { Text(cat.name) },
+                                    leadingIcon = {
+                                        Box(
+                                            Modifier
+                                                .size(16.dp)
+                                                .background(Color(cat.color.toInt()))
+                                        )
+                                    },
+                                    onClick = { selectedCategory = cat; expanded = false },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
             Spacer(Modifier.height(8.dp))
             Text(
                 formatFullDateTime(noteTimestamp, settings),
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
             )
             Spacer(Modifier.height(8.dp))
-            if (settings.categories.isNotEmpty()) {
-                ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
-                    OutlinedTextField(
-                        modifier = Modifier
-                            .menuAnchor()
-                            .fillMaxWidth(),
-                        readOnly = true,
-                        value = selectedCategory?.name ?: "None",
-                        onValueChange = {},
-                        label = { Text("Category") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                        ),
-                    )
-                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        DropdownMenuItem(text = { Text("None") }, onClick = { selectedCategory = null; expanded = false })
-                        settings.categories.forEach { cat ->
-                            DropdownMenuItem(
-                                text = { Text(cat.name) },
-                                leadingIcon = {
-                                    Box(
-                                        Modifier
-                                            .size(16.dp)
-                                            .background(Color(cat.color.toInt()))
-                                    )
-                                },
-                                onClick = { selectedCategory = cat; expanded = false },
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-            }
             OutlinedTextField(
                 value = textValue,
                 onValueChange = { newValue ->
@@ -201,7 +210,8 @@ fun NoteEditor(
                         if (idx >= 0) {
                             val completedLineContent = oldLines.getOrNull(currentLineIndex).orEmpty().trim()
                             if (completedLineContent.isNotEmpty()) {
-                                val time = formatRoundedTime(now, settings)
+                                val isMainLine = currentLineIndex == 0 || oldLines.getOrNull(currentLineIndex - 1).orEmpty().isBlank()
+                                val time = formatElapsedTime(noteTimestamp, now, settings, !isMainLine)
                                 if (timestamps.size <= idx) {
                                     timestamps = (timestamps + List(idx - timestamps.size + 1) { "" }).toMutableList()
                                 }

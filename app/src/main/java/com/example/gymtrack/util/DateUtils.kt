@@ -31,6 +31,26 @@ fun formatRoundedTime(timestamp: Long, settings: Settings): String {
     return format.format(Date(rounded))
 }
 
+fun formatElapsedTime(
+    start: Long,
+    now: Long,
+    settings: Settings,
+    includeSeconds: Boolean,
+): String {
+    val rounding = settings.roundingSeconds.coerceAtLeast(1) * 1000L
+    var diff = now - start
+    diff = ((diff + rounding / 2) / rounding) * rounding
+    val totalSeconds = diff / 1000
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return if (includeSeconds) {
+        String.format("%02d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format("%02d:%02d", hours, minutes)
+    }
+}
+
 fun formatFullDateTime(timestamp: Long, settings: Settings): String {
     val pattern = if (settings.is24Hour) "yyyy-MM-dd HH:mm" else "yyyy-MM-dd hh:mm a"
     val format = SimpleDateFormat(pattern, Locale.getDefault())
