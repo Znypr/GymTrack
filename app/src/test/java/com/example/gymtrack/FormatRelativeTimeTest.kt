@@ -11,8 +11,10 @@ class FormatRelativeTimeTest {
     fun `recent time shows today prefix`() {
         val now = System.currentTimeMillis()
         val threeHoursAgo = now - 3 * 60 * 60 * 1000
+
         val expectedTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(threeHoursAgo))
         assertEquals("Today $expectedTime", formatRelativeTime(threeHoursAgo, Settings()))
+
     }
 
     @Test

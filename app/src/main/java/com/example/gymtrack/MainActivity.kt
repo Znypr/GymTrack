@@ -264,6 +264,7 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String) -> 
                     tint = MaterialTheme.colorScheme.onBackground
                 )
             }
+
         }
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
