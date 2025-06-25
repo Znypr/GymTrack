@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -22,6 +23,7 @@ import com.example.gymtrack.data.Settings
 import com.example.gymtrack.util.darken
 import com.example.gymtrack.util.formatWeekRelativeTime
 import com.example.gymtrack.util.lighten
+import kotlin.math.max
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -125,17 +127,26 @@ fun NotesScreen(
                         contentColor = MaterialTheme.colorScheme.onSurface,
                     ),
                 ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text(note.title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(4.dp))
-                        Text(note.text.lines().firstOrNull() ?: "", fontSize = 14.sp)
-                        Spacer(Modifier.height(4.dp))
+                    Column(
+                        modifier = Modifier
+                            .padding(12.dp)
+                            .fillMaxWidth()
+                    ) {
                         Text(
-                            formatWeekRelativeTime(note.timestamp, settings),
+                            text = formatWeekRelativeTime(note.timestamp, settings),
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            modifier = Modifier.align(Alignment.End)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = note.title,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.align(Alignment.Start)
                         )
                     }
+
                 }
             }
         }
