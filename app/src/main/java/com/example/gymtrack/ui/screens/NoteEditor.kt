@@ -233,16 +233,16 @@ fun NoteEditor(
                             onValueChange = { newValue ->
                                 if (newValue.text.endsWith("\n")) {
                                     val content = newValue.text.dropLast(1)
-                                    lines[index] = TextFieldValue(content)
                                     val now = System.currentTimeMillis()
-                                    val diffSec = (now - lastEnter) / 1000
-                                    lastEnter = now
-                                    val time = formatElapsedMinutesSeconds(noteTimestamp, now, settings)
-                                    val full = "$time (${formatSecondsToMinutesSeconds(diffSec)})"
-                                    if (timestamps.size <= index) {
-                                        timestamps.add(full)
+                                    if (content.isNotBlank()) {
+                                        val diffSec = (now - lastEnter) / 1000
+                                        lastEnter = now
+                                        val abs = formatElapsedMinutesSeconds(noteTimestamp, now, settings)
+                                        if (timestamps.size <= index) timestamps.add(abs) else timestamps[index] = abs
+                                        lines[index] = TextFieldValue(content + " (" + formatSecondsToMinutesSeconds(diffSec) + ")")
                                     } else {
-                                        timestamps[index] = full
+                                        lines[index] = TextFieldValue("")
+                                        if (timestamps.size <= index) timestamps.add("") else timestamps[index] = ""
                                     }
                                     lines.add(index + 1, TextFieldValue(""))
                                     if (timestamps.size <= index + 1) {
@@ -257,13 +257,14 @@ fun NoteEditor(
                             },
                             modifier = Modifier
                                 .weight(1f)
-                                .focusRequester(fr),
+                                .focusRequester(fr)
+                                .defaultMinSize(minHeight = 0.dp),
                             textStyle = if (isMain) LocalTextStyle.current.copy(fontSize = 20.sp) else LocalTextStyle.current.copy(fontSize = 13.sp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.surface,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.surface,
-                                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                focusedBorderColor = Color.Transparent,
+                                unfocusedBorderColor = Color.Transparent,
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
                                 focusedTextColor = MaterialTheme.colorScheme.onSurface,
                                 unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                             ),
@@ -273,12 +274,11 @@ fun NoteEditor(
                         Text(
                             timestamps.getOrNull(index).orEmpty(),
                             modifier = Modifier.width(90.dp),
-                            fontSize = 13.sp,
+                            fontSize = if (isMain) 20.sp else 13.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                             textAlign = TextAlign.End
                         )
                     }
-                    Spacer(Modifier.height(4.dp))
                 }
             }
         }
