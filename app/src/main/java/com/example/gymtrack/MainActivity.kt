@@ -425,12 +425,7 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                 }
                 Spacer(Modifier.height(8.dp))
             }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f, fill = false)
-            ) {
-                OutlinedTextField(
+            OutlinedTextField(
                     value = textValue,
                     onValueChange = { newValue ->
                         val oldText = textValue.text
@@ -462,10 +457,10 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                         }
                         textValue = updatedValue
                     },
-                    visualTransformation = WorkoutVisualTransformation(),
+                    visualTransformation = WorkoutVisualTransformation(timestamps),
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
+                        .fillMaxWidth()
+                        .weight(1f, fill = false),
                     placeholder = { Text("Start typing") },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.surface,
@@ -475,47 +470,30 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                         focusedTextColor = MaterialTheme.colorScheme.onSurface,
                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                     )
-                )
-                OutlinedTextField(
-                    value = timestamps.joinToString("\n"),
-                    onValueChange = {},
-                    readOnly = true,
-                    enabled = false,
-                    modifier = Modifier
-                        .width(100.dp)
-                        .fillMaxHeight()
-                        .padding(start = 4.dp),
-                    textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, lineHeight = 18.sp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    disabledBorderColor = MaterialTheme.colorScheme.surface,
-                    disabledContainerColor = MaterialTheme.colorScheme.surface,
-                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                    focusedBorderColor = MaterialTheme.colorScheme.surface,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.surface,
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-                )
-                )
-            }
+            )
         }
     }
 }
 
-class WorkoutVisualTransformation : VisualTransformation {
+class WorkoutVisualTransformation(private val times: List<String>) : VisualTransformation {
     private val timeRegex = "\\(\\d+s\\)".toRegex()
     override fun filter(text: AnnotatedString): TransformedText {
-        val builder = AnnotatedString.Builder(text)
+        val lines = text.text.split('\n')
+        val combined = lines.mapIndexed { idx, l ->
+            val t = times.getOrNull(idx).orEmpty()
+            if (t.isBlank()) l else "$l $t"
+        }
+        val aligned = alignTimestamps(combined).joinToString("\n")
+        val builder = AnnotatedString.Builder(aligned)
 
         // Highlight rest time parentheses
-        timeRegex.findAll(text.text).forEach { match ->
+        timeRegex.findAll(aligned).forEach { match ->
             builder.addStyle(SpanStyle(color = Color.LightGray), match.range.first, match.range.last + 1)
 
         }
 
         // Style exercise headings and indent set lines
-        val lines = text.text.split('\n')
+        val lines = aligned.split('\n')
         var index = 0
         var previousBlank = true
 
