@@ -67,7 +67,11 @@ fun NoteEditor(
         SideEffect {
             val window = (view.context as Activity).window
             window.statusBarColor = MaterialTheme.colorScheme.background.toArgb()
-            WindowInsetsControllerCompat(window, view).isAppearanceLightStatusBars = !settings.darkMode
+            window.navigationBarColor = MaterialTheme.colorScheme.background.toArgb()
+            WindowInsetsControllerCompat(window, view).apply {
+                isAppearanceLightStatusBars = !settings.darkMode
+                isAppearanceLightNavigationBars = !settings.darkMode
+            }
         }
     }
 
