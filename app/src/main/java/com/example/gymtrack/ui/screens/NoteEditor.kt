@@ -84,23 +84,6 @@ fun NoteEditor(
         onCancel()
     }
 
-    val view = LocalView.current
-    if (!view.isInEditMode) {
-        SideEffect {
-            val window = (view.context as Activity).window
-
-            val barColor = MaterialTheme.colorScheme.background.toArgb()
-            window.statusBarColor = barColor
-            window.navigationBarColor = barColor
-
-            WindowInsetsControllerCompat(window, view).apply {
-                isAppearanceLightStatusBars = !settings.darkMode
-                isAppearanceLightNavigationBars = !settings.darkMode
-            }
-
-        }
-    }
-
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) {
