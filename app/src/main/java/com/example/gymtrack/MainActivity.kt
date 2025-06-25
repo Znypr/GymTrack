@@ -1,6 +1,7 @@
 // Refactored to open NoteEditor as separate screen using Navigation
 package com.example.gymtrack
 
+import androidx.compose.ui.graphics.luminance
 import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -380,6 +381,24 @@ class RestTimeVisualTransformation : VisualTransformation {
         }
         return TransformedText(builder.toAnnotatedString(), OffsetMapping.Identity)
     }
+}
+
+fun Color.darken(factor: Float): Color {
+    return Color(
+        red = (red * (1 - factor)).coerceIn(0f, 1f),
+        green = (green * (1 - factor)).coerceIn(0f, 1f),
+        blue = (blue * (1 - factor)).coerceIn(0f, 1f),
+        alpha = alpha
+    )
+}
+
+fun Color.lighten(factor: Float): Color {
+    return Color(
+        red = (red + (1 - red) * factor).coerceIn(0f, 1f),
+        green = (green + (1 - green) * factor).coerceIn(0f, 1f),
+        blue = (blue + (1 - blue) * factor).coerceIn(0f, 1f),
+        alpha = alpha
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
