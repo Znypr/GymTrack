@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -294,7 +295,7 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
             onValueChange = { titleValue = it },
             placeholder = { Text("Title") },
             modifier = Modifier.fillMaxWidth(),
-            textStyle = LocalTextStyle.current.copy(fontSize = 20.sp, fontWeight = FontWeight.Bold),
+            textStyle = LocalTextStyle.current.copy(lineHeight = 18.sp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -339,8 +340,7 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
             value = fieldValue,
             onValueChange = { newValue ->
                 // Detect Enter pressed at the end of the text
-                if (newValue.text.length > fieldValue.text.length &&
-                    newValue.text.endsWith("\n")) {
+                if (newValue.text.length > fieldValue.text.length && newValue.text.endsWith("\n")) {
                     val now = System.currentTimeMillis()
                     val diffSec = (now - lastEnter) / 1000
                     lastEnter = now
@@ -348,19 +348,21 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                     val lines = fieldValue.text.split('\n').toMutableList()
                     if (lines.isNotEmpty()) {
                         val lastIndex = lines.lastIndex
-                        val time = formatRoundedTime(now, settings)
-                        lines[lastIndex] = lines[lastIndex] + " (" + diffSec + "s) " + time
+                        if (lines[lastIndex].isNotBlank()) {
+                            val time = formatRoundedTime(now, settings)
+                            lines[lastIndex] = lines[lastIndex] + " (" + diffSec + "s) " + time
+                        }
                     }
                     val aligned = alignTimestamps(lines)
                     val updated = aligned.joinToString("\n") + "\n"
                     fieldValue = TextFieldValue(updated, TextRange(updated.length))
-                } else {
+                }
+                else {
                     fieldValue = newValue
                 }
             },
             visualTransformation = WorkoutVisualTransformation(),
-            modifier = Modifier.fillMaxSize(),
-            textStyle = LocalTextStyle.current.copy(lineHeight = 20.sp),
+            modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Start typing") },
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { onSave(titleValue.text, fieldValue.text, selectedCategory) }),
@@ -380,7 +382,6 @@ class WorkoutVisualTransformation : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
         val builder = AnnotatedString.Builder(text)
 
-
         // Highlight rest time parentheses
         timeRegex.findAll(text.text).forEach { match ->
             builder.addStyle(SpanStyle(color = Color.LightGray), match.range.first, match.range.last + 1)
@@ -391,23 +392,23 @@ class WorkoutVisualTransformation : VisualTransformation {
         val lines = text.text.split('\n')
         var index = 0
         var previousBlank = true
+
+
         lines.forEach { line ->
             val end = index + line.length
             if (line.isNotBlank()) {
                 if (previousBlank) {
+                    // Heading: bigger, bold
                     builder.addStyle(
                         SpanStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold),
                         index,
                         end
                     )
-                    builder.addStyle(
-                        ParagraphStyle(lineHeight = 20.sp),
-                        index,
-                        end
-                    )
                 } else {
                     builder.addStyle(
-                        ParagraphStyle(textIndent = TextIndent(firstLine = 16.sp), lineHeight = 20.sp),
+                        ParagraphStyle(
+                            textIndent = TextIndent(firstLine = 14.sp, restLine = 14.sp)
+                            ),
                         index,
                         end
                     )
@@ -416,6 +417,7 @@ class WorkoutVisualTransformation : VisualTransformation {
             previousBlank = line.isBlank()
             index = end + 1
         }
+
 
         return TransformedText(builder.toAnnotatedString(), OffsetMapping.Identity)
     }
