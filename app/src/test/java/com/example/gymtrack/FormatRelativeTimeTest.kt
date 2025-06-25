@@ -1,10 +1,10 @@
 package com.example.gymtrack
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Test
 import java.text.SimpleDateFormat
 import java.util.*
+import com.example.gymtrack.Settings
 
 class FormatRelativeTimeTest {
     @Test
@@ -12,7 +12,7 @@ class FormatRelativeTimeTest {
         val now = System.currentTimeMillis()
         val threeHoursAgo = now - 3 * 60 * 60 * 1000
         val expected = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(threeHoursAgo))
-        assertEquals(expected, formatRelativeTime(threeHoursAgo))
+        assertEquals(expected, formatRelativeTime(threeHoursAgo, Settings()))
     }
 
     @Test
@@ -20,6 +20,6 @@ class FormatRelativeTimeTest {
         val now = System.currentTimeMillis()
         val thirtyHoursAgo = now - 30 * 60 * 60 * 1000
         val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(thirtyHoursAgo))
-        assertEquals("Yesterday $time", formatRelativeTime(thirtyHoursAgo))
+        assertEquals("Yesterday $time", formatRelativeTime(thirtyHoursAgo, Settings()))
     }
 }
