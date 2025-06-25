@@ -8,11 +8,11 @@ import com.example.gymtrack.Settings
 
 class FormatRelativeTimeTest {
     @Test
-    fun `recent time shows only time`() {
+    fun `recent time shows today prefix`() {
         val now = System.currentTimeMillis()
         val threeHoursAgo = now - 3 * 60 * 60 * 1000
-        val expected = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(threeHoursAgo))
-        assertEquals(expected, formatRelativeTime(threeHoursAgo, Settings()))
+        val expectedTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(threeHoursAgo))
+        assertEquals("Today $expectedTime", formatRelativeTime(threeHoursAgo, Settings()))
     }
 
     @Test

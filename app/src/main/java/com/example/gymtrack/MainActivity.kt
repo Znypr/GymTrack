@@ -375,11 +375,27 @@ fun formatRelativeTime(timestamp: Long, settings: Settings): String {
     val fullPattern = if (settings.is24Hour) "MMM dd HH:mm" else "MMM dd hh:mm a"
     val format = SimpleDateFormat(fullPattern, Locale.getDefault())
     val timeFormat = SimpleDateFormat(pattern, Locale.getDefault())
-    val diff = now - timestamp
-    return when {
-        diff < 60_000 -> "Just now"
-        diff < 86_400_000 -> timeFormat.format(date)
-        diff < 172_800_000 -> "Yesterday " + timeFormat.format(date)
+    if (now - timestamp < 60_000) return "Just now"
+
+    val startOfToday = Calendar.getInstance().apply {
+        timeInMillis = now
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    val startOfDate = Calendar.getInstance().apply {
+        timeInMillis = timestamp
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    val days = ((startOfToday.timeInMillis - startOfDate.timeInMillis) / 86_400_000L).toInt()
+
+    return when (days) {
+        0 -> "Today ${timeFormat.format(date)}"
+        1 -> "Yesterday ${timeFormat.format(date)}"
         else -> format.format(date)
     }
 }
