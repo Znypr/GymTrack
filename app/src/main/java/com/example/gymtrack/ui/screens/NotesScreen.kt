@@ -79,7 +79,7 @@ fun NotesScreen(
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface
                     ),
-                    title = { Text("${'$'}{selectedNotes.size} selected", fontSize = 20.sp) },
+                    title = { Text("${selectedNotes.size} selected", fontSize = 20.sp) },
                     actions = {
                         IconButton(onClick = { onDelete(selectedNotes) }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete")
