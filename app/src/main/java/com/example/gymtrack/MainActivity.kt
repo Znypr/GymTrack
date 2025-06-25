@@ -219,8 +219,18 @@ fun NotesScreen(
                         containerColor = if (isSelected) {
                             MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
                         } else {
-                            note.categoryColor?.let { Color(it.toInt()) } ?: MaterialTheme.colorScheme.surface
-                        }
+                            val base = note.categoryColor?.let { Color(it.toInt()) }
+                                ?: if (settings.darkMode) MaterialTheme.colorScheme.surface
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            if (note.categoryColor == null) {
+                                base
+                            } else if (settings.darkMode) {
+                                base.darken(0.7f)
+                            } else {
+                                base.lighten(0.1f)
+                            }
+                        },
+                        contentColor = MaterialTheme.colorScheme.onSurface
                     )
                 ) {
                     Column(Modifier.padding(12.dp)) {
@@ -228,7 +238,11 @@ fun NotesScreen(
                         Spacer(Modifier.height(4.dp))
                         Text(note.text.lines().firstOrNull() ?: "", fontSize = 14.sp)
                         Spacer(Modifier.height(4.dp))
-                        Text(formatFullDateTime(note.timestamp, settings), fontSize = 12.sp, color = Color.Gray)
+                        Text(
+                            formatFullDateTime(note.timestamp, settings),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
                     }
                 }
             }
@@ -285,7 +299,10 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
             )
         )
         Spacer(Modifier.height(8.dp))
-        Text(formatFullDateTime(noteTimestamp, settings), color = Color.Gray)
+        Text(
+            formatFullDateTime(noteTimestamp, settings),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+        )
         Spacer(Modifier.height(8.dp))
         if (settings.categories.isNotEmpty()) {
             ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
@@ -509,6 +526,22 @@ fun formatFullDateTime(timestamp: Long, settings: Settings): String {
     val format = SimpleDateFormat(pattern, Locale.getDefault())
     return format.format(Date(timestamp))
 }
+
+fun Color.darken(factor: Float): Color =
+    Color(
+        (red * factor).coerceIn(0f, 1f),
+        (green * factor).coerceIn(0f, 1f),
+        (blue * factor).coerceIn(0f, 1f),
+        alpha
+    )
+
+fun Color.lighten(amount: Float): Color =
+    Color(
+        (red + (1 - red) * amount).coerceIn(0f, 1f),
+        (green + (1 - green) * amount).coerceIn(0f, 1f),
+        (blue + (1 - blue) * amount).coerceIn(0f, 1f),
+        alpha
+    )
 
 data class Category(
     val name: String,
