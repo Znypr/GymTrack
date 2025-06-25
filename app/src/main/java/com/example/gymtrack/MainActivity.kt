@@ -10,6 +10,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -294,7 +296,11 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
             .systemBarsPadding(),
         color = MaterialTheme.colorScheme.background
     ) {
-        Column(Modifier.padding(16.dp)) {
+        Column(
+            Modifier
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             IconButton(onClick = { saveIfNeeded() }) {
                 Icon(
@@ -359,6 +365,7 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
             }
             Spacer(Modifier.height(8.dp))
         }
+        Row(Modifier.fillMaxWidth()) {
         OutlinedTextField(
             value = fieldValue,
             onValueChange = { newValue ->
@@ -385,7 +392,7 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                 }
             },
             visualTransformation = WorkoutVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.weight(1f),
             placeholder = { Text("Start typing") },
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -394,12 +401,20 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                 unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             )
         )
+        Spacer(Modifier.width(8.dp))
+        Column {
+            extractTimes(fieldValue.text).forEach { time ->
+                Text(time, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+            }
+        }
+        }
     }
 }
 }
 
 class WorkoutVisualTransformation : VisualTransformation {
     private val timeRegex = "\\(\\d+s\\)".toRegex()
+    private val endTimestamp = "(\\(\\d+s\\) )?\\d{2}:\\d{2}:\\d{2}(?:\\s[AP]M)?$".toRegex()
     override fun filter(text: AnnotatedString): TransformedText {
         val builder = AnnotatedString.Builder(text)
 
@@ -407,6 +422,10 @@ class WorkoutVisualTransformation : VisualTransformation {
         timeRegex.findAll(text.text).forEach { match ->
             builder.addStyle(SpanStyle(color = Color.LightGray), match.range.first, match.range.last + 1)
 
+        }
+        // Hide end timestamps which will be displayed separately
+        endTimestamp.findAll(text.text).forEach { match ->
+            builder.addStyle(SpanStyle(color = Color.Transparent), match.range.first, match.range.last + 1)
         }
 
         // Style exercise headings and indent set lines
@@ -607,6 +626,13 @@ fun formatFullDateTime(timestamp: Long, settings: Settings): String {
     val pattern = if (settings.is24Hour) "yyyy-MM-dd HH:mm" else "yyyy-MM-dd hh:mm a"
     val format = SimpleDateFormat(pattern, Locale.getDefault())
     return format.format(Date(timestamp))
+}
+
+fun extractTimes(text: String): List<String> {
+    val fullRegex = "(\\(\\d+s\\) )?\\d{2}:\\d{2}:\\d{2}(?:\\s[AP]M)?$".toRegex()
+    return text.lines().map { line ->
+        fullRegex.find(line)?.value ?: ""
+    }
 }
 
 fun alignTimestamps(lines: List<String>): List<String> {
