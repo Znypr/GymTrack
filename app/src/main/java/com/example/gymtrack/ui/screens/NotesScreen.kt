@@ -15,9 +15,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.gymtrack.R
 import com.example.gymtrack.data.NoteLine
 import com.example.gymtrack.data.Settings
 import com.example.gymtrack.util.darken
@@ -56,6 +58,12 @@ fun NotesScreen(
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface
                     ),
+                    navigationIcon = {
+                        Icon(
+                            painterResource(id = R.drawable.ic_launcher_foreground),
+                            contentDescription = "GymTrack logo"
+                        )
+                    },
                     title = { Text("GymTrack", fontSize = 24.sp) },
                     actions = {
                         IconButton(onClick = onOpenSettings) {
