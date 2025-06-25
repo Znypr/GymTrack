@@ -117,7 +117,10 @@ fun NoteEditor(
                         tint = MaterialTheme.colorScheme.onBackground,
                     )
                 }
-                IconButton(onClick = { saveIfNeeded() }) {
+                IconButton(onClick = {
+                    saveIfNeeded()
+                    onCancel()
+                }) {
                     Icon(
                         Icons.Default.Check,
                         contentDescription = null,

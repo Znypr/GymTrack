@@ -25,7 +25,7 @@ class MainActivity : ComponentActivity() {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 LaunchedEffect(navBackStackEntry) {
                     val route = navBackStackEntry?.destination?.route
-                    if (route != null && route != "settings") {
+                    if (route != null && route !in setOf("settings", "edit")) {
                         lastRoute.value = route
                     }
                 }
