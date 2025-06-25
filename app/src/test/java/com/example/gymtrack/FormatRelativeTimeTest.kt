@@ -4,7 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.text.SimpleDateFormat
 import java.util.*
-import com.example.gymtrack.Settings
+import com.example.gymtrack.data.Settings
+import com.example.gymtrack.util.formatRelativeTime
 
 class FormatRelativeTimeTest {
     @Test
