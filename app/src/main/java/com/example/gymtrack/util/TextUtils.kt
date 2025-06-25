@@ -22,7 +22,7 @@ fun parseNoteText(text: String): Pair<List<String>, List<String>> {
 fun combineTextAndTimes(text: String, times: List<String>): String {
     val lines = if (text.isEmpty()) emptyList() else text.split('\n', ignoreCase = false, limit = -1)
     return lines.mapIndexed { index, l ->
-        val ts = times.getOrNull(index).orEmpty()
+        val ts = if (index < times.size) times[index] else ""
         if (ts.isBlank()) l else "$l $ts"
     }.joinToString("\n")
 }
