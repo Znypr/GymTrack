@@ -67,7 +67,16 @@ fun NoteEditor(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
+<<<<<<< codex/verify-dark-mode-implementation-on-editor-screen
+            window.statusBarColor = MaterialTheme.colorScheme.background.toArgb()
+            window.navigationBarColor = MaterialTheme.colorScheme.background.toArgb()
+            WindowInsetsControllerCompat(window, view).apply {
+                isAppearanceLightStatusBars = !settings.darkMode
+                isAppearanceLightNavigationBars = !settings.darkMode
+            }
+=======
             WindowInsetsControllerCompat(window, view).isAppearanceLightStatusBars = !settings.darkMode
+>>>>>>> master
         }
     }
 
