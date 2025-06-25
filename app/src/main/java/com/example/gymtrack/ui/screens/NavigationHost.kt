@@ -15,7 +15,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun NavigationHost(navController: NavHostController, settingsState: MutableState<Settings>) {
+fun NavigationHost(
+    navController: NavHostController,
+    settingsState: MutableState<Settings>,
+    startDestination: String = "main"
+) {
     val context = LocalContext.current
     val db = remember { NoteDatabase.getDatabase(context) }
     val dao = db.noteDao()
@@ -36,7 +40,7 @@ fun NavigationHost(navController: NavHostController, settingsState: MutableState
         }
     }
 
-    NavHost(navController = navController, startDestination = "main") {
+    NavHost(navController = navController, startDestination = startDestination) {
         composable("main") {
             NotesScreen(
                 notes = notes,
