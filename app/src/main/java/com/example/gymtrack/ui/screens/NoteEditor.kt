@@ -4,6 +4,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -15,14 +17,17 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import kotlinx.coroutines.launch
 import com.example.gymtrack.data.Category
 import com.example.gymtrack.data.NoteLine
 import com.example.gymtrack.data.Settings
-import com.example.gymtrack.util.WorkoutVisualTransformation
 import com.example.gymtrack.util.combineTextAndTimes
 import com.example.gymtrack.util.formatFullDateTime
 import com.example.gymtrack.util.formatElapsedMinutesSeconds
@@ -46,8 +51,12 @@ fun NoteEditor(
 ) {
     var titleValue by remember { mutableStateOf(TextFieldValue(note?.title ?: "")) }
     val parsed = remember(note) { parseNoteText(note?.text ?: "") }
-    var textValue by remember { mutableStateOf(TextFieldValue(parsed.first.joinToString("\n"))) }
-    var timestamps by remember { mutableStateOf(parsed.second.toMutableList()) }
+    val lines = remember(parsed.first) {
+        mutableStateListOf<TextFieldValue>().apply {
+            if (parsed.first.isEmpty()) add(TextFieldValue("")) else parsed.first.forEach { add(TextFieldValue(it)) }
+        }
+    }
+    val timestamps = remember(parsed.second) { mutableStateListOf<String>().apply { addAll(parsed.second) } }
     var selectedCategory by remember { mutableStateOf<Category?>(settings.categories.find { it.name == note?.categoryName }) }
     var lastEnter by remember { mutableStateOf(System.currentTimeMillis()) }
     val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
@@ -57,10 +66,10 @@ fun NoteEditor(
     val saveIfNeeded = {
         if (!saved) {
             val title = titleValue.text.trim()
-            val content = textValue.text.trim()
+            val content = lines.joinToString("\n") { it.text }.trim()
             if (note != null || title.isNotEmpty() || content.isNotEmpty()) {
                 saved = true
-                val combined = combineTextAndTimes(textValue.text, timestamps)
+                val combined = combineTextAndTimes(lines.joinToString("\n") { it.text }, timestamps)
                 onSave(titleValue.text, combined, selectedCategory)
             } else {
                 saved = true
@@ -205,55 +214,73 @@ fun NoteEditor(
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
             )
             Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = textValue,
-                onValueChange = { newValue ->
-                    val oldText = textValue.text
-                    val oldLines = oldText.split('\n')
-                    val newLines = newValue.text.split('\n')
-                    var updatedValue = newValue
-                    if (newValue.text.length > oldText.length && newValue.text.endsWith("\n")) {
-                        val currentLineIndex = oldLines.size - 1
-                        val now = System.currentTimeMillis()
-                        val diffSec = (now - lastEnter) / 1000
-                        lastEnter = now
-                        val idx = newLines.size - 2
-                        if (idx >= 0) {
-                            val completedLineContent = oldLines.getOrNull(currentLineIndex).orEmpty().trim()
-                            if (completedLineContent.isNotEmpty()) {
-                                val time = formatElapsedMinutesSeconds(noteTimestamp, now, settings)
-                                if (timestamps.size <= idx) {
-                                    timestamps = (timestamps + List(idx - timestamps.size + 1) { "" }).toMutableList()
-                                }
-                                timestamps = timestamps.toMutableList().also { it[idx] = time }
-                                val rel = " (${formatSecondsToMinutesSeconds(diffSec)})"
-                                val lines = newLines.toMutableList()
-                                lines[idx] = lines[idx] + rel
-                                val joined = lines.joinToString("\n")
-                                val sel = TextRange(updatedValue.selection.end + rel.length)
-                                updatedValue = updatedValue.copy(text = joined, selection = sel)
-                            }
-                        }
-                    }
-                    if (newLines.size < oldLines.size) {
-                        timestamps = timestamps.take(newLines.size).toMutableList()
-                    }
-                    textValue = updatedValue
-                },
-                visualTransformation = WorkoutVisualTransformation(timestamps),
+            val scope = rememberCoroutineScope()
+            val focusRequesters = remember { mutableStateListOf<FocusRequester>() }
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f, fill = false),
-                placeholder = { Text("Start typing") },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.surface,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.surface,
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                ),
-            )
+                    .weight(1f, fill = false)
+            ) {
+                itemsIndexed(lines) { index, value ->
+                    val fr = if (focusRequesters.size > index) focusRequesters[index] else FocusRequester().also { focusRequesters.add(it) }
+                    val isMain = index == 0 || lines.getOrNull(index - 1)?.text?.isBlank() != false
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = value,
+                            onValueChange = { newValue ->
+                                if (newValue.text.endsWith("\n")) {
+                                    val content = newValue.text.dropLast(1)
+                                    lines[index] = TextFieldValue(content)
+                                    val now = System.currentTimeMillis()
+                                    val diffSec = (now - lastEnter) / 1000
+                                    lastEnter = now
+                                    val time = formatElapsedMinutesSeconds(noteTimestamp, now, settings)
+                                    val full = "$time (${formatSecondsToMinutesSeconds(diffSec)})"
+                                    if (timestamps.size <= index) {
+                                        timestamps.add(full)
+                                    } else {
+                                        timestamps[index] = full
+                                    }
+                                    lines.add(index + 1, TextFieldValue(""))
+                                    if (timestamps.size <= index + 1) {
+                                        timestamps.add("")
+                                    } else {
+                                        timestamps.add(index + 1, "")
+                                    }
+                                    scope.launch { if (focusRequesters.size > index + 1) focusRequesters[index + 1].requestFocus() }
+                                } else {
+                                    lines[index] = newValue
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(fr),
+                            textStyle = if (isMain) LocalTextStyle.current.copy(fontSize = 20.sp) else LocalTextStyle.current.copy(fontSize = 13.sp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.surface,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.surface,
+                                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            ),
+                            placeholder = { if (index == 0) Text("Start typing") }
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            timestamps.getOrNull(index).orEmpty(),
+                            modifier = Modifier.width(90.dp),
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            textAlign = TextAlign.End
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                }
+            }
         }
     }
 }
