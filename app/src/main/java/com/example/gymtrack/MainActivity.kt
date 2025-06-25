@@ -34,6 +34,8 @@ import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -70,7 +72,7 @@ fun NavigationHost(navController: NavHostController, settingsState: MutableState
 
     LaunchedEffect(Unit) {
         val retrieved = withContext(Dispatchers.IO) { dao.getAll() }
-        notes = retrieved.map { NoteLine(it.text, it.timestamp) }
+        notes = retrieved.map { NoteLine(it.title, it.text, it.timestamp) }
     }
 
     NavHost(navController = navController, startDestination = "main") {
@@ -85,7 +87,7 @@ fun NavigationHost(navController: NavHostController, settingsState: MutableState
                 },
                 onDelete = { toDelete ->
                     CoroutineScope(Dispatchers.IO).launch {
-                        toDelete.forEach { dao.delete(NoteEntity(it.timestamp, it.text)) }
+                        toDelete.forEach { dao.delete(NoteEntity(it.timestamp, it.title, it.text)) }
                         withContext(Dispatchers.Main) {
                             notes = notes.filterNot { it in toDelete }
                             selectedNotes = emptySet()
@@ -104,10 +106,10 @@ fun NavigationHost(navController: NavHostController, settingsState: MutableState
             NoteEditor(
                 note = currentNote,
                 settings = settingsState.value,
-                onSave = { text ->
-                    val updated = currentNote?.copy(text = text) ?: NoteLine(text, System.currentTimeMillis())
+                onSave = { title, text ->
+                    val updated = currentNote?.copy(title = title, text = text) ?: NoteLine(title, text, System.currentTimeMillis())
                     CoroutineScope(Dispatchers.IO).launch {
-                        dao.insert(NoteEntity(updated.timestamp, updated.text))
+                        dao.insert(NoteEntity(updated.timestamp, updated.title, updated.text))
                         withContext(Dispatchers.Main) {
                             notes = notes.filter { it.timestamp != updated.timestamp } + updated
                             navController.popBackStack()
@@ -206,7 +208,11 @@ fun NotesScreen(
                     )
                 ) {
                     Column(Modifier.padding(12.dp)) {
-                        Text(note.text.lines().firstOrNull() ?: "No text", fontSize = 16.sp)
+                        Text(note.title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(4.dp))
+                        Text(note.text.lines().firstOrNull() ?: "", fontSize = 14.sp)
+                        Spacer(Modifier.height(4.dp))
+                        Text(formatFullDateTime(note.timestamp, settings), fontSize = 12.sp, color = Color.Gray)
                     }
                 }
             }
@@ -215,7 +221,8 @@ fun NotesScreen(
 }
 
 @Composable
-fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String) -> Unit, onCancel: () -> Unit) {
+fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String) -> Unit, onCancel: () -> Unit) {
+    var titleValue by remember { mutableStateOf(TextFieldValue(note?.title ?: "")) }
     var fieldValue by remember { mutableStateOf(TextFieldValue(note?.text ?: "")) }
     var lastEnter by remember { mutableStateOf(System.currentTimeMillis()) }
     val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
@@ -229,14 +236,24 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String) -> Unit, on
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             IconButton(onClick = onCancel) { Icon(Icons.Default.Close, null) }
-            IconButton(onClick = { onSave(fieldValue.text) }) { Icon(Icons.Default.Check, null) }
+            IconButton(onClick = { onSave(titleValue.text, fieldValue.text) }) { Icon(Icons.Default.Check, null) }
         }
         Spacer(Modifier.height(8.dp))
-        Row(Modifier.fillMaxWidth()) {
-            Text(formatRelativeTime(noteTimestamp, settings), color = Color.Gray)
-            Spacer(Modifier.weight(1f))
-            Text(formatFullDateTime(noteTimestamp, settings), color = Color.Gray)
-        }
+        OutlinedTextField(
+            value = titleValue,
+            onValueChange = { titleValue = it },
+            placeholder = { Text("Title") },
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = LocalTextStyle.current.copy(fontSize = 20.sp, fontWeight = FontWeight.Bold),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+            )
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(formatFullDateTime(noteTimestamp, settings), color = Color.Gray)
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = fieldValue,
@@ -264,7 +281,7 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String) -> Unit, on
             modifier = Modifier.fillMaxSize(),
             placeholder = { Text("Start typing") },
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { onSave(fieldValue.text) }),
+            keyboardActions = KeyboardActions(onDone = { onSave(titleValue.text, fieldValue.text) }),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -372,11 +389,12 @@ data class Settings(
     val darkMode: Boolean = true
 )
 
-data class NoteLine(val text: String, val timestamp: Long)
+data class NoteLine(val title: String, val text: String, val timestamp: Long)
 
 @Entity(tableName = "notes")
 data class NoteEntity(
     @PrimaryKey val timestamp: Long,
+    val title: String,
     val text: String
 )
 
@@ -392,7 +410,7 @@ interface NoteDao {
     suspend fun delete(note: NoteEntity)
 }
 
-@Database(entities = [NoteEntity::class], version = 1)
+@Database(entities = [NoteEntity::class], version = 2)
 abstract class NoteDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
 
@@ -405,7 +423,7 @@ abstract class NoteDatabase : RoomDatabase() {
                     context.applicationContext,
                     NoteDatabase::class.java,
                     "note_database"
-                ).build()
+                ).fallbackToDestructiveMigration().build()
                 INSTANCE = instance
                 instance
             }
