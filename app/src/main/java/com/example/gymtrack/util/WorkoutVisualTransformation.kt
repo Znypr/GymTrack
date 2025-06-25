@@ -10,7 +10,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.sp
 
 class WorkoutVisualTransformation(private val times: List<String>) : VisualTransformation {
-    private val timeRegex = "\\(\\d+s\\)".toRegex()
+    private val timeRegex = "\\((?:\\d+'\\d{2}''|\\d+s)\\)".toRegex()
 
     override fun filter(text: AnnotatedString): TransformedText {
         val originalTrimmedLines = text.text.split('\n').map { it.trimStart() }

@@ -51,6 +51,50 @@ fun formatElapsedTime(
     }
 }
 
+fun formatElapsedMinutesSeconds(
+    start: Long,
+    now: Long,
+    settings: Settings,
+): String {
+    val rounding = settings.roundingSeconds.coerceAtLeast(1) * 1000L
+    var diff = now - start
+    diff = ((diff + rounding / 2) / rounding) * rounding
+    val totalSeconds = diff / 1000
+    return formatSecondsToMinutesSeconds(totalSeconds)
+}
+
+fun formatSecondsToMinutesSeconds(seconds: Long): String {
+    val minutes = seconds / 60
+    val sec = seconds % 60
+    return "${minutes}'${sec.toString().padStart(2, '0')}''"
+}
+
+fun parseDurationSeconds(str: String): Int {
+    val primeRegex = "(\\d+)'(\\d{2})''".toRegex()
+    primeRegex.matchEntire(str)?.let {
+        val minutes = it.groupValues[1].toInt()
+        val seconds = it.groupValues[2].toInt()
+        return minutes * 60 + seconds
+    }
+
+    val hmsRegex = "(\\d{1,2}):(\\d{2}):(\\d{2})".toRegex()
+    hmsRegex.matchEntire(str)?.let {
+        val h = it.groupValues[1].toInt()
+        val m = it.groupValues[2].toInt()
+        val s = it.groupValues[3].toInt()
+        return h * 3600 + m * 60 + s
+    }
+
+    val hmRegex = "(\\d{1,2}):(\\d{2})".toRegex()
+    hmRegex.matchEntire(str)?.let {
+        val h = it.groupValues[1].toInt()
+        val m = it.groupValues[2].toInt()
+        return h * 3600 + m * 60
+    }
+
+    return str.removeSuffix("s").toIntOrNull() ?: 0
+}
+
 fun formatFullDateTime(timestamp: Long, settings: Settings): String {
     val pattern = if (settings.is24Hour) "yyyy-MM-dd HH:mm" else "yyyy-MM-dd hh:mm a"
     val format = SimpleDateFormat(pattern, Locale.getDefault())

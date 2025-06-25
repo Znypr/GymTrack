@@ -1,6 +1,6 @@
 package com.example.gymtrack.util
 
-val timeValueRegex = "\\d{2}:\\d{2}:\\d{2}(?:\\s[AP]M)?$".toRegex()
+val timeValueRegex = "(?:\\d+'\\d{2}''|\\d{1,2}:\\d{2}:\\d{2}(?:\\s[AP]M)?|\\d{1,2}:\\d{2})$".toRegex()
 
 fun parseNoteText(text: String): Pair<List<String>, List<String>> {
     if (text.isBlank()) return Pair(emptyList(), emptyList())
