@@ -239,7 +239,7 @@ fun NotesScreen(
         }
     ) { padding ->
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(160.dp),
+            columns = GridCells.Adaptive(170.dp),
             contentPadding = padding,
             modifier = Modifier.fillMaxSize().padding(8.dp)
         ) {
@@ -458,7 +458,7 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Cat
                 readOnly = true,
                 enabled = false,
                 modifier = Modifier
-                    .width(96.dp)
+                    .width(100.dp)
                     .padding(start = 4.dp),
                 textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, lineHeight = 18.sp),
                 colors = OutlinedTextFieldDefaults.colors(
