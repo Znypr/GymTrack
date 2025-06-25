@@ -72,7 +72,7 @@ fun NavigationHost(navController: NavHostController, settingsState: MutableState
 
     LaunchedEffect(Unit) {
         val retrieved = withContext(Dispatchers.IO) { dao.getAll() }
-        notes = retrieved.map { NoteLine(it.title, it.text, it.timestamp) }
+        notes = retrieved.map { NoteLine(it.title, it.text, it.timestamp, it.categoryName, it.categoryColor) }
     }
 
     NavHost(navController = navController, startDestination = "main") {
@@ -87,7 +87,7 @@ fun NavigationHost(navController: NavHostController, settingsState: MutableState
                 },
                 onDelete = { toDelete ->
                     CoroutineScope(Dispatchers.IO).launch {
-                        toDelete.forEach { dao.delete(NoteEntity(it.timestamp, it.title, it.text)) }
+                        toDelete.forEach { dao.delete(NoteEntity(it.timestamp, it.title, it.text, it.categoryName, it.categoryColor)) }
                         withContext(Dispatchers.Main) {
                             notes = notes.filterNot { it in toDelete }
                             selectedNotes = emptySet()
@@ -106,10 +106,10 @@ fun NavigationHost(navController: NavHostController, settingsState: MutableState
             NoteEditor(
                 note = currentNote,
                 settings = settingsState.value,
-                onSave = { title, text ->
-                    val updated = currentNote?.copy(title = title, text = text) ?: NoteLine(title, text, System.currentTimeMillis())
+                onSave = { title, text, category ->
+                    val updated = currentNote?.copy(title = title, text = text, categoryName = category?.name, categoryColor = category?.color) ?: NoteLine(title, text, System.currentTimeMillis(), category?.name, category?.color)
                     CoroutineScope(Dispatchers.IO).launch {
-                        dao.insert(NoteEntity(updated.timestamp, updated.title, updated.text))
+                        dao.insert(NoteEntity(updated.timestamp, updated.title, updated.text, updated.categoryName, updated.categoryColor))
                         withContext(Dispatchers.Main) {
                             notes = notes.filter { it.timestamp != updated.timestamp } + updated
                             navController.popBackStack()
@@ -218,8 +218,11 @@ fun NotesScreen(
                         ),
                     shape = MaterialTheme.shapes.medium,
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-                        else MaterialTheme.colorScheme.surface
+                        containerColor = if (isSelected) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                        } else {
+                            note.categoryColor?.let { Color(it.toInt()) } ?: MaterialTheme.colorScheme.surface
+                        }
                     )
                 ) {
                     Column(Modifier.padding(12.dp)) {
@@ -236,11 +239,14 @@ fun NotesScreen(
 }
 
 @Composable
-fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String) -> Unit, onCancel: () -> Unit) {
+fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String, Category?) -> Unit, onCancel: () -> Unit) {
     var titleValue by remember { mutableStateOf(TextFieldValue(note?.title ?: "")) }
     var fieldValue by remember { mutableStateOf(TextFieldValue(note?.text ?: "")) }
     var lastEnter by remember { mutableStateOf(System.currentTimeMillis()) }
     val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
+
+    var expanded by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf<Category?>(settings.categories.find { it.name == note?.categoryName }) }
 
     Surface(
         modifier = Modifier
@@ -257,7 +263,7 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String) -> 
                     tint = MaterialTheme.colorScheme.onBackground
                 )
             }
-            IconButton(onClick = { onSave(titleValue.text, fieldValue.text) }) {
+            IconButton(onClick = { onSave(titleValue.text, fieldValue.text, selectedCategory) }) {
                 Icon(
                     Icons.Default.Check,
                     contentDescription = null,
@@ -283,6 +289,33 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String) -> 
         Spacer(Modifier.height(8.dp))
         Text(formatFullDateTime(noteTimestamp, settings), color = Color.Gray)
         Spacer(Modifier.height(8.dp))
+        if (settings.categories.isNotEmpty()) {
+            ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+                OutlinedTextField(
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    readOnly = true,
+                    value = selectedCategory?.name ?: "None",
+                    onValueChange = {},
+                    label = { Text("Category") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
+                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    DropdownMenuItem(text = { Text("None") }, onClick = { selectedCategory = null; expanded = false })
+                    settings.categories.forEach { cat ->
+                        DropdownMenuItem(
+                            text = { Text(cat.name) },
+                            leadingIcon = { Box(Modifier.size(16.dp).background(Color(cat.color.toInt()))) },
+                            onClick = { selectedCategory = cat; expanded = false }
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
         OutlinedTextField(
             value = fieldValue,
             onValueChange = { newValue ->
@@ -309,7 +342,7 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String) -> 
             modifier = Modifier.fillMaxSize(),
             placeholder = { Text("Start typing") },
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { onSave(titleValue.text, fieldValue.text) }),
+            keyboardActions = KeyboardActions(onDone = { onSave(titleValue.text, fieldValue.text, selectedCategory) }),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -337,6 +370,9 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
     var is24 by remember { mutableStateOf(settings.is24Hour) }
     var rounding by remember { mutableStateOf(settings.roundingSeconds.toString()) }
     var dark by remember { mutableStateOf(settings.darkMode) }
+    var categories by remember { mutableStateOf(settings.categories.toMutableList()) }
+    var newName by remember { mutableStateOf("") }
+    var newColor by remember { mutableStateOf("#FF0000") }
 
     Scaffold(
         topBar = {
@@ -355,7 +391,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                 Text("24-hour format", modifier = Modifier.weight(1f))
                 Switch(checked = is24, onCheckedChange = {
                     is24 = it
-                    onChange(settings.copy(is24Hour = it, roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark))
+                    onChange(settings.copy(is24Hour = it, roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark, categories = categories))
                 })
             }
             Spacer(Modifier.height(8.dp))
@@ -363,7 +399,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                 Text("Dark mode", modifier = Modifier.weight(1f))
                 Switch(checked = dark, onCheckedChange = {
                     dark = it
-                    onChange(settings.copy(is24Hour = is24, roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds, darkMode = it))
+                    onChange(settings.copy(is24Hour = is24, roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds, darkMode = it, categories = categories))
                 })
             }
             Spacer(Modifier.height(8.dp))
@@ -372,11 +408,76 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                 onValueChange = {
                     val filtered = it.filter { ch -> ch.isDigit() }
                     rounding = filtered
-                    onChange(settings.copy(is24Hour = is24, roundingSeconds = filtered.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark))
+                    onChange(settings.copy(is24Hour = is24, roundingSeconds = filtered.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark, categories = categories))
                 },
                 label = { Text("Rounding seconds") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
+            Spacer(Modifier.height(16.dp))
+            Text("Categories", fontWeight = FontWeight.Bold)
+            categories.forEachIndexed { index, cat ->
+                var name by remember { mutableStateOf(cat.name) }
+                var colorText by remember { mutableStateOf(String.format("#%06X", 0xFFFFFF and cat.color.toInt())) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = {
+                            name = it
+                            categories = categories.toMutableList().also { list ->
+                                list[index] = list[index].copy(name = it)
+                            }
+                            onChange(settings.copy(is24Hour = is24, roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark, categories = categories))
+                        },
+                        modifier = Modifier.weight(1f),
+                        label = { Text("Name") }
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    OutlinedTextField(
+                        value = colorText,
+                        onValueChange = {
+                            colorText = it
+                            runCatching { it.trimStart('#').toLong(16) or 0xFF000000 }.getOrNull()?.let { clr ->
+                                categories = categories.toMutableList().also { list ->
+                                    list[index] = list[index].copy(color = clr)
+                                }
+                                onChange(settings.copy(is24Hour = is24, roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark, categories = categories))
+                            }
+                        },
+                        modifier = Modifier.width(100.dp),
+                        label = { Text("Color") }
+                    )
+                    IconButton(onClick = {
+                        categories = categories.toMutableList().also { it.removeAt(index) }
+                        onChange(settings.copy(is24Hour = is24, roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark, categories = categories))
+                    }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete")
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    modifier = Modifier.weight(1f),
+                    label = { Text("New category") }
+                )
+                Spacer(Modifier.width(4.dp))
+                OutlinedTextField(
+                    value = newColor,
+                    onValueChange = { newColor = it },
+                    modifier = Modifier.width(100.dp),
+                    label = { Text("Color") }
+                )
+                IconButton(onClick = {
+                    val color = runCatching { newColor.trimStart('#').toLong(16) or 0xFF000000 }.getOrDefault(0xFFFF0000)
+                    categories = (categories + Category(newName.ifBlank { "Category" }, color)).toMutableList()
+                    onChange(settings.copy(is24Hour = is24, roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds, darkMode = dark, categories = categories))
+                    newName = ""
+                }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add")
+                }
+            }
         }
     }
 }
@@ -427,19 +528,33 @@ fun formatFullDateTime(timestamp: Long, settings: Settings): String {
     return format.format(Date(timestamp))
 }
 
+data class Category(
+    val name: String,
+    val color: Long
+)
+
 data class Settings(
     val is24Hour: Boolean = true,
     val roundingSeconds: Int = 15,
-    val darkMode: Boolean = true
+    val darkMode: Boolean = true,
+    val categories: List<Category> = emptyList()
 )
 
-data class NoteLine(val title: String, val text: String, val timestamp: Long)
+data class NoteLine(
+    val title: String,
+    val text: String,
+    val timestamp: Long,
+    val categoryName: String? = null,
+    val categoryColor: Long? = null
+)
 
 @Entity(tableName = "notes")
 data class NoteEntity(
     @PrimaryKey val timestamp: Long,
     val title: String,
-    val text: String
+    val text: String,
+    val categoryName: String?,
+    val categoryColor: Long?
 )
 
 @Dao
@@ -454,7 +569,7 @@ interface NoteDao {
     suspend fun delete(note: NoteEntity)
 }
 
-@Database(entities = [NoteEntity::class], version = 2)
+@Database(entities = [NoteEntity::class], version = 3)
 abstract class NoteDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
 
