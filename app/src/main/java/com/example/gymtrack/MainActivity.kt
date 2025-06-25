@@ -142,7 +142,7 @@ fun NotesScreen(
     settings: Settings
 ) {
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             if (selectedNotes.isEmpty()) {
                 FloatingActionButton(
@@ -155,25 +155,40 @@ fun NotesScreen(
             }
         },
         topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
-                title = {
-                    Text(
-                        if (selectedNotes.isNotEmpty()) "${selectedNotes.size} selected" else "Notes",
-                        fontSize = 20.sp
-                    )
-                },
-                actions = {
-                    if (selectedNotes.isNotEmpty()) {
+            if (selectedNotes.isEmpty()) {
+                CenterAlignedTopAppBar(
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
+                    title = {
+                        Text(
+                            "GymTrack",
+                            fontSize = 24.sp
+                        )
+                    },
+                    actions = {
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        }
+                    }
+                )
+            } else {
+                TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
+                    title = {
+                        Text(
+                            "${'$'}{selectedNotes.size} selected",
+                            fontSize = 20.sp
+                        )
+                    },
+                    actions = {
                         IconButton(onClick = { onDelete(selectedNotes) }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete")
                         }
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        }
                     }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
-                    }
-                }
-            )
+                )
+            }
         }
     ) { padding ->
         LazyVerticalGrid(
@@ -227,16 +242,29 @@ fun NoteEditor(note: NoteLine?, settings: Settings, onSave: (String, String) -> 
     var lastEnter by remember { mutableStateOf(System.currentTimeMillis()) }
     val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
 
-    Column(
+    Surface(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .systemBarsPadding()
-            .padding(16.dp)
+            .systemBarsPadding(),
+        color = MaterialTheme.colorScheme.background
     ) {
+        Column(Modifier.padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            IconButton(onClick = onCancel) { Icon(Icons.Default.Close, null) }
-            IconButton(onClick = { onSave(titleValue.text, fieldValue.text) }) { Icon(Icons.Default.Check, null) }
+            IconButton(onClick = onCancel) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+            }
+            IconButton(onClick = { onSave(titleValue.text, fieldValue.text) }) {
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+            }
+
         }
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
@@ -360,11 +388,27 @@ fun formatRelativeTime(timestamp: Long, settings: Settings): String {
     val fullPattern = if (settings.is24Hour) "MMM dd HH:mm" else "MMM dd hh:mm a"
     val format = SimpleDateFormat(fullPattern, Locale.getDefault())
     val timeFormat = SimpleDateFormat(pattern, Locale.getDefault())
-    val diff = now - timestamp
-    return when {
-        diff < 60_000 -> "Just now"
-        diff < 86_400_000 -> timeFormat.format(date)
-        diff < 172_800_000 -> "Yesterday " + timeFormat.format(date)
+    if (now - timestamp < 60_000) return "Just now"
+
+    val startOfToday = Calendar.getInstance().apply {
+        timeInMillis = now
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    val startOfDate = Calendar.getInstance().apply {
+        timeInMillis = timestamp
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    val days = ((startOfToday.timeInMillis - startOfDate.timeInMillis) / 86_400_000L).toInt()
+
+    return when (days) {
+        0 -> "Today ${timeFormat.format(date)}"
+        1 -> "Yesterday ${timeFormat.format(date)}"
         else -> format.format(date)
     }
 }
