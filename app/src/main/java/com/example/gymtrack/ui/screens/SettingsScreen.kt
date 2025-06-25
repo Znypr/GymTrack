@@ -8,7 +8,6 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.text.input.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -96,7 +95,6 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                     unfocusedBorderColor = MaterialTheme.colorScheme.surface,
                 ),
                 label = { Text("Rounding seconds") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             )
             Spacer(Modifier.height(16.dp))
             Text("Categories", fontWeight = FontWeight.Bold)
