@@ -70,6 +70,11 @@ fun NoteEditor(
             val content = lines.joinToString("\n") { it.text }.trim()
             if (note != null || title.isNotEmpty() || content.isNotEmpty()) {
                 saved = true
+                if (timestamps.size < lines.size) {
+                    repeat(lines.size - timestamps.size) { timestamps.add("") }
+                } else if (timestamps.size > lines.size) {
+                    timestamps.subList(lines.size, timestamps.size).clear()
+                }
                 val combined = combineTextAndTimes(lines.joinToString("\n") { it.text }, timestamps)
                 onSave(titleValue.text, combined, selectedCategory)
             } else {
