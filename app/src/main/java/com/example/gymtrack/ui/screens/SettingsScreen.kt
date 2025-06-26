@@ -120,6 +120,10 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                         },
                         modifier = Modifier.weight(1f),
                         label = { Text("Name") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.surface,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.surface,
+                        ),
                     )
                     Spacer(Modifier.width(4.dp))
                     ColorDropdown(

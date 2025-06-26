@@ -38,6 +38,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
 import android.app.Activity
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.Alignment
@@ -54,28 +55,38 @@ fun NoteEditor(
     val parsed = remember(note) { parseNoteText(note?.text ?: "") }
     val lines = remember(parsed.first) {
         mutableStateListOf<TextFieldValue>().apply {
-            if (parsed.first.isEmpty()) add(TextFieldValue("")) else parsed.first.forEach { add(TextFieldValue(it)) }
+            if (parsed.first.isEmpty()) add(TextFieldValue("")) else parsed.first.forEach {
+                add(
+                    TextFieldValue(it)
+                )
+            }
         }
     }
-    val timestamps = remember(parsed.second) { mutableStateListOf<String>().apply { addAll(parsed.second) } }
+    val timestamps =
+        remember(parsed.second) { mutableStateListOf<String>().apply { addAll(parsed.second) } }
     var selectedCategory by remember { mutableStateOf<Category?>(settings.categories.find { it.name == note?.categoryName }) }
     var lastEnter by remember { mutableStateOf(System.currentTimeMillis()) }
     val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
 
     val lifecycleOwner = LocalLifecycleOwner.current
     var saved by remember { mutableStateOf(false) }
+
     val saveIfNeeded = {
         if (!saved) {
             val title = titleValue.text.trim()
-            val content = lines.joinToString("\n") { it.text }.trim()
+
+            val content = lines.joinToString("\n") { it.text }
             if (note != null || title.isNotEmpty() || content.isNotEmpty()) {
                 saved = true
+
                 if (timestamps.size < lines.size) {
                     repeat(lines.size - timestamps.size) { timestamps.add("") }
                 } else if (timestamps.size > lines.size) {
                     timestamps.subList(lines.size, timestamps.size).clear()
                 }
+                Log.d("NoteEditor", lines.joinToString("\n") { it.text })
                 val combined = combineTextAndTimes(lines.joinToString("\n") { it.text }, timestamps)
+                Log.d("NoteEditor", combined)
                 onSave(titleValue.text, combined, selectedCategory)
             } else {
                 saved = true
@@ -159,9 +170,12 @@ fun NoteEditor(
                             focusedTextColor = MaterialTheme.colorScheme.onSurface,
                             unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         ),
-                )}
+                    )
+                }
                 if (settings.categories.isNotEmpty()) {
-                    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+                    ExposedDropdownMenuBox(
+                        expanded = expanded,
+                        onExpandedChange = { expanded = !expanded }) {
                         OutlinedTextField(
                             modifier = Modifier
                                 .menuAnchor()
@@ -179,7 +193,9 @@ fun NoteEditor(
                             ),
                         )
                         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                            DropdownMenuItem(text = { Text("None") }, onClick = { selectedCategory = null; expanded = false })
+                            DropdownMenuItem(
+                                text = { Text("None") },
+                                onClick = { selectedCategory = null; expanded = false })
                             settings.categories.forEach { cat ->
                                 DropdownMenuItem(
                                     text = { Text(cat.name) },
@@ -217,8 +233,13 @@ fun NoteEditor(
                     .fillMaxWidth()
                     .weight(1f, fill = false)
             ) {
-                itemsIndexed(lines) { index, value ->
-                    val fr = if (focusRequesters.size > index) focusRequesters[index] else FocusRequester().also { focusRequesters.add(it) }
+                itemsIndexed(
+                    lines,
+                    key = { _, item -> System.identityHashCode(item) }) { index, value ->
+                    val fr =
+                        if (focusRequesters.size > index) focusRequesters[index] else FocusRequester().also {
+                            focusRequesters.add(it)
+                        }
                     val isMain = index == 0 || lines.getOrNull(index - 1)?.text?.isBlank() != false
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -228,26 +249,43 @@ fun NoteEditor(
                             value = value,
                             onValueChange = { newValue ->
                                 if (newValue.text.endsWith("\n")) {
+
                                     val content = newValue.text.dropLast(1)
                                     val now = System.currentTimeMillis()
                                     val diffSec = (now - lastEnter) / 1000
                                     lastEnter = now
-                                    val abs = formatElapsedMinutesSeconds(noteTimestamp, now, settings)
-                                    if (timestamps.size <= index) timestamps.add(abs) else timestamps[index] = abs
+                                    val abs =
+                                        formatElapsedMinutesSeconds(noteTimestamp, now, settings)
+
                                     if (content.isNotBlank()) {
-                                        lines[index] = TextFieldValue(content + " (" + formatSecondsToMinutesSeconds(diffSec) + ")")
+                                        // only lines with text get a timestamp
+                                        if (timestamps.size <= index) timestamps.add(abs) else timestamps[index] =
+                                            abs
+
+                                        lines[index] = TextFieldValue(
+                                            content + " (" + formatSecondsToMinutesSeconds(diffSec) + ")"
+                                        )
                                     } else {
+                                        // empty line → store empty timestamp
+                                        if (timestamps.size <= index) timestamps.add("")
+                                        else timestamps[index] = ""
+
                                         lines[index] = TextFieldValue("")
                                     }
 
-                                    val indentNext = content.isNotBlank()
-                                    val newValueText = if (indentNext) "\t" else ""
+                                    val newValueText = if (content.isNotBlank()) "\t" else ""
                                     lines.add(index + 1, TextFieldValue(newValueText))
-                                    if (timestamps.size <= index + 1) {
-                                        timestamps.add("")
+                                    timestamps.add(index + 1, "")
+
+                                    if (index + 1 <= timestamps.size) {
+                                        timestamps.add(
+                                            index + 1,
+                                            ""
+                                        )   // insert at the correct slot
                                     } else {
-                                        timestamps.add(index + 1, "")
+                                        timestamps.add("")              // first row in an empty list
                                     }
+
                                     if (focusRequesters.size <= index + 1) {
                                         focusRequesters.add(FocusRequester())
                                     } else {
@@ -263,7 +301,9 @@ fun NoteEditor(
                                 .focusRequester(fr)
                                 .defaultMinSize(minHeight = 0.dp)
                                 .heightIn(min = 28.dp),
-                            textStyle = if (isMain) LocalTextStyle.current.copy(fontSize = 20.sp) else LocalTextStyle.current.copy(fontSize = 13.sp),
+                            textStyle = if (isMain) LocalTextStyle.current.copy(fontSize = 20.sp) else LocalTextStyle.current.copy(
+                                fontSize = 13.sp
+                            ),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color.Transparent,
                                 unfocusedBorderColor = Color.Transparent,

@@ -5,7 +5,7 @@ private val relativeTimeRegex = "\\s*\\((?:\\d+'\\d{2}''|\\d+s)\\)$".toRegex()
 
 fun parseNoteText(text: String): Pair<List<String>, List<String>> {
     if (text.isEmpty()) return Pair(emptyList(), emptyList())
-    val lines = text.split('\n', ignoreCase = false, limit = -1)
+    val lines = if (text.isEmpty()) emptyList() else text.split('\n')
     val base = mutableListOf<String>()
     val times = mutableListOf<String>()
     lines.forEach { line ->
@@ -20,7 +20,7 @@ fun parseNoteText(text: String): Pair<List<String>, List<String>> {
 }
 
 fun combineTextAndTimes(text: String, times: List<String>): String {
-    val lines = if (text.isEmpty()) emptyList() else text.split('\n', ignoreCase = false, limit = -1)
+    val lines = if (text.isEmpty()) emptyList() else text.split('\n')
     return lines.mapIndexed { index, l ->
         val ts = if (index < times.size) times[index] else ""
         if (ts.isBlank()) l else "$l $ts"
