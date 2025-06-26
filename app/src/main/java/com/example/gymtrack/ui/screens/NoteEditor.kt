@@ -187,7 +187,10 @@ fun NoteEditor(
                     Spacer(Modifier.height(4.dp))
                     OutlinedTextField(
                         value = titleValue,
-                        onValueChange = { titleValue = it },
+                        onValueChange = {
+                            titleValue = it
+                            saved = false
+                        },
                         placeholder = { Text("Title") },
                         modifier = Modifier.weight(1f),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -222,7 +225,11 @@ fun NoteEditor(
                         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                             DropdownMenuItem(
                                 text = { Text("None") },
-                                onClick = { selectedCategory = null; expanded = false })
+                                onClick = {
+                                    selectedCategory = null
+                                    expanded = false
+                                    saved = false
+                                })
                             settings.categories.forEach { cat ->
                                 DropdownMenuItem(
                                     text = { Text(cat.name) },
@@ -233,7 +240,11 @@ fun NoteEditor(
                                                 .background(Color(cat.color.toInt()))
                                         )
                                     },
-                                    onClick = { selectedCategory = cat; expanded = false },
+                                    onClick = {
+                                        selectedCategory = cat
+                                        expanded = false
+                                        saved = false
+                                    },
                                 )
                             }
                         }
@@ -278,6 +289,7 @@ fun NoteEditor(
                         BasicTextField(
                             value = row.text.value,
                             onValueChange = { newValue ->
+                                saved = false
                                 if (newValue.text.endsWith("\n")) {
 
                                     val content = newValue.text.dropLast(1)
