@@ -143,7 +143,9 @@ fun NotesScreen(
                             .padding(12.dp)
                             .fillMaxWidth()
                     ) {
-                        val totalSec = parseNoteText(note.text).second.filter { it.isNotBlank() }.lastOrNull()?.let { parseDurationSeconds(it) }
+                        val totalSec =
+                            parseNoteText(note.text).second.filter { it.isNotBlank() }.lastOrNull()
+                                ?.let { parseDurationSeconds(it) }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -151,7 +153,7 @@ fun NotesScreen(
                             totalSec?.let {
                                 Text(
                                     text = "${it / 60}'",
-                                    fontSize = 12.sp,
+                                    fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )

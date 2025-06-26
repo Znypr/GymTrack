@@ -11,7 +11,7 @@ fun formatRelativeTime(timestamp: Long, settings: Settings): String {
     val timeFormat =
         SimpleDateFormat(if (settings.is24Hour) "HH:mm" else "hh:mm a", Locale.getDefault())
     val fullFormat = SimpleDateFormat(
-        if (settings.is24Hour) "MMM dd HH:mm" else "MMM dd hh:mm a",
+        if (settings.is24Hour) "dd MMM HH:mm" else "dd MMM hh:mm a",
         Locale.getDefault(),
     )
 
@@ -96,7 +96,19 @@ fun parseDurationSeconds(str: String): Int {
 }
 
 fun formatFullDateTime(timestamp: Long, settings: Settings): String {
-    val pattern = if (settings.is24Hour) "yyyy-MM-dd HH:mm" else "yyyy-MM-dd hh:mm a"
+    val pattern = if (settings.is24Hour) "dd/MM/yyyy HH:mm" else "dd/MM/yyyy hh:mm a"
+    val format = SimpleDateFormat(pattern, Locale.getDefault())
+    return format.format(Date(timestamp))
+}
+
+fun formatTime(timestamp: Long, settings: Settings): String {
+    val pattern = if (settings.is24Hour) "HH:mm" else "hh:mm a"
+    val format = SimpleDateFormat(pattern, Locale.getDefault())
+    return format.format(Date(timestamp))
+}
+
+fun formatDate(timestamp: Long, settings: Settings): String {
+    val pattern = "dd/MM/yyyy"
     val format = SimpleDateFormat(pattern, Locale.getDefault())
     return format.format(Date(timestamp))
 }
@@ -106,7 +118,7 @@ fun formatWeekRelativeTime(timestamp: Long, settings: Settings): String {
     val dateCal = Calendar.getInstance().apply { timeInMillis = timestamp }
     val timeFormat = SimpleDateFormat(if (settings.is24Hour) "HH:mm" else "hh:mm a", Locale.getDefault())
     val dayNameFormat = SimpleDateFormat("EEEE", Locale.getDefault())
-    val fullFormat = SimpleDateFormat(if (settings.is24Hour) "yyyy-MM-dd HH:mm" else "yyyy-MM-dd hh:mm a", Locale.getDefault())
+    val fullFormat = SimpleDateFormat(if (settings.is24Hour) "dd/MM/yyyy HH:mm" else "dd/MM/yyyy hh:mm a", Locale.getDefault())
 
     val sameDay = nowCal.get(Calendar.YEAR) == dateCal.get(Calendar.YEAR) &&
             nowCal.get(Calendar.DAY_OF_YEAR) == dateCal.get(Calendar.DAY_OF_YEAR)

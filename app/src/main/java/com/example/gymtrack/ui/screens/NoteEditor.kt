@@ -1,6 +1,8 @@
 package com.example.gymtrack.ui.screens
 
+import android.util.Log
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -14,17 +16,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import kotlinx.coroutines.launch
 import com.example.gymtrack.data.Category
 import com.example.gymtrack.data.NoteLine
 import com.example.gymtrack.data.Settings
@@ -33,16 +31,16 @@ import com.example.gymtrack.util.formatFullDateTime
 import com.example.gymtrack.util.formatElapsedMinutesSeconds
 import com.example.gymtrack.util.formatSecondsToMinutesSeconds
 import com.example.gymtrack.util.parseNoteText
-import com.example.gymtrack.util.RelativeTimeVisualTransformation
-import androidx.core.view.WindowInsetsControllerCompat
-import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.toArgb
-import android.app.Activity
-import android.inputmethodservice.Keyboard
-import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import com.example.gymtrack.R
+import com.example.gymtrack.util.formatDate
+import com.example.gymtrack.util.formatTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,17 +54,15 @@ fun NoteEditor(
     val parsed = remember(note) { parseNoteText(note?.text ?: "") }
 
     data class Row(
-        val id: Long,
-        val text: MutableState<TextFieldValue>   // ← wrapped in state
+        val id: Long, val text: MutableState<TextFieldValue>   // ← wrapped in state
     )
+
     var nextId by remember { mutableStateOf(0L) }
 
     val lines = remember(parsed.first) {
         mutableStateListOf<Row>().apply {
-            if (parsed.first.isEmpty())
-                add(Row(nextId++, mutableStateOf(TextFieldValue(""))))
-            else
-                parsed.first.forEach { add(Row(nextId++, mutableStateOf(TextFieldValue(it)))) }
+            if (parsed.first.isEmpty()) add(Row(nextId++, mutableStateOf(TextFieldValue(""))))
+            else parsed.first.forEach { add(Row(nextId++, mutableStateOf(TextFieldValue(it)))) }
         }
     }
     val timestamps =
@@ -85,9 +81,9 @@ fun NoteEditor(
             lines.forEachIndexed { i, row ->
                 if (row.text.value.text.isNotBlank() && timestamps[i].isBlank()) {
                     // write current clock value if user never pressed Enter on that line
-                    val nowAbs = formatElapsedMinutesSeconds(noteTimestamp,
-                        System.currentTimeMillis(),
-                        settings)
+                    val nowAbs = formatElapsedMinutesSeconds(
+                        noteTimestamp, System.currentTimeMillis(), settings
+                    )
                     timestamps[i] = nowAbs
                 }
             }
@@ -104,8 +100,8 @@ fun NoteEditor(
                 }
 
 
-                val combined = combineTextAndTimes(plainContent,timestamps)
-                Log.d("combined", combined)
+                val combined = combineTextAndTimes(plainContent, timestamps)
+
                 onSave(titleValue.text, combined, selectedCategory)
             } else {
                 saved = true
@@ -119,8 +115,6 @@ fun NoteEditor(
         saveIfNeeded()
         onCancel()
     }
-
-
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -146,15 +140,25 @@ fun NoteEditor(
                 .padding(16.dp)
                 .imePadding(),
         ) {
+            // Navigation Row
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                IconButton(onClick = {
-                    saveIfNeeded()
-                    onCancel()
-                }) {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onBackground,
+                Image(
+                    painter = painterResource(id = R.drawable.ic_gymtrack_logo),
+                    contentDescription = "GymTrack logo",
+                    modifier = Modifier.size(45.dp) // optional size
+                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        formatDate(noteTimestamp, settings),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        formatTime(noteTimestamp, settings),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold,
                     )
                 }
                 IconButton(onClick = {
@@ -169,6 +173,9 @@ fun NoteEditor(
                 }
             }
 
+            Spacer(Modifier.height(12.dp))
+
+            // Header
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -195,8 +202,7 @@ fun NoteEditor(
                 }
                 if (settings.categories.isNotEmpty()) {
                     ExposedDropdownMenuBox(
-                        expanded = expanded,
-                        onExpandedChange = { expanded = !expanded }) {
+                        expanded = expanded, onExpandedChange = { expanded = !expanded }) {
                         OutlinedTextField(
                             modifier = Modifier
                                 .menuAnchor()
@@ -234,25 +240,20 @@ fun NoteEditor(
                     }
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                formatFullDateTime(noteTimestamp, settings),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
+
             Spacer(Modifier.height(8.dp))
 
             val focusRequesters = remember { mutableStateListOf<FocusRequester>() }
             var pendingFocusId by remember { mutableStateOf<Long?>(null) }
 
-
+            // Body
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f, fill = false)
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                contentPadding = PaddingValues(horizontal = 15.dp, vertical = 20.dp),
             ) {
                 itemsIndexed(
-                    lines,
-                    key = { _, row -> row.id }) { index, row ->
+                    lines, key = { _, row -> row.id }) { index, row ->
                     val fr =
                         if (focusRequesters.size > index) focusRequesters[index] else FocusRequester().also {
                             focusRequesters.add(it)
@@ -266,13 +267,15 @@ fun NoteEditor(
                         }
                     }
 
-                    val isMain = index == 0 ||
-                            lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
+                    val isMain =
+                        index == 0 || lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        OutlinedTextField(
+                        BasicTextField(
                             value = row.text.value,
                             onValueChange = { newValue ->
                                 if (newValue.text.endsWith("\n")) {
@@ -283,25 +286,31 @@ fun NoteEditor(
                                     val diffSec = (now - lastEnter) / 1000
                                     if (content.isNotBlank()) lastEnter = now
 
-                                    val rel  = formatSecondsToMinutesSeconds(diffSec)
-                                    val abs =
-                                        formatElapsedMinutesSeconds(noteTimestamp, now, settings)
+                                    val rel = formatSecondsToMinutesSeconds(diffSec)
+                                    val abs = formatElapsedMinutesSeconds(
+                                        noteTimestamp, now, settings
+                                    )
 
                                     row.text.value =
-                                        if (content.isNotBlank())
+                                        if (content.isNotBlank() && isMain)
                                             TextFieldValue("$content ($rel)")
-                                        else
-                                            TextFieldValue("")
+                                        else if (content.isNotBlank() && !isMain)
+                                            TextFieldValue("    $content ($rel)")
+                                        else TextFieldValue("")
 
                                     if (content.isNotBlank()) {
-                                        if (timestamps.size <= index) timestamps.add(abs) else timestamps[index] = abs
+                                        if (timestamps.size <= index) timestamps.add(abs)
+                                        else timestamps[index] = abs
                                     } else {
-                                        if (timestamps.size <= index) timestamps.add("")  else timestamps[index] = ""
+                                        if (timestamps.size <= index) timestamps.add("")
+                                        else timestamps[index] = ""
                                     }
 
-                                    val newText = if (content.isNotBlank()) "" else ""
-                                    lines.add(index + 1,
-                                        Row(nextId++, mutableStateOf(TextFieldValue(newText))))
+                                    lines.add(
+                                        index + 1, Row(
+                                            nextId++, mutableStateOf(TextFieldValue(""))
+                                        )
+                                    )
                                     timestamps.add(index + 1, "")
 
                                     if (focusRequesters.size <= index + 1) {
@@ -315,33 +324,18 @@ fun NoteEditor(
                                     row.text.value = newValue
                                 }
                             },
+                            textStyle = LocalTextStyle.current.copy(
+                                fontSize = if (isMain) 20.sp else 14.sp,
+                                fontWeight = if (isMain) FontWeight.Bold else null,
+                            ),
                             modifier = Modifier
-                                .weight(1f)
-                                .focusRequester(fr)
-                                .defaultMinSize(minHeight = 0.dp)
-                                .heightIn(min = 28.dp),
-                            textStyle = if (isMain) LocalTextStyle.current.copy(fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                                ) else LocalTextStyle.current.copy(
-                                fontSize = 13.sp
-                            ),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color.Transparent,
-                                unfocusedBorderColor = Color.Transparent,
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                            ),
-                            placeholder = { if (index == 0) Text("Start typing") },
-                            visualTransformation = RelativeTimeVisualTransformation()
+                                .focusRequester(fr),
                         )
-                        Spacer(Modifier.width(8.dp))
                         Text(
                             timestamps.getOrNull(index).orEmpty(),
-                            modifier = Modifier.width(90.dp),
-                            fontSize = if (isMain) 20.sp else 13.sp,
+                            fontSize = if (isMain) 20.sp else 14.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                            textAlign = TextAlign.End
+                            fontWeight = if (isMain) FontWeight.Bold else null,
                         )
                     }
                 }
@@ -349,4 +343,5 @@ fun NoteEditor(
         }
     }
 }
+
 

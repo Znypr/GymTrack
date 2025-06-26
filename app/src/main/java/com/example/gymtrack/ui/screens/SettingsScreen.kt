@@ -1,5 +1,6 @@
 package com.example.gymtrack.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -11,9 +12,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.gymtrack.R
 import com.example.gymtrack.data.Category
 import com.example.gymtrack.data.Settings
 import com.example.gymtrack.ui.components.ColorDropdown
@@ -31,12 +35,19 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Settings") },
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(
+                        "Settings",
+                        fontSize = 20.sp,
+                    )
+                },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_gymtrack_logo),
+                        contentDescription = "GymTrack logo",
+                        modifier = Modifier.size(45.dp) // optional size
+                    )
                 },
             )
         },
@@ -112,7 +123,8 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                             onChange(
                                 settings.copy(
                                     is24Hour = is24,
-                                    roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds,
+                                    roundingSeconds = rounding.toIntOrNull()
+                                        ?: settings.roundingSeconds,
                                     darkMode = dark,
                                     categories = categories,
                                 ),
@@ -139,7 +151,8 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                             onChange(
                                 settings.copy(
                                     is24Hour = is24,
-                                    roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds,
+                                    roundingSeconds = rounding.toIntOrNull()
+                                        ?: settings.roundingSeconds,
                                     darkMode = dark,
                                     categories = categories,
                                 ),
@@ -151,7 +164,8 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                         onChange(
                             settings.copy(
                                 is24Hour = is24,
-                                roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds,
+                                roundingSeconds = rounding.toIntOrNull()
+                                    ?: settings.roundingSeconds,
                                 darkMode = dark,
                                 categories = categories,
                             ),
