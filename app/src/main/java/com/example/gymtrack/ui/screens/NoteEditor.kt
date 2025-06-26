@@ -38,6 +38,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
 import android.app.Activity
+import android.inputmethodservice.Keyboard
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -53,13 +54,19 @@ fun NoteEditor(
 ) {
     var titleValue by remember { mutableStateOf(TextFieldValue(note?.title ?: "")) }
     val parsed = remember(note) { parseNoteText(note?.text ?: "") }
+
+    data class Row(
+        val id: Long,
+        val text: MutableState<TextFieldValue>   // ← wrapped in state
+    )
+    var nextId by remember { mutableStateOf(0L) }
+
     val lines = remember(parsed.first) {
-        mutableStateListOf<TextFieldValue>().apply {
-            if (parsed.first.isEmpty()) add(TextFieldValue("")) else parsed.first.forEach {
-                add(
-                    TextFieldValue(it)
-                )
-            }
+        mutableStateListOf<Row>().apply {
+            if (parsed.first.isEmpty())
+                add(Row(nextId++, mutableStateOf(TextFieldValue(""))))
+            else
+                parsed.first.forEach { add(Row(nextId++, mutableStateOf(TextFieldValue(it)))) }
         }
     }
     val timestamps =
@@ -75,8 +82,19 @@ fun NoteEditor(
         if (!saved) {
             val title = titleValue.text.trim()
 
-            val content = lines.joinToString("\n") { it.text }
-            if (note != null || title.isNotEmpty() || content.isNotEmpty()) {
+            lines.forEachIndexed { i, row ->
+                if (row.text.value.text.isNotBlank() && timestamps[i].isBlank()) {
+                    // write current clock value if user never pressed Enter on that line
+                    val nowAbs = formatElapsedMinutesSeconds(noteTimestamp,
+                        System.currentTimeMillis(),
+                        settings)
+                    timestamps[i] = nowAbs
+                }
+            }
+
+            val plainContent = lines.joinToString("\n") { it.text.value.text }
+
+            if (note != null || title.isNotEmpty() || plainContent.isNotEmpty()) {
                 saved = true
 
                 if (timestamps.size < lines.size) {
@@ -84,9 +102,10 @@ fun NoteEditor(
                 } else if (timestamps.size > lines.size) {
                     timestamps.subList(lines.size, timestamps.size).clear()
                 }
-                Log.d("NoteEditor", lines.joinToString("\n") { it.text })
-                val combined = combineTextAndTimes(lines.joinToString("\n") { it.text }, timestamps)
-                Log.d("NoteEditor", combined)
+
+
+                val combined = combineTextAndTimes(plainContent,timestamps)
+                Log.d("combined", combined)
                 onSave(titleValue.text, combined, selectedCategory)
             } else {
                 saved = true
@@ -100,6 +119,8 @@ fun NoteEditor(
         saveIfNeeded()
         onCancel()
     }
+
+
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -219,15 +240,11 @@ fun NoteEditor(
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Spacer(Modifier.height(8.dp))
-            val scope = rememberCoroutineScope()
+
             val focusRequesters = remember { mutableStateListOf<FocusRequester>() }
-            var requestFocusIndex by remember { mutableStateOf(-1) }
-            LaunchedEffect(requestFocusIndex, lines.size) {
-                if (requestFocusIndex in focusRequesters.indices) {
-                    focusRequesters[requestFocusIndex].requestFocus()
-                    requestFocusIndex = -1
-                }
-            }
+            var pendingFocusId by remember { mutableStateOf<Long?>(null) }
+
+
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -235,65 +252,67 @@ fun NoteEditor(
             ) {
                 itemsIndexed(
                     lines,
-                    key = { _, item -> System.identityHashCode(item) }) { index, value ->
+                    key = { _, row -> row.id }) { index, row ->
                     val fr =
                         if (focusRequesters.size > index) focusRequesters[index] else FocusRequester().also {
                             focusRequesters.add(it)
                         }
-                    val isMain = index == 0 || lines.getOrNull(index - 1)?.text?.isBlank() != false
+
+                    LaunchedEffect(pendingFocusId, row.id) {
+                        if (pendingFocusId == row.id) {
+                            withFrameNanos { }         // wait one frame -> requester attached
+                            fr.requestFocus()
+                            pendingFocusId = null
+                        }
+                    }
+
+                    val isMain = index == 0 ||
+                            lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedTextField(
-                            value = value,
+                            value = row.text.value,
                             onValueChange = { newValue ->
                                 if (newValue.text.endsWith("\n")) {
 
                                     val content = newValue.text.dropLast(1)
+
                                     val now = System.currentTimeMillis()
                                     val diffSec = (now - lastEnter) / 1000
-                                    lastEnter = now
+                                    if (content.isNotBlank()) lastEnter = now
+
+                                    val rel  = formatSecondsToMinutesSeconds(diffSec)
                                     val abs =
                                         formatElapsedMinutesSeconds(noteTimestamp, now, settings)
 
+                                    row.text.value =
+                                        if (content.isNotBlank())
+                                            TextFieldValue("$content ($rel)")
+                                        else
+                                            TextFieldValue("")
+
                                     if (content.isNotBlank()) {
-                                        // only lines with text get a timestamp
-                                        if (timestamps.size <= index) timestamps.add(abs) else timestamps[index] =
-                                            abs
-
-                                        lines[index] = TextFieldValue(
-                                            content + " (" + formatSecondsToMinutesSeconds(diffSec) + ")"
-                                        )
+                                        if (timestamps.size <= index) timestamps.add(abs) else timestamps[index] = abs
                                     } else {
-                                        // empty line → store empty timestamp
-                                        if (timestamps.size <= index) timestamps.add("")
-                                        else timestamps[index] = ""
-
-                                        lines[index] = TextFieldValue("")
+                                        if (timestamps.size <= index) timestamps.add("")  else timestamps[index] = ""
                                     }
 
-                                    val newValueText = if (content.isNotBlank()) "\t" else ""
-                                    lines.add(index + 1, TextFieldValue(newValueText))
+                                    val newText = if (content.isNotBlank()) "" else ""
+                                    lines.add(index + 1,
+                                        Row(nextId++, mutableStateOf(TextFieldValue(newText))))
                                     timestamps.add(index + 1, "")
-
-                                    if (index + 1 <= timestamps.size) {
-                                        timestamps.add(
-                                            index + 1,
-                                            ""
-                                        )   // insert at the correct slot
-                                    } else {
-                                        timestamps.add("")              // first row in an empty list
-                                    }
 
                                     if (focusRequesters.size <= index + 1) {
                                         focusRequesters.add(FocusRequester())
                                     } else {
                                         focusRequesters.add(index + 1, FocusRequester())
                                     }
-                                    requestFocusIndex = index + 1
+
+                                    pendingFocusId = nextId - 1
                                 } else {
-                                    lines[index] = newValue
+                                    row.text.value = newValue
                                 }
                             },
                             modifier = Modifier
@@ -301,7 +320,8 @@ fun NoteEditor(
                                 .focusRequester(fr)
                                 .defaultMinSize(minHeight = 0.dp)
                                 .heightIn(min = 28.dp),
-                            textStyle = if (isMain) LocalTextStyle.current.copy(fontSize = 20.sp) else LocalTextStyle.current.copy(
+                            textStyle = if (isMain) LocalTextStyle.current.copy(fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                ) else LocalTextStyle.current.copy(
                                 fontSize = 13.sp
                             ),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -329,3 +349,4 @@ fun NoteEditor(
         }
     }
 }
+

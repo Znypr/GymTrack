@@ -28,7 +28,7 @@ object SettingsStore {
         return Settings(
             is24Hour = prefs[IS_24_HOUR] ?: true,
             roundingSeconds = prefs[ROUNDING_SECONDS] ?: 5,
-            darkMode = prefs[DARK_MODE] ?: true,
+            darkMode = prefs[DARK_MODE] ?: false,
             categories = cats
         )
     }
