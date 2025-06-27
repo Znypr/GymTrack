@@ -422,7 +422,6 @@ fun NoteEditor(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.3f))
                     .clickable { showLearnings = false },
                 contentAlignment = Alignment.TopCenter
             ) {
@@ -431,6 +430,7 @@ fun NoteEditor(
                     Surface(
                         tonalElevation = 4.dp,
                         shape = MaterialTheme.shapes.medium,
+                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
                         modifier = Modifier
                             .padding(
                                 top = offset,
@@ -448,6 +448,7 @@ fun NoteEditor(
                             Text(
                                 "Notes",
                                 fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.align(Alignment.CenterHorizontally)
                             )
                             Spacer(Modifier.height(8.dp))
@@ -463,9 +464,14 @@ fun NoteEditor(
                                         saved = false
                                     },
                                     placeholder = { Text("Learnings") },
+                                    modifier = Modifier.fillMaxWidth(),
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedBorderColor = MaterialTheme.colorScheme.background,
                                         unfocusedBorderColor = MaterialTheme.colorScheme.background,
+                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                                     )
                                 )
                             }
