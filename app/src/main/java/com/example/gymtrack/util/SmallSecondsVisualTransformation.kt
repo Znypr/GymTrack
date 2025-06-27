@@ -31,8 +31,8 @@ class SmallSecondsVisualTransformation(
                 val secEnd = secStart + 2
                 builder.addStyle(
                     SpanStyle(
-                        fontSize = baseFontSize * 0.7f,
-                        baselineShift = BaselineShift(0.3f),
+                        fontSize = baseFontSize * 0.75f,
+                        baselineShift = BaselineShift(0.20f),
                     ),
                     secStart,
                     secEnd,
