@@ -2,6 +2,7 @@ package com.example.gymtrack.ui.screens
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,16 +20,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.drawRect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.R
 import com.example.gymtrack.data.NoteLine
 import com.example.gymtrack.data.Settings
+
 import com.example.gymtrack.util.getSavedCsvFiles
 import com.example.gymtrack.util.parseDurationSeconds
 import com.example.gymtrack.util.parseNoteText
 import java.io.File
+
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -147,9 +155,9 @@ private fun CategoryChart(notes: List<NoteLine>) {
             counts.entries.forEachIndexed { index, entry ->
                 val barHeight = size.height * (entry.value.toFloat() / max)
                 drawRect(
-                    color = MaterialTheme.colorScheme.primary,
-                    topLeft = androidx.compose.ui.geometry.Offset(barWidth * (1 + index * 2), size.height - barHeight),
-                    size = androidx.compose.ui.geometry.Size(barWidth, barHeight)
+                    color = Color.LightGray,
+                    topLeft = Offset(barWidth * (1 + index * 2), size.height - barHeight),
+                    size = Size(barWidth, barHeight)
                 )
             }
         }
