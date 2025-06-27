@@ -22,11 +22,11 @@ class SmallSecondsVisualTransformation : VisualTransformation {
             val firstPrime = value.indexOf("'")
             if (firstPrime != -1 && value.endsWith("''")) {
                 val secStart = match.range.first + firstPrime + 1
-                val secEnd = match.range.first + value.length - 1
+                val secEnd = secStart + 2
                 builder.addStyle(
                     SpanStyle(
                         fontSize = 12.sp,
-                        baselineShift = BaselineShift(0.5f),
+                        baselineShift = BaselineShift(0.3f),
                     ),
                     secStart,
                     secEnd,
