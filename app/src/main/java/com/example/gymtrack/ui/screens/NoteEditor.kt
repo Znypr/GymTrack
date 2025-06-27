@@ -337,6 +337,7 @@ fun NoteEditor(
                                 }
                             },
                             textStyle = LocalTextStyle.current.copy(
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = if (isMain) 20.sp else 14.sp,
                                 fontWeight = if (isMain) FontWeight.Bold else null,
                             ),
@@ -346,7 +347,7 @@ fun NoteEditor(
                         Text(
                             timestamps.getOrNull(index).orEmpty(),
                             fontSize = if (isMain) 20.sp else 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = if (isMain) FontWeight.Bold else null,
                         )
                     }
