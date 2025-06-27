@@ -17,6 +17,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -421,6 +422,7 @@ fun NoteEditor(
         ) {
             Box(
                 modifier = Modifier
+                    .padding(horizontal = 10.dp)
                     .fillMaxSize()
                     .clickable { showLearnings = false },
                 contentAlignment = Alignment.TopCenter
@@ -428,9 +430,10 @@ fun NoteEditor(
                 BoxWithConstraints {
                     val offset = maxHeight / 3
                     Surface(
-                        tonalElevation = 4.dp,
+                        color = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 0.dp,
                         shape = MaterialTheme.shapes.medium,
-                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                        border = BorderStroke(2.dp, Color.LightGray.copy(alpha = 0.2F)),
                         modifier = Modifier
                             .padding(
                                 top = offset,
@@ -466,8 +469,8 @@ fun NoteEditor(
                                     placeholder = { Text("Learnings") },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = MaterialTheme.colorScheme.background,
-                                        unfocusedBorderColor = MaterialTheme.colorScheme.background,
+                                        focusedBorderColor = Color.Transparent,
+                                        unfocusedBorderColor = Color.Transparent,
                                         focusedContainerColor = MaterialTheme.colorScheme.surface,
                                         unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                                         focusedTextColor = MaterialTheme.colorScheme.onSurface,
