@@ -16,7 +16,7 @@ private fun csvEscape(value: String): String {
     return v
 }
 
-fun exportNote(context: Context, note: NoteLine, settings: Settings) {
+fun exportNote(context: Context, note: NoteLine, settings: Settings): File {
     val parsed = parseNoteText(note.text)
 
     val builder = StringBuilder()
@@ -37,5 +37,6 @@ fun exportNote(context: Context, note: NoteLine, settings: Settings) {
     val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS) ?: context.filesDir
     val file = File(dir, fileName)
     file.writeText(builder.toString())
+    return file
 }
 

@@ -11,6 +11,7 @@ import com.example.gymtrack.data.NoteLine
 import com.example.gymtrack.data.NoteDao
 import com.example.gymtrack.data.Settings
 import com.example.gymtrack.util.exportNote
+import android.widget.Toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -80,8 +81,15 @@ fun NavigationHost(
                 },
                 onExport = { toExport ->
                     CoroutineScope(Dispatchers.IO).launch {
-                        toExport.forEach {
+                        val files = toExport.map {
                             exportNote(context, it, settingsState.value)
+                        }
+                        withContext(Dispatchers.Main) {
+                            val msg = if (files.size == 1)
+                                "Exported ${files.first().name}"
+                            else
+                                "Exported ${files.size} notes"
+                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                         }
                     }
                     selectedNotes = emptySet()
