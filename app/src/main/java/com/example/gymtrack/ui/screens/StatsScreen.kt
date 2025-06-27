@@ -5,8 +5,6 @@ import androidx.compose.foundation.Image
 
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
@@ -19,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -50,8 +49,12 @@ fun StatsScreen(
     var dragX by remember { mutableStateOf(0f) }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             CenterAlignedTopAppBar(
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -66,6 +69,7 @@ fun StatsScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState())
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
@@ -97,14 +101,16 @@ fun StatsScreen(
             Spacer(Modifier.height(32.dp))
             Text("Saved CSVs", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(8.dp))
-            LazyColumn(Modifier.fillMaxWidth()) {
-                items(csvFiles) { file ->
+            Column(Modifier.fillMaxWidth()) {
+                csvFiles.forEach { file ->
                     ListItem(
                         headlineContent = { Text(file.name) },
                         leadingContent = {
                             Icon(Icons.Default.Info, contentDescription = null)
                         },
-                        modifier = Modifier.clickable { selectedFile = file }
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selectedFile = file }
                     )
                 }
             }
@@ -156,7 +162,7 @@ private fun CategoryChart(notes: List<NoteLine>) {
             counts.entries.forEachIndexed { index, entry ->
                 val barHeight = size.height * (entry.value.toFloat() / max)
                 drawRect(
-                    color = Color.LightGray,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
                     topLeft = Offset(barWidth * (1 + index * 2), size.height - barHeight),
                     size = Size(barWidth, barHeight)
                 )
@@ -183,21 +189,65 @@ private fun WorkoutDurationChart(notes: List<NoteLine>) {
     if (points.isEmpty()) return
 
     val max = points.maxOf { it.second }
+    val density = LocalDensity.current
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Text("Workout length (min)", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(12.dp))
         Canvas(modifier = Modifier.fillMaxWidth().height(200.dp)) {
-            val stepX = size.width / (points.size - 1).coerceAtLeast(1)
+            val labelSpace = with(density) { 32.dp.toPx() }
+            val chartWidth = size.width - labelSpace
+            val stepX = chartWidth / (points.size - 1).coerceAtLeast(1)
             val scaleY = size.height / max
+
+            drawRect(color = MaterialTheme.colorScheme.surfaceVariant, size = size)
+
+            // axes
+            drawLine(
+                color = Color.DarkGray,
+                start = Offset(labelSpace, 0f),
+                end = Offset(labelSpace, size.height),
+                strokeWidth = 2f
+            )
+            drawLine(
+                color = Color.DarkGray,
+                start = Offset(labelSpace, size.height),
+                end = Offset(size.width, size.height),
+                strokeWidth = 2f
+            )
+
+            // grid lines and labels
+            val textPaint = android.graphics.Paint().apply {
+                color = android.graphics.Color.DKGRAY
+                textSize = with(density) { 12.sp.toPx() }
+            }
+            val stepY = max / 4
+            for (i in 0..4) {
+                val value = stepY * i
+                val y = size.height - (value * scaleY)
+                drawLine(
+                    color = Color.Gray.copy(alpha = 0.3f),
+                    start = Offset(labelSpace, y),
+                    end = Offset(size.width, y),
+                    strokeWidth = 1f
+                )
+                drawContext.canvas.nativeCanvas.drawText(
+                    value.toInt().toString(),
+                    0f,
+                    y + textPaint.textSize / 2,
+                    textPaint
+                )
+            }
+
+            // plot line
             for (i in 0 until points.lastIndex) {
-                val x1 = i * stepX
+                val x1 = labelSpace + i * stepX
                 val y1 = size.height - points[i].second * scaleY
-                val x2 = (i + 1) * stepX
+                val x2 = labelSpace + (i + 1) * stepX
                 val y2 = size.height - points[i + 1].second * scaleY
                 drawLine(
-                    color = Color.LightGray,
-                    start = androidx.compose.ui.geometry.Offset(x1, y1),
-                    end = androidx.compose.ui.geometry.Offset(x2, y2),
+                    color = MaterialTheme.colorScheme.primary,
+                    start = Offset(x1, y1),
+                    end = Offset(x2, y2),
                     strokeWidth = 4f
                 )
             }
