@@ -34,7 +34,6 @@ import com.example.gymtrack.data.Settings
 import com.example.gymtrack.util.combineTextAndTimes
 import com.example.gymtrack.util.formatElapsedMinutesSeconds
 import com.example.gymtrack.util.formatSecondsToMinutesSeconds
-import com.example.gymtrack.util.RelativeTimeVisualTransformation
 import com.example.gymtrack.util.SmallSecondsVisualTransformation
 import com.example.gymtrack.util.parseNoteText
 import androidx.compose.foundation.background
@@ -362,13 +361,13 @@ fun NoteEditor(
                                 fontSize = if (isMain) 20.sp else 14.sp,
                                 fontWeight = if (isMain) FontWeight.Bold else null,
                             ),
-                            visualTransformation = rememberRelativeTimeVisualTransformation(),
+                            visualTransformation = rememberRelativeTimeVisualTransformation( if (isMain) 20.sp else 14.sp),
                             modifier = Modifier
                                 .focusRequester(fr),
                         )
                         val absText = timestamps.getOrNull(index).orEmpty()
                         val absAnnotated =
-                            SmallSecondsVisualTransformation().filter(
+                            SmallSecondsVisualTransformation(if (isMain) 20.sp else 14.sp,).filter(
                                 AnnotatedString(absText)
                             ).text
                         Text(
