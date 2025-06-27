@@ -10,6 +10,7 @@ import com.example.gymtrack.data.NoteEntity
 import com.example.gymtrack.data.NoteLine
 import com.example.gymtrack.data.NoteDao
 import com.example.gymtrack.data.Settings
+import com.example.gymtrack.util.exportNote
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -76,6 +77,14 @@ fun NavigationHost(
                             }
                         }
                     }
+                },
+                onExport = { toExport ->
+                    CoroutineScope(Dispatchers.IO).launch {
+                        toExport.forEach {
+                            exportNote(context, it, settingsState.value)
+                        }
+                    }
+                    selectedNotes = emptySet()
                 },
                 onCreate = {
                     currentNote = null
