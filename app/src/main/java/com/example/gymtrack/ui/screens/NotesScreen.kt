@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -37,6 +38,7 @@ fun NotesScreen(
     onSelect: (Set<NoteLine>) -> Unit,
     onEdit: (NoteLine) -> Unit,
     onDelete: (Set<NoteLine>) -> Unit,
+    onExport: (Set<NoteLine>) -> Unit,
     onCreate: () -> Unit,
     onOpenSettings: () -> Unit,
     settings: Settings,
@@ -81,6 +83,9 @@ fun NotesScreen(
                     ),
                     title = { Text("${selectedNotes.size} selected", fontSize = 20.sp) },
                     actions = {
+                        IconButton(onClick = { onExport(selectedNotes) }) {
+                            Icon(Icons.Default.FileDownload, contentDescription = "Export")
+                        }
                         IconButton(onClick = { onDelete(selectedNotes) }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete")
                         }
