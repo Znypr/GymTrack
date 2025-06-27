@@ -3,6 +3,7 @@ package com.example.gymtrack.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -421,26 +422,34 @@ fun NoteEditor(
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.3f))
                     .clickable { showLearnings = false },
-                contentAlignment = Alignment.BottomCenter
+                contentAlignment = Alignment.TopCenter
             ) {
-                Surface(
-                    tonalElevation = 4.dp,
-                    shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier
-                        .padding(16.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        OutlinedTextField(
-                            value = learningsValue,
-                            onValueChange = {
-                                learningsValue = it
-                                saved = false
-                            },
-                            placeholder = { Text("Learnings") }
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Button(onClick = { showLearnings = false }) {
-                            Text("Save")
+                BoxWithConstraints {
+                    val offset = maxHeight / 3
+                    Surface(
+                        tonalElevation = 4.dp,
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier
+                            .padding(
+                                top = offset,
+                                start = 16.dp,
+                                end = 16.dp,
+                                bottom = 16.dp
+                            )
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            OutlinedTextField(
+                                value = learningsValue,
+                                onValueChange = {
+                                    learningsValue = it
+                                    saved = false
+                                },
+                                placeholder = { Text("Learnings") }
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Button(onClick = { showLearnings = false }) {
+                                Text("Save")
+                            }
                         }
                     }
                 }
