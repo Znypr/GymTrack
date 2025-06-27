@@ -2,38 +2,41 @@ package com.example.gymtrack.ui.screens
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.drawscope.drawRect
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.R
 import com.example.gymtrack.data.NoteLine
 import com.example.gymtrack.data.Settings
+
+import com.example.gymtrack.util.getSavedCsvFiles
+import com.example.gymtrack.util.parseDurationSeconds
+import com.example.gymtrack.util.parseNoteText
+import java.io.File
+
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,6 +45,11 @@ fun StatsScreen(
     settings: Settings,
     onBack: () -> Unit,
 ) {
+    val context = LocalContext.current
+    var selectedFile by remember { mutableStateOf<File?>(null) }
+    val csvFiles = remember { getSavedCsvFiles(context) }
+    var dragX by remember { mutableStateOf(0f) }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -58,7 +66,17 @@ fun StatsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp)
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            if (dragX < -100f) onBack()
+                            dragX = 0f
+                        }
+                    ) { _, dragAmount ->
+                        if (dragAmount < 0) dragX += dragAmount
+                    }
+                },
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(16.dp))
@@ -72,7 +90,37 @@ fun StatsScreen(
             Spacer(Modifier.height(24.dp))
             StatsOverview(notes)
             Spacer(Modifier.height(32.dp))
+            WorkoutDurationChart(notes)
+            Spacer(Modifier.height(32.dp))
             CategoryChart(notes)
+            Spacer(Modifier.height(32.dp))
+            Text("Saved CSVs", style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(8.dp))
+            LazyColumn(Modifier.fillMaxWidth()) {
+                items(csvFiles) { file ->
+                    ListItem(
+                        headlineText = { Text(file.name) },
+                        leadingContent = {
+                            Icon(Icons.Default.Description, contentDescription = null)
+                        },
+                        modifier = Modifier.clickable { selectedFile = file }
+                    )
+                }
+            }
+        }
+        selectedFile?.let { file ->
+            AlertDialog(
+                onDismissRequest = { selectedFile = null },
+                confirmButton = {
+                    TextButton(onClick = { selectedFile = null }) { Text("Close") }
+                },
+                title = { Text(file.name) },
+                text = {
+                    Box(Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
+                        Text(file.readText())
+                    }
+                }
+            )
         }
     }
 }
@@ -120,6 +168,37 @@ private fun CategoryChart(notes: List<NoteLine>) {
         ) {
             counts.keys.forEach { label ->
                 Text(label, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkoutDurationChart(notes: List<NoteLine>) {
+    val points = notes.mapNotNull { note ->
+        val secs = parseNoteText(note.text).second.filter { it.isNotBlank() }.lastOrNull()?.let { parseDurationSeconds(it) }
+        secs?.let { note.timestamp to it / 60f }
+    }.sortedBy { it.first }
+    if (points.isEmpty()) return
+
+    val max = points.maxOf { it.second }
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+        Text("Workout length (min)", style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(12.dp))
+        Canvas(modifier = Modifier.fillMaxWidth().height(200.dp)) {
+            val stepX = size.width / (points.size - 1).coerceAtLeast(1)
+            val scaleY = size.height / max
+            for (i in 0 until points.lastIndex) {
+                val x1 = i * stepX
+                val y1 = size.height - points[i].second * scaleY
+                val x2 = (i + 1) * stepX
+                val y2 = size.height - points[i + 1].second * scaleY
+                drawLine(
+                    color = MaterialTheme.colorScheme.primary,
+                    start = androidx.compose.ui.geometry.Offset(x1, y1),
+                    end = androidx.compose.ui.geometry.Offset(x2, y2),
+                    strokeWidth = 4f
+                )
             }
         }
     }
