@@ -10,6 +10,7 @@ import com.example.gymtrack.data.NoteEntity
 import com.example.gymtrack.data.NoteLine
 import com.example.gymtrack.data.NoteDao
 import com.example.gymtrack.data.Settings
+import com.example.gymtrack.ui.screens.StatsScreen
 import com.example.gymtrack.util.exportNote
 import android.widget.Toast
 import kotlinx.coroutines.CoroutineScope
@@ -99,7 +100,15 @@ fun NavigationHost(
                     navController.navigate("edit")
                 },
                 onOpenSettings = { navController.navigate("settings") },
+                onSwipeRight = { navController.navigate("stats") },
                 settings = settingsState.value,
+            )
+        }
+        composable("stats") {
+            StatsScreen(
+                notes = notes,
+                settings = settingsState.value,
+                onBack = { navController.popBackStack() },
             )
         }
         composable("edit") {

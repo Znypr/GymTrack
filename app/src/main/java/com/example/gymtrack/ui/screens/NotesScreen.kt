@@ -3,6 +3,7 @@ package com.example.gymtrack.ui.screens
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -13,7 +14,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -29,6 +30,7 @@ import com.example.gymtrack.util.formatWeekRelativeTime
 import com.example.gymtrack.util.lighten
 import com.example.gymtrack.util.parseNoteText
 import com.example.gymtrack.util.parseDurationSeconds
+import androidx.compose.ui.input.pointer.pointerInput
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +43,7 @@ fun NotesScreen(
     onExport: (Set<NoteLine>) -> Unit,
     onCreate: () -> Unit,
     onOpenSettings: () -> Unit,
+    onSwipeRight: () -> Unit,
     settings: Settings,
 ) {
     Scaffold(
@@ -97,14 +100,29 @@ fun NotesScreen(
             }
         },
     ) { padding ->
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(160.dp),
-            contentPadding = padding,
+        var dragX by remember { mutableStateOf(0f) }
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(8.dp),
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            if (dragX > 100f) onSwipeRight()
+                            dragX = 0f
+                        }
+                    ) { change, dragAmount ->
+                        if (dragAmount > 0) dragX += dragAmount
+                    }
+                }
         ) {
-            itemsIndexed(notes.reversed(), key = { _, n -> n.timestamp }) { _, note ->
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(160.dp),
+                contentPadding = padding,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp),
+            ) {
+                itemsIndexed(notes.reversed(), key = { _, n -> n.timestamp }) { _, note ->
                 val isSelected = selectedNotes.contains(note)
                 Card(
                     modifier = Modifier
