@@ -55,7 +55,7 @@ import com.example.gymtrack.util.rememberRelativeTimeVisualTransformation
 fun NoteEditor(
     note: NoteLine?,
     settings: Settings,
-    onSave: (String, String, Category?, String) -> Unit,
+    onSave: (String, String, Category?, String, Long) -> Unit,
     onCancel: () -> Unit,
 ) {
     var titleValue by remember { mutableStateOf(TextFieldValue(note?.title ?: "")) }
@@ -79,11 +79,11 @@ fun NoteEditor(
     var selectedCategory by remember { mutableStateOf<Category?>(settings.categories.find { it.name == note?.categoryName }) }
 
     val initialTimes = remember(note) {
-        val list = parsed.second
-        val lastIdx = list.indexOfLast { it.isNotBlank() }
-        if (note != null && lastIdx >= 0) {
-            val lastSec = parseDurationSeconds(list[lastIdx]).toLong()
-            val start = note.timestamp - lastSec * 1000
+        if (note != null) {
+            val list = parsed.second
+            val lastIdx = list.indexOfLast { it.isNotBlank() }
+            val lastSec = if (lastIdx >= 0) parseDurationSeconds(list[lastIdx]).toLong() else 0L
+            val start = note.timestamp
             start to (start + lastSec * 1000)
         } else {
             null to System.currentTimeMillis()
@@ -126,7 +126,13 @@ fun NoteEditor(
 
                 val combined = combineTextAndTimes(plainContent, timestamps)
 
-                onSave(titleValue.text, combined, selectedCategory, learningsValue.text)
+                onSave(
+                    titleValue.text,
+                    combined,
+                    selectedCategory,
+                    learningsValue.text,
+                    startTime ?: noteTimestamp,
+                )
             } else {
                 saved = true
             }
