@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
@@ -34,6 +35,7 @@ import java.io.File
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.nativeCanvas
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -162,7 +164,7 @@ private fun CategoryChart(notes: List<NoteLine>) {
             counts.entries.forEachIndexed { index, entry ->
                 val barHeight = size.height * (entry.value.toFloat() / max)
                 drawRect(
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                    color = Color.White.copy(alpha = 0.6f),
                     topLeft = Offset(barWidth * (1 + index * 2), size.height - barHeight),
                     size = Size(barWidth, barHeight)
                 )
@@ -199,7 +201,7 @@ private fun WorkoutDurationChart(notes: List<NoteLine>) {
             val stepX = chartWidth / (points.size - 1).coerceAtLeast(1)
             val scaleY = size.height / max
 
-            drawRect(color = MaterialTheme.colorScheme.surfaceVariant, size = size)
+            drawRect(color = Color.White, size = size)
 
             // axes
             drawLine(
@@ -245,7 +247,7 @@ private fun WorkoutDurationChart(notes: List<NoteLine>) {
                 val x2 = labelSpace + (i + 1) * stepX
                 val y2 = size.height - points[i + 1].second * scaleY
                 drawLine(
-                    color = MaterialTheme.colorScheme.primary,
+                    color = Color.White,
                     start = Offset(x1, y1),
                     end = Offset(x2, y2),
                     strokeWidth = 4f
