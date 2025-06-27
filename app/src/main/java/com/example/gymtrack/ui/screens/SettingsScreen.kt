@@ -22,6 +22,7 @@ import com.example.gymtrack.data.Category
 import com.example.gymtrack.data.Settings
 import com.example.gymtrack.ui.components.ColorDropdown
 import com.example.gymtrack.util.presetColors
+import com.example.gymtrack.BuildConfig
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,7 +56,8 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
         Column(
             modifier = Modifier
                 .padding(padding)
-                .padding(16.dp),
+                .padding(16.dp)
+                .fillMaxSize(),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("24-hour format", modifier = Modifier.weight(1f))
@@ -195,24 +197,32 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                         .height(65.dp),
                     onSelected = { newColor = it },
                 )
-                IconButton(onClick = {
-                    categories = (categories + Category(
-                        newName.ifBlank { "Category" },
-                        newColor,
-                    )).toMutableList()
-                    onChange(
-                        settings.copy(
-                            is24Hour = is24,
-                            roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds,
-                            darkMode = dark,
-                            categories = categories,
-                        ),
-                    )
-                    newName = ""
-                }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add")
-                }
+            IconButton(onClick = {
+                categories = (categories + Category(
+                    newName.ifBlank { "Category" },
+                    newColor,
+                )).toMutableList()
+                onChange(
+                    settings.copy(
+                        is24Hour = is24,
+                        roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds,
+                        darkMode = dark,
+                        categories = categories,
+                    ),
+                )
+                newName = ""
+            }) {
+                Icon(Icons.Default.Add, contentDescription = "Add")
             }
         }
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = "Version ${BuildConfig.VERSION_NAME}",
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center,
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+        )
     }
+}
 }
