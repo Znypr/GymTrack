@@ -123,79 +123,83 @@ fun NotesScreen(
                     .padding(8.dp),
             ) {
                 itemsIndexed(notes.reversed(), key = { _, n -> n.timestamp }) { _, note ->
-                val isSelected = selectedNotes.contains(note)
-                Card(
-                    modifier = Modifier
-                        .padding(6.dp)
-                        .fillMaxWidth()
-                        .combinedClickable(
-                            onClick = {
-                                if (selectedNotes.isNotEmpty()) {
-                                    onSelect(selectedNotes.toMutableSet().also { set ->
-                                        if (set.contains(note)) set.remove(note) else set.add(note)
-                                    })
+                    val isSelected = selectedNotes.contains(note)
+                    Card(
+                        modifier = Modifier
+                            .padding(6.dp)
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                onClick = {
+                                    if (selectedNotes.isNotEmpty()) {
+                                        onSelect(selectedNotes.toMutableSet().also { set ->
+                                            if (set.contains(note)) set.remove(note) else set.add(
+                                                note
+                                            )
+                                        })
+                                    } else {
+                                        onEdit(note)
+                                    }
+                                },
+                                onLongClick = {
+                                    onSelect(selectedNotes.toMutableSet().also { it.add(note) })
+                                },
+                            ),
+                        shape = MaterialTheme.shapes.medium,
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected) {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                            } else {
+                                val base = note.categoryColor?.let { Color(it.toInt()) }
+                                    ?: if (settings.darkMode) MaterialTheme.colorScheme.surface
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                if (note.categoryColor == null) {
+                                    base
+                                } else if (settings.darkMode) {
+                                    base.darken(0.7f)
                                 } else {
-                                    onEdit(note)
+                                    base.lighten(0.1f)
                                 }
                             },
-                            onLongClick = {
-                                onSelect(selectedNotes.toMutableSet().also { it.add(note) })
-                            },
+                            contentColor = MaterialTheme.colorScheme.onSurface,
                         ),
-                    shape = MaterialTheme.shapes.medium,
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isSelected) {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-                        } else {
-                            val base = note.categoryColor?.let { Color(it.toInt()) }
-                                ?: if (settings.darkMode) MaterialTheme.colorScheme.surface
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            if (note.categoryColor == null) {
-                                base
-                            } else if (settings.darkMode) {
-                                base.darken(0.7f)
-                            } else {
-                                base.lighten(0.1f)
-                            }
-                        },
-                        contentColor = MaterialTheme.colorScheme.onSurface,
-                    ),
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .padding(12.dp)
-                            .fillMaxWidth()
                     ) {
-                        val totalSec =
-                            parseNoteText(note.text).second.filter { it.isNotBlank() }.lastOrNull()
-                                ?.let { parseDurationSeconds(it) }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                        Column(
+                            modifier = Modifier
+                                .padding(12.dp)
+                                .fillMaxWidth()
                         ) {
-                            totalSec?.let {
+                            val totalSec =
+                                parseNoteText(note.text).second.filter { it.isNotBlank() }
+                                    .lastOrNull()
+                                    ?.let { parseDurationSeconds(it) }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                totalSec?.let {
+                                    Text(
+                                        text = "${it / 60}'",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                }
                                 Text(
-                                    text = "${it / 60}'",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    text = formatWeekRelativeTime(note.timestamp, settings),
+                                    fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )
                             }
+                            Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = formatWeekRelativeTime(note.timestamp, settings),
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                text = note.title,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.align(Alignment.Start)
                             )
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = note.title,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.align(Alignment.Start)
-                        )
-                    }
 
+                    }
                 }
             }
         }
