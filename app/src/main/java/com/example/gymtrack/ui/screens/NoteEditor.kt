@@ -36,6 +36,7 @@ import com.example.gymtrack.util.combineTextAndTimes
 import com.example.gymtrack.util.formatFullDateTime
 import com.example.gymtrack.util.formatElapsedMinutesSeconds
 import com.example.gymtrack.util.formatSecondsToMinutesSeconds
+import com.example.gymtrack.util.RelativeTimeVisualTransformation
 import com.example.gymtrack.util.parseNoteText
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -77,6 +78,7 @@ fun NoteEditor(
         remember(parsed.second) { mutableStateListOf<String>().apply { addAll(parsed.second) } }
     var selectedCategory by remember { mutableStateOf<Category?>(settings.categories.find { it.name == note?.categoryName }) }
     var lastEnter by remember { mutableStateOf(System.currentTimeMillis()) }
+    var startTime by remember { mutableStateOf<Long?>(null) }
     val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -90,7 +92,9 @@ fun NoteEditor(
                 if (row.text.value.text.isNotBlank() && timestamps[i].isBlank()) {
                     // write current clock value if user never pressed Enter on that line
                     val nowAbs = formatElapsedMinutesSeconds(
-                        noteTimestamp, System.currentTimeMillis(), settings
+                        startTime ?: noteTimestamp,
+                        System.currentTimeMillis(),
+                        settings,
                     )
                     timestamps[i] = nowAbs
                 }
@@ -311,8 +315,11 @@ fun NoteEditor(
                                     if (content.isNotBlank()) lastEnter = now
 
                                     val rel = formatSecondsToMinutesSeconds(diffSec)
+                                    if (startTime == null && content.isNotBlank() && isMain) {
+                                        startTime = now
+                                    }
                                     val abs = formatElapsedMinutesSeconds(
-                                        noteTimestamp, now, settings
+                                        startTime ?: now, now, settings
                                     )
 
                                     row.text.value =
@@ -353,6 +360,7 @@ fun NoteEditor(
                                 fontSize = if (isMain) 20.sp else 14.sp,
                                 fontWeight = if (isMain) FontWeight.Bold else null,
                             ),
+                            visualTransformation = RelativeTimeVisualTransformation(),
                             modifier = Modifier
                                 .focusRequester(fr),
                         )
