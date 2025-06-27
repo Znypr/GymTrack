@@ -436,8 +436,13 @@ fun NoteEditor(
                                 end = 16.dp,
                                 bottom = 16.dp
                             )
+                            .imePadding()
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .padding(16.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
                             OutlinedTextField(
                                 value = learningsValue,
                                 onValueChange = {
