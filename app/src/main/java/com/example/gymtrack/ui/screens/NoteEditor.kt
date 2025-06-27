@@ -167,12 +167,14 @@ fun NoteEditor(
                         color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center,
                         fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
                     )
                     Text(
                         formatTime(noteTimestamp, settings),
                         color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center,
                         fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
                     )
                 }
                 IconButton(onClick = {
