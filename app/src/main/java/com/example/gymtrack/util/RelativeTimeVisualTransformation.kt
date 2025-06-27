@@ -37,6 +37,6 @@ class RelativeTimeVisualTransformation(private val color: Color, private val fon
 @Composable
 fun rememberRelativeTimeVisualTransformation(fontSize: TextUnit): RelativeTimeVisualTransformation {
     val color = MaterialTheme.colorScheme.onSurface
-    val tint = color.copy(alpha = if (isSystemInDarkTheme()) 0.85f else 0.45f)
+    val tint = color.copy(alpha = if (isSystemInDarkTheme()) 0.75f else 0.45f)
     return remember(tint) { RelativeTimeVisualTransformation(tint, fontSize) }
 }
