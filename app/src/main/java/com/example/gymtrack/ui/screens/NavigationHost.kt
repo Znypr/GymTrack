@@ -108,7 +108,11 @@ fun NavigationHost(
             StatsScreen(
                 notes = notes,
                 settings = settingsState.value,
-                onBack = { navController.popBackStack() },
+                onBack = {
+                    if (!navController.popBackStack("main", false)) {
+                        navController.navigate("main")
+                    }
+                },
             )
         }
         composable("edit") {

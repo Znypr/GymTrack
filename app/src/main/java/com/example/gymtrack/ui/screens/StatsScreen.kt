@@ -69,7 +69,9 @@ fun StatsScreen(
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
-                            if (dragX < -100f) onBack()
+                            if (dragX < -100f) {
+                                onBack()
+                            }
                             dragX = 0f
                         }
                     ) { _, dragAmount ->
