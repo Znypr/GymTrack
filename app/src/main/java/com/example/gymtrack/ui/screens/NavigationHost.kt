@@ -89,7 +89,7 @@ fun NavigationHost(
             NoteEditor(
                 note = currentNote,
                 settings = settingsState.value,
-                onSave = { title, text, category, learn ->
+                onSave = { title, text, category, learn, start ->
                     val updated = currentNote?.copy(
                         title = title,
                         text = text,
@@ -99,7 +99,7 @@ fun NavigationHost(
                     ) ?: NoteLine(
                         title,
                         text,
-                        System.currentTimeMillis(),
+                        start,
                         category?.name,
                         category?.color,
                         learn,
