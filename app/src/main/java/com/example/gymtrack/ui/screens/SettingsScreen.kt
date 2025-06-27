@@ -104,8 +104,8 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                     )
                 },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.surface,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.surface,
+                    focusedBorderColor = MaterialTheme.colorScheme.background,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.background,
                 ),
                 label = { Text("Rounding seconds") },
             )
@@ -135,8 +135,8 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                         modifier = Modifier.weight(1f),
                         label = { Text("Name") },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.surface,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.surface,
+                            focusedBorderColor = MaterialTheme.colorScheme.background,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.background,
                         ),
                     )
                     Spacer(Modifier.width(4.dp))
@@ -185,8 +185,8 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                     modifier = Modifier.weight(1f),
                     label = { Text("New category") },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.surface,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.surface,
+                        focusedBorderColor = MaterialTheme.colorScheme.background,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.background,
                     ),
                 )
                 Spacer(Modifier.width(4.dp))
