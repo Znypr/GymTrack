@@ -271,7 +271,7 @@ fun NoteEditor(
 
             // Body
             LazyColumn(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 contentPadding = PaddingValues(horizontal = 15.dp, vertical = 20.dp),
             ) {
