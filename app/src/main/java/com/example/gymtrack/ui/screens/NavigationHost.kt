@@ -132,16 +132,17 @@ fun NavigationHost(
                     )
                     daoState.value?.let { dao ->
                         CoroutineScope(Dispatchers.IO).launch {
-                            dao.insert(
-                                NoteEntity(
-                                    updated.timestamp,
-                                    updated.title,
-                                    updated.text,
-                                    updated.categoryName,
-                                    updated.categoryColor,
-                                    updated.learnings,
-                                )
-                            )
+                           dao.insert(
+                               NoteEntity(
+                                   updated.timestamp,
+                                   updated.title,
+                                   updated.text,
+                                   updated.categoryName,
+                                   updated.categoryColor,
+                                   updated.learnings,
+                               )
+                           )
+                            exportNote(context, updated, settingsState.value)
                             withContext(Dispatchers.Main) {
                                 notes = if (notes.any { it.timestamp == updated.timestamp }) {
                                     notes.map { if (it.timestamp == updated.timestamp) updated else it }

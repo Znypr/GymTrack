@@ -20,8 +20,10 @@ A minimal Android notes application built with Jetpack Compose, designed to auto
 - **Multi-selection and batch deletion**  
   Long-press on notes to enable selection mode for bulk deletion or management.
 
-- **Local data storage**  
+- **Local data storage**
   Notes are stored persistently on-device using Room database. No internet connection required.
+- **Automatic CSV export**
+  Each saved note is exported to a CSV file stored inside the app so workout data can be easily reviewed from the stats screen.
 
 ## Technical Stack
 
