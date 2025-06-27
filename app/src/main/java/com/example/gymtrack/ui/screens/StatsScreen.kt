@@ -12,12 +12,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.drawscope.drawRect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 
@@ -99,9 +98,9 @@ fun StatsScreen(
             LazyColumn(Modifier.fillMaxWidth()) {
                 items(csvFiles) { file ->
                     ListItem(
-                        headlineText = { Text(file.name) },
+                        headlineContent = { Text(file.name) },
                         leadingContent = {
-                            Icon(Icons.Default.Description, contentDescription = null)
+                            Icon(Icons.Default.Info, contentDescription = null)
                         },
                         modifier = Modifier.clickable { selectedFile = file }
                     )
@@ -194,7 +193,7 @@ private fun WorkoutDurationChart(notes: List<NoteLine>) {
                 val x2 = (i + 1) * stepX
                 val y2 = size.height - points[i + 1].second * scaleY
                 drawLine(
-                    color = MaterialTheme.colorScheme.primary,
+                    color = Color.LightGray,
                     start = androidx.compose.ui.geometry.Offset(x1, y1),
                     end = androidx.compose.ui.geometry.Offset(x2, y2),
                     strokeWidth = 4f
