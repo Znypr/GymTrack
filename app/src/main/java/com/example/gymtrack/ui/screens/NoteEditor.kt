@@ -231,8 +231,8 @@ fun NoteEditor(
                         placeholder = { Text("Title") },
                         modifier = Modifier.weight(1f),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.surface,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.surface,
+                            focusedBorderColor = MaterialTheme.colorScheme.background,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.background,
                             focusedContainerColor = MaterialTheme.colorScheme.surface,
                             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                             focusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -253,8 +253,8 @@ fun NoteEditor(
                             label = { Text("Category") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.surface,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.surface,
+                                focusedBorderColor = MaterialTheme.colorScheme.background,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.background,
                                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                                 unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                             ),
@@ -441,18 +441,37 @@ fun NoteEditor(
                         Column(
                             modifier = Modifier
                                 .padding(16.dp)
-                                .verticalScroll(rememberScrollState())
+                                .fillMaxWidth()
                         ) {
-                            OutlinedTextField(
-                                value = learningsValue,
-                                onValueChange = {
-                                    learningsValue = it
-                                    saved = false
-                                },
-                                placeholder = { Text("Learnings") }
+                            Text(
+                                "Notes",
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.align(Alignment.CenterHorizontally)
                             )
                             Spacer(Modifier.height(8.dp))
-                            Button(onClick = { showLearnings = false }) {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                OutlinedTextField(
+                                    value = learningsValue,
+                                    onValueChange = {
+                                        learningsValue = it
+                                        saved = false
+                                    },
+                                    placeholder = { Text("Learnings") },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = MaterialTheme.colorScheme.background,
+                                        unfocusedBorderColor = MaterialTheme.colorScheme.background,
+                                    )
+                                )
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Button(
+                                onClick = { showLearnings = false },
+                                modifier = Modifier.align(Alignment.CenterHorizontally)
+                            ) {
                                 Text("Save")
                             }
                         }
