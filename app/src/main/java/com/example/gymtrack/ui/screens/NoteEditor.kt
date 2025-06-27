@@ -1,6 +1,5 @@
 package com.example.gymtrack.ui.screens
 
-import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -10,7 +9,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -34,7 +32,6 @@ import com.example.gymtrack.data.Category
 import com.example.gymtrack.data.NoteLine
 import com.example.gymtrack.data.Settings
 import com.example.gymtrack.util.combineTextAndTimes
-import com.example.gymtrack.util.formatFullDateTime
 import com.example.gymtrack.util.formatElapsedMinutesSeconds
 import com.example.gymtrack.util.formatSecondsToMinutesSeconds
 import com.example.gymtrack.util.RelativeTimeVisualTransformation
@@ -51,6 +48,7 @@ import androidx.compose.ui.text.style.TextAlign
 import com.example.gymtrack.R
 import com.example.gymtrack.util.formatDate
 import com.example.gymtrack.util.formatTime
+import com.example.gymtrack.util.rememberRelativeTimeVisualTransformation
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -171,12 +169,14 @@ fun NoteEditor(
                         color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center,
                         fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
                     )
                     Text(
                         formatTime(noteTimestamp, settings),
                         color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center,
                         fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
                     )
                 }
                 IconButton(onClick = {
@@ -362,7 +362,7 @@ fun NoteEditor(
                                 fontSize = if (isMain) 20.sp else 14.sp,
                                 fontWeight = if (isMain) FontWeight.Bold else null,
                             ),
-                            visualTransformation = RelativeTimeVisualTransformation(),
+                            visualTransformation = rememberRelativeTimeVisualTransformation(),
                             modifier = Modifier
                                 .focusRequester(fr),
                         )
