@@ -11,6 +11,12 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -35,6 +41,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -47,10 +54,11 @@ import com.example.gymtrack.util.formatTime
 fun NoteEditor(
     note: NoteLine?,
     settings: Settings,
-    onSave: (String, String, Category?) -> Unit,
+    onSave: (String, String, Category?, String) -> Unit,
     onCancel: () -> Unit,
 ) {
     var titleValue by remember { mutableStateOf(TextFieldValue(note?.title ?: "")) }
+    var learningsValue by remember { mutableStateOf(TextFieldValue(note?.learnings ?: "")) }
     val parsed = remember(note) { parseNoteText(note?.text ?: "") }
 
     data class Row(
@@ -102,7 +110,7 @@ fun NoteEditor(
 
                 val combined = combineTextAndTimes(plainContent, timestamps)
 
-                onSave(titleValue.text, combined, selectedCategory)
+                onSave(titleValue.text, combined, selectedCategory, learningsValue.text)
             } else {
                 saved = true
             }
@@ -110,6 +118,7 @@ fun NoteEditor(
     }
 
     var expanded by remember { mutableStateOf(false) }
+    var showLearnings by remember { mutableStateOf(false) }
 
     BackHandler {
         saveIfNeeded()
@@ -126,19 +135,22 @@ fun NoteEditor(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    Surface(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .systemBarsPadding(),
-        color = MaterialTheme.colorScheme.background,
+            .systemBarsPadding()
     ) {
-        val scroll = rememberScrollState()
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(scroll)
-                .padding(16.dp)
-                .imePadding(),
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background,
+        ) {
+            val scroll = rememberScrollState()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(scroll)
+                    .padding(16.dp)
+                    .imePadding(),
         ) {
             // Navigation Row
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -354,6 +366,52 @@ fun NoteEditor(
             }
         }
     }
+
+        FloatingActionButton(
+            onClick = { showLearnings = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp),
+            containerColor = MaterialTheme.colorScheme.primary
+        ) {
+            Icon(Icons.Default.Edit, contentDescription = "Edit")
+        }
+
+        AnimatedVisibility(
+            visible = showLearnings,
+            enter = scaleIn() + fadeIn(),
+            exit = scaleOut() + fadeOut()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.3f))
+                    .clickable { showLearnings = false },
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                Surface(
+                    tonalElevation = 4.dp,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier
+                        .padding(16.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        OutlinedTextField(
+                            value = learningsValue,
+                            onValueChange = {
+                                learningsValue = it
+                                saved = false
+                            },
+                            placeholder = { Text("Learnings") }
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Button(onClick = { showLearnings = false }) {
+                            Text("Save")
+                        }
+                    }
+                }
+            }
+        }
+
+    }
 }
-
-

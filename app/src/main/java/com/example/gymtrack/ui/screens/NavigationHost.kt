@@ -40,6 +40,7 @@ fun NavigationHost(
                 it.timestamp,
                 it.categoryName,
                 it.categoryColor,
+                it.learnings ?: "",
             )
         }
     }
@@ -65,6 +66,7 @@ fun NavigationHost(
                                         it.text,
                                         it.categoryName,
                                         it.categoryColor,
+                                        it.learnings,
                                     )
                                 )
                             }
@@ -87,18 +89,20 @@ fun NavigationHost(
             NoteEditor(
                 note = currentNote,
                 settings = settingsState.value,
-                onSave = { title, text, category ->
+                onSave = { title, text, category, learn ->
                     val updated = currentNote?.copy(
                         title = title,
                         text = text,
                         categoryName = category?.name,
                         categoryColor = category?.color,
+                        learnings = learn,
                     ) ?: NoteLine(
                         title,
                         text,
                         System.currentTimeMillis(),
                         category?.name,
                         category?.color,
+                        learn,
                     )
                     daoState.value?.let { dao ->
                         CoroutineScope(Dispatchers.IO).launch {
@@ -109,6 +113,7 @@ fun NavigationHost(
                                     updated.text,
                                     updated.categoryName,
                                     updated.categoryColor,
+                                    updated.learnings,
                                 )
                             )
                             withContext(Dispatchers.Main) {
