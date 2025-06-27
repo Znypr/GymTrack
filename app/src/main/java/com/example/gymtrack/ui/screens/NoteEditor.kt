@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -34,6 +35,7 @@ import com.example.gymtrack.util.combineTextAndTimes
 import com.example.gymtrack.util.formatElapsedMinutesSeconds
 import com.example.gymtrack.util.formatSecondsToMinutesSeconds
 import com.example.gymtrack.util.RelativeTimeVisualTransformation
+import com.example.gymtrack.util.SmallSecondsVisualTransformation
 import com.example.gymtrack.util.parseNoteText
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -364,8 +366,13 @@ fun NoteEditor(
                             modifier = Modifier
                                 .focusRequester(fr),
                         )
+                        val absText = timestamps.getOrNull(index).orEmpty()
+                        val absAnnotated =
+                            SmallSecondsVisualTransformation().filter(
+                                AnnotatedString(absText)
+                            ).text
                         Text(
-                            timestamps.getOrNull(index).orEmpty(),
+                            absAnnotated,
                             fontSize = if (isMain) 20.sp else 14.sp,
                             color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = if (isMain) FontWeight.Bold else null,

@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.sp
 
 class WorkoutVisualTransformation(private val times: List<String>) : VisualTransformation {
     private val timeRegex = "\\((?:\\d+'\\d{2}''|\\d+s)\\)".toRegex()
+    private val secondsTrans = SmallSecondsVisualTransformation()
 
     override fun filter(text: AnnotatedString): TransformedText {
         val originalTrimmedLines = text.text.split('\n').map { it.trimStart() }
@@ -84,8 +85,9 @@ class WorkoutVisualTransformation(private val times: List<String>) : VisualTrans
             }
         }
 
-        val builder = AnnotatedString.Builder(transformed)
-        timeRegex.findAll(transformed).forEach { match ->
+        val withSeconds = secondsTrans.filter(AnnotatedString(transformed)).text
+        val builder = AnnotatedString.Builder(withSeconds)
+        timeRegex.findAll(withSeconds.text).forEach { match ->
             builder.addStyle(
                 SpanStyle(color = Color.LightGray),
                 match.range.first,

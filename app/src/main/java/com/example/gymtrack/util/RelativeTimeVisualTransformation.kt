@@ -8,18 +8,20 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TransformedText
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.VisualTransformation
 
 /**
  * VisualTransformation that highlights relative times like "(00'30'')" within the text.
  */
 class RelativeTimeVisualTransformation(private val color: Color) : VisualTransformation {
     private val pattern = "\\((?:\\d+'\\d{2}''|\\d+s)\\)".toRegex()
+    private val secondsTrans = SmallSecondsVisualTransformation()
 
     override fun filter(text: AnnotatedString): TransformedText {
-        val builder = AnnotatedString.Builder(text)
-        pattern.findAll(text.text).forEach { match ->
+        val withSeconds = secondsTrans.filter(text).text
+        val builder = AnnotatedString.Builder(withSeconds)
+        pattern.findAll(withSeconds.text).forEach { match ->
             builder.addStyle(
                 SpanStyle(color = color),
                 match.range.first,
