@@ -35,6 +35,7 @@ import com.example.gymtrack.util.formatElapsedMinutesSeconds
 import com.example.gymtrack.util.formatSecondsToMinutesSeconds
 import com.example.gymtrack.util.RelativeTimeVisualTransformation
 import com.example.gymtrack.util.parseNoteText
+import com.example.gymtrack.util.parseDurationSeconds
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.text.BasicTextField
@@ -75,8 +76,20 @@ fun NoteEditor(
     val timestamps =
         remember(parsed.second) { mutableStateListOf<String>().apply { addAll(parsed.second) } }
     var selectedCategory by remember { mutableStateOf<Category?>(settings.categories.find { it.name == note?.categoryName }) }
-    var lastEnter by remember { mutableStateOf(System.currentTimeMillis()) }
-    var startTime by remember { mutableStateOf<Long?>(null) }
+
+    val initialTimes = remember(note) {
+        val list = parsed.second
+        val lastIdx = list.indexOfLast { it.isNotBlank() }
+        if (note != null && lastIdx >= 0) {
+            val lastSec = parseDurationSeconds(list[lastIdx]).toLong()
+            val start = note.timestamp - lastSec * 1000
+            start to (start + lastSec * 1000)
+        } else {
+            null to System.currentTimeMillis()
+        }
+    }
+    var startTime by remember { mutableStateOf(initialTimes.first) }
+    var lastEnter by remember { mutableStateOf(initialTimes.second) }
     val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
 
     val lifecycleOwner = LocalLifecycleOwner.current
