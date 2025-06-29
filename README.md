@@ -1,40 +1,11 @@
+# GymTrack
 
-# Timestamped Notes App
+GymTrack is a lightweight workout logger built with Jetpack Compose. It stores notes locally and timestamps each line so you can quickly record sets or thoughts during a session.
 
-A minimal Android notes application built with Jetpack Compose, designed to automatically assign a relative timestamp to each line of a note. This enables users to track precisely when each entry was made.
+## Highlights
+- Timestamped lines saved in a Room database
+- Color-coded categories and dark mode support
+- Full-screen editor with grid note overview
+- CSV export and simple stats charts
+- Configurable 24‑hour format and rounding of time
 
-## Features
-
-- **Line-based timestamps**  
-  Each time the user presses Enter, a new line is added with a relative timestamp (e.g., "Just now", "Today 17:41", "Yesterday 17:41").
-
-- **Optimized for athletes and logging**  
-  Ideal for tracking exercises and workout sets in chronological order. The timestamping system allows users to easily review the timing and sequence of their training sessions.
-
-- **Grid-based note overview**  
-  Notes are displayed in a responsive card layout for quick access and better organization.
-
-- **Dedicated editing screen**  
-  Tapping a note opens a separate page with full-screen editing capabilities for focused writing.
-
-- **Multi-selection and batch deletion**  
-  Long-press on notes to enable selection mode for bulk deletion or management.
-
-- **Local data storage**
-  Notes are stored persistently on-device using Room database. No internet connection required.
-- **Automatic CSV export**
-  Each saved note is exported to a CSV file stored inside the app so workout data can be easily reviewed from the stats screen.
-
-## Technical Stack
-
-- Kotlin with Jetpack Compose
-- Room (SQLite persistence)
-- Material 3 (dark theme)
-
-## Use Case Example
-
-An athlete recording their workout can note down each set, weight, or exercise in real time. The app automatically timestamps each entry, making it easy to later analyze the session duration, rest intervals, or order of execution.
-
-## Status
-
-This is a functional MVP. Planned improvements include search, tagging, and export or cloud synchronization capabilities.
