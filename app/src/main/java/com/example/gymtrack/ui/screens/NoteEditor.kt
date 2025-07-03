@@ -28,6 +28,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -81,16 +82,18 @@ fun NoteEditor(
     var learningsValue by remember { mutableStateOf(TextFieldValue(note?.learnings ?: "")) }
     val parsed = remember(note) { parseNoteText(note?.text ?: "") }
 
-    data class Row(
-        val id: Long, val text: MutableState<TextFieldValue>   // ← wrapped in state
+    data class NoteRow(
+        val id: Long,
+        val text: MutableState<TextFieldValue>,   // ← wrapped in state
+        val isUni: MutableState<Boolean> = mutableStateOf(false)
     )
 
     var nextId by remember { mutableStateOf(0L) }
 
     val lines = remember(parsed.first) {
-        mutableStateListOf<Row>().apply {
-            if (parsed.first.isEmpty()) add(Row(nextId++, mutableStateOf(TextFieldValue(""))))
-            else parsed.first.forEach { add(Row(nextId++, mutableStateOf(TextFieldValue(it)))) }
+        mutableStateListOf<NoteRow>().apply {
+            if (parsed.first.isEmpty()) add(NoteRow(nextId++, mutableStateOf(TextFieldValue(""))))
+            else parsed.first.forEach { add(NoteRow(nextId++, mutableStateOf(TextFieldValue(it)))) }
         }
     }
     val timestamps =
@@ -382,6 +385,51 @@ fun NoteEditor(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
+                                val relColor = MaterialTheme.colorScheme.onSurface
+                                    .copy(alpha = if (isSystemInDarkTheme()) 0.75f else 0.45f)
+
+                                Box(Modifier.width(48.dp), contentAlignment = Alignment.Center) {
+                                    if (isMain) {
+                                        OutlinedButton(
+                                            onClick = { row.isUni.value = !row.isUni.value },
+                                            border = BorderStroke(1.dp, if (row.isUni.value) MaterialTheme.colorScheme.error else relColor),
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                containerColor = Color.Transparent,
+                                                contentColor = if (row.isUni.value) MaterialTheme.colorScheme.error else relColor
+                                            ),
+                                            shape = RoundedCornerShape(4.dp),
+                                            modifier = Modifier.height(28.dp)
+                                        ) {
+                                            Text(if (row.isUni.value) "uni." else "bi.")
+                                        }
+                                    } else {
+                                        val parentUni = run {
+                                            var p = index - 1
+                                            while (p >= 0) {
+                                                val pIsMain = p == 0 || lines.getOrNull(p - 1)?.text?.value?.text?.isBlank() != false
+                                                if (pIsMain && lines[p].text.value.text.isNotBlank()) break
+                                                p--
+                                            }
+                                            lines.getOrNull(p)?.isUni?.value ?: false
+                                        }
+                                        if (parentUni) {
+                                            OutlinedButton(
+                                                onClick = {},
+                                                enabled = false,
+                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+                                                colors = ButtonDefaults.outlinedButtonColors(
+                                                    containerColor = Color.Transparent,
+                                                    disabledContentColor = MaterialTheme.colorScheme.error
+                                                ),
+                                                shape = RoundedCornerShape(4.dp),
+                                                modifier = Modifier.height(28.dp)
+                                            ) { Text("2x") }
+                                        }
+                                    }
+                                }
+
+                                Spacer(Modifier.width(8.dp))
+
                                 BasicTextField(
                                     value = row.text.value,
                                     onValueChange = { newValue ->
@@ -418,7 +466,7 @@ fun NoteEditor(
                                             }
 
                                             lines.add(
-                                                index + 1, Row(
+                                                index + 1, NoteRow(
                                                     nextId++, mutableStateOf(TextFieldValue(""))
                                                 )
                                             )
