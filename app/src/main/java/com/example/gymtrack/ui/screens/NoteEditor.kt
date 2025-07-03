@@ -439,7 +439,7 @@ fun NoteEditor(
                                                         onClick = {},
                                                         enabled = false,
                                                         border = BorderStroke(
-                                                            2.dp,
+                                                            1.dp,
                                                             MaterialTheme.colorScheme.error
                                                         ),
                                                         colors = ButtonDefaults.outlinedButtonColors(
