@@ -124,12 +124,24 @@ fun StatsScreen(
 @Composable
 private fun StatsOverview(notes: List<NoteLine>) {
     val categories = notes.mapNotNull { it.categoryName }.distinct().size
+    val (mainCount, subCount) = notes.fold(0 to 0) { acc, note ->
+        val lines = parseNoteText(note.text).first
+        var main = 0
+        var sub = 0
+        for (l in lines) {
+            if (l.isBlank()) continue
+            if (l.startsWith("    ")) sub++ else main++
+        }
+        (acc.first + main) to (acc.second + sub)
+    }
+    val avgSets = if (mainCount > 0) subCount.toFloat() / mainCount else 0f
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(Modifier.padding(16.dp)) {
             Text("Total notes: ${notes.size}")
             Text("Categories: $categories")
+            Text("Avg sets/main entry: ${"%.1f".format(avgSets)}")
         }
     }
 }
