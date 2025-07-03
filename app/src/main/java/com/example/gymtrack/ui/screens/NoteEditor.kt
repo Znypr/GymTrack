@@ -362,7 +362,7 @@ fun NoteEditor(
                             .weight(1f)
                             .background(MaterialTheme.colorScheme.surface),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
-                        contentPadding = PaddingValues(horizontal = 15.dp, vertical = 20.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 20.dp),
                     ) {
                         itemsIndexed(
                             lines, key = { _, row -> row.id }) { index, row ->
@@ -419,7 +419,7 @@ fun NoteEditor(
                                                         onClick = {},
                                                         enabled = false,
                                                         border = BorderStroke(
-                                                            1.dp,
+                                                            2.dp,
                                                             MaterialTheme.colorScheme.error
                                                         ),
                                                         colors = ButtonDefaults.outlinedButtonColors(
