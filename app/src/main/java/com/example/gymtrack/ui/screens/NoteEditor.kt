@@ -95,11 +95,21 @@ fun NoteEditor(
     val lines = remember(parsed.first) {
         mutableStateListOf<NoteRow>().apply {
             if (parsed.first.isEmpty()) add(NoteRow(nextId++, mutableStateOf(TextFieldValue(""))))
-            else parsed.first.forEach { add(NoteRow(nextId++, mutableStateOf(TextFieldValue(it)))) }
+            else parsed.first.forEachIndexed { idx, txt ->
+                add(
+                    NoteRow(
+                        nextId++,
+                        mutableStateOf(TextFieldValue(txt)),
+                        mutableStateOf(parsed.third.getOrNull(idx) ?: false)
+                    )
+                )
+            }
         }
     }
     val timestamps =
         remember(parsed.second) { mutableStateListOf<String>().apply { addAll(parsed.second) } }
+    val unis =
+        remember(parsed.third) { mutableStateListOf<Boolean>().apply { addAll(parsed.third) } }
     var selectedCategory by remember { mutableStateOf<Category?>(settings.categories.find { it.name == note?.categoryName }) }
 
     val initialTimes = remember(note) {
@@ -134,6 +144,7 @@ fun NoteEditor(
                     )
                     timestamps[i] = nowAbs
                 }
+                if (unis.size <= i) unis.add(row.isUni.value) else unis[i] = row.isUni.value
             }
 
             val plainContent = lines.joinToString("\n") { it.text.value.text }
@@ -148,7 +159,13 @@ fun NoteEditor(
                 }
 
 
-                val combined = combineTextAndTimes(plainContent, timestamps)
+                if (unis.size < lines.size) {
+                    repeat(lines.size - unis.size) { unis.add(false) }
+                } else if (unis.size > lines.size) {
+                    unis.subList(lines.size, unis.size).clear()
+                }
+
+                val combined = combineTextAndTimes(plainContent, timestamps, unis)
 
                 onSave(
                     titleValue.text,
@@ -400,7 +417,11 @@ fun NoteEditor(
                                                 UniBiButton(
                                                     isUni = row.isUni.value,
                                                     relColor = relColor,
-                                                    onToggle = { row.isUni.value = !row.isUni.value }
+                                                    onToggle = {
+                                                        row.isUni.value = !row.isUni.value
+                                                        unis[index] = row.isUni.value
+                                                        saved = false
+                                                    }
                                                 )
                                             } else {
                                                 val parentUni = run {
@@ -476,11 +497,15 @@ fun NoteEditor(
                                                 }
 
                                                 lines.add(
-                                                    index + 1, NoteRow(
-                                                        nextId++, mutableStateOf(TextFieldValue(""))
+                                                    index + 1,
+                                                    NoteRow(
+                                                        nextId++,
+                                                        mutableStateOf(TextFieldValue("")),
+                                                        mutableStateOf(false)
                                                     )
                                                 )
                                                 timestamps.add(index + 1, "")
+                                                unis.add(index + 1, false)
 
                                                 if (focusRequesters.size <= index + 1) {
                                                     focusRequesters.add(FocusRequester())

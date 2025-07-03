@@ -6,6 +6,8 @@ import com.example.gymtrack.data.NoteLine
 import com.example.gymtrack.data.Settings
 import java.io.File
 
+data class SubEntry(val parent: Int, val text: String, val time: String, val uni: Boolean)
+
 private fun csvEscape(value: String): String {
     var v = value.replace("\"", "\"\"")
     if (v.contains(',') || v.contains('"') || v.contains('\n')) {
@@ -17,20 +19,21 @@ private fun csvEscape(value: String): String {
 fun exportNote(context: Context, note: NoteLine, settings: Settings): File {
     val parsed = parseNoteText(note.text)
 
-    val main = mutableListOf<Pair<String, String>>()
-    val subs = mutableListOf<Triple<Int, String, String>>()
+    val main = mutableListOf<Triple<String, String, Boolean>>()
+    val subs = mutableListOf<SubEntry>()
 
     var currentMain = -1
     parsed.first.forEachIndexed { idx, line ->
         val time = parsed.second.getOrNull(idx).orEmpty()
+        val uni = parsed.third.getOrNull(idx) ?: false
         if (line.isBlank()) return@forEachIndexed
         if (line.startsWith("    ")) {
             if (currentMain >= 0) {
-                subs += Triple(currentMain, line.trim(), time)
+                subs += SubEntry(currentMain, line.trim(), time, uni)
             }
         } else {
             currentMain = main.size
-            main += line.trim() to time
+            main += Triple(line.trim(), time, uni)
         }
     }
 
@@ -41,18 +44,20 @@ fun exportNote(context: Context, note: NoteLine, settings: Settings): File {
         .append(csvEscape(formatFullDateTime(note.timestamp, settings))).append(',')
         .append(csvEscape(note.learnings)).append('\n')
 
-    builder.append("Main Index,Main Entry,Time\n")
-    main.forEachIndexed { index, (text, time) ->
+    builder.append("Main Index,Main Entry,Time,Uni\n")
+    main.forEachIndexed { index, (text, time, uni) ->
         builder.append(index).append(',')
             .append(csvEscape(text)).append(',')
-            .append(csvEscape(time)).append('\n')
+            .append(csvEscape(time)).append(',')
+            .append(if (uni) "uni" else "bi").append('\n')
     }
 
-    builder.append("Main Index,Sub Entry,Time\n")
-    subs.forEach { (index, text, time) ->
+    builder.append("Main Index,Sub Entry,Time,Uni\n")
+    subs.forEach { (index, text, time, uni) ->
         builder.append(index).append(',')
             .append(csvEscape(text)).append(',')
-            .append(csvEscape(time)).append('\n')
+            .append(csvEscape(time)).append(',')
+            .append(if (uni) "uni" else "bi").append('\n')
     }
 
     val dir = File(context.filesDir, "csv").apply { mkdirs() }
@@ -132,60 +137,71 @@ fun importNote(file: File, settings: Settings): NoteLine? {
     while (idx < lines.size && lines[idx].isBlank()) idx++
     if (idx >= lines.size) return null
 
-    val main = mutableListOf<Pair<String, String>>()
+    val main = mutableListOf<Triple<String, String, Boolean>>()
 
     if (lines[idx].startsWith("Main Entry")) {
+        val hasUni = parseCsvRow(lines[idx]).contains("Uni")
         idx++
         while (idx < lines.size && !lines[idx].startsWith("Main Index")) {
             val row = parseCsvRow(lines[idx])
             val text = row.getOrNull(0).orEmpty()
             val time = row.getOrNull(1).orEmpty()
-            if (text.isNotBlank() || time.isNotBlank()) main += text to time
+            val uni = if (hasUni) row.getOrNull(2)?.equals("uni", true) == true else false
+            if (text.isNotBlank() || time.isNotBlank()) main += Triple(text, time, uni)
             idx++
         }
     } else if (lines[idx].startsWith("Main Index")) {
         val header = parseCsvRow(lines[idx])
         if (header.getOrNull(1) != "Main Entry") return null
+        val hasUni = header.contains("Uni")
         idx++
         while (idx < lines.size) {
             if (lines[idx].startsWith("Main Index") && parseCsvRow(lines[idx]).getOrNull(1) == "Sub Entry") break
             val row = parseCsvRow(lines[idx])
             val text = row.getOrNull(1).orEmpty()
             val time = row.getOrNull(2).orEmpty()
-            if (text.isNotBlank() || time.isNotBlank()) main += text to time
+            val uni = if (hasUni) row.getOrNull(3)?.equals("uni", true) == true else false
+            if (text.isNotBlank() || time.isNotBlank()) main += Triple(text, time, uni)
             idx++
         }
     } else return null
 
-    val subs = mutableListOf<Triple<Int, String, String>>()
+    val subs = mutableListOf<SubEntry>()
     if (idx < lines.size && lines[idx].startsWith("Main Index")) {
+        val header = parseCsvRow(lines[idx - 1])
+        val hasUni = header.contains("Uni")
         idx++
         while (idx < lines.size) {
             val row = parseCsvRow(lines[idx])
             val parent = row.getOrNull(0)?.toIntOrNull() ?: -1
             val text = row.getOrNull(1).orEmpty()
             val time = row.getOrNull(2).orEmpty()
-            if (parent >= 0) subs += Triple(parent, text, time)
+            val uni = if (hasUni) row.getOrNull(3)?.equals("uni", true) == true else false
+            if (parent >= 0) subs += SubEntry(parent, text, time, uni)
             idx++
         }
     }
 
     val bodyLines = mutableListOf<String>()
     val times = mutableListOf<String>()
-    main.forEachIndexed { i, (text, time) ->
+    val unis = mutableListOf<Boolean>()
+    main.forEachIndexed { i, (text, time, uni) ->
         if (i > 0) {
             bodyLines += ""
             times += ""
+            unis += false
         }
         bodyLines += text
         times += time
-        subs.filter { it.first == i }.forEach { (_, sText, sTime) ->
+        unis += uni
+        subs.filter { it.parent == i }.forEach { (_, sText, sTime, sUni) ->
             bodyLines += "    $sText"
             times += sTime
+            unis += sUni
         }
     }
 
-    val fullText = combineTextAndTimes(bodyLines.joinToString("\n"), times)
+    val fullText = combineTextAndTimes(bodyLines.joinToString("\n"), times, unis)
     val time = parseFullDateTime(timestampStr)
     return NoteLine(title, fullText, time, category, null, learnings)
 }
