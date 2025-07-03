@@ -76,9 +76,10 @@ private fun GymTrackTopBar(onEdit: () -> Unit) {
         },
         title = { Text("GymTrack", fontSize = 24.sp) },
         actions = {
-            SmallFloatingActionButton(onClick = onEdit) {
-                Icon(Icons.Default.Edit, contentDescription = "Edit")
-            }
+            Icon(
+                Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme
+                    .colorScheme.onSurface, modifier = Modifier.padding(end = 10.dp)
+            )
         }
     )
 }
@@ -99,7 +100,7 @@ fun NoteEditor(
     data class NoteRow(
         val id: Long,
         val text: MutableState<TextFieldValue>,   // ← wrapped in state
-        val isUni: MutableState<Boolean> = mutableStateOf(false)
+        val isUni: MutableState<Boolean> = mutableStateOf(false),
     )
 
     var nextId by remember { mutableStateOf(0L) }
@@ -222,14 +223,6 @@ fun NoteEditor(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = { GymTrackTopBar(onEdit = { showLearnings = true }) },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showLearnings = true },
-                containerColor = MaterialTheme.colorScheme.primary
-            ) {
-                Icon(Icons.Default.Edit, contentDescription = "Edit")
-            }
-        }
     ) { padding ->
         Box(
             modifier = Modifier
@@ -246,7 +239,7 @@ fun NoteEditor(
                     modifier = Modifier
                         .fillMaxWidth()
                         .verticalScroll(scroll)
-                        .padding(12.dp)
+                        .padding(horizontal = 15.dp, vertical = 15.dp)
                         .imePadding(),
                 ) {
                     // Navigation Row
@@ -258,16 +251,17 @@ fun NoteEditor(
                             formatDate(noteTimestamp, settings),
                             color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
+                            fontSize = 18.sp
                         )
                         Text(
                             formatTime(noteTimestamp, settings),
                             color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
+                            fontSize = 18.sp
                         )
                     }
 
+                    Spacer(Modifier.height(12.dp))
 
                     // Header
                     Row(
@@ -405,9 +399,11 @@ fun NoteEditor(
 
                                     if (row.text.value.text.isNotBlank()) {
                                         Box(
-                                            Modifier.width(30.dp).height(20.dp), contentAlignment =
+                                            Modifier
+                                                .width(30.dp)
+                                                .height(20.dp), contentAlignment =
                                                 Alignment
-                                                .Center
+                                                    .Center
                                         ) {
                                             if (isMain) {
                                                 UniBiButton(
@@ -500,7 +496,7 @@ fun NoteEditor(
                                             color = MaterialTheme.colorScheme.onSurface,
                                             fontSize = if (isMain) 20.sp else 14.sp,
                                             fontWeight = if (isMain) FontWeight.Bold else null,
-                                            ),
+                                        ),
                                         cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
                                         visualTransformation = rememberRelativeTimeVisualTransformation(
                                             if (isMain) 20.sp else 14.sp
