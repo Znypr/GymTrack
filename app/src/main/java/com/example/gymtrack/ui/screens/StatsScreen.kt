@@ -101,8 +101,7 @@ fun StatsScreen(
             Spacer(Modifier.height(32.dp))
             CategoryChart(notes)
             Spacer(Modifier.height(32.dp))
-            Text("Saved CSVs", style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(8.dp))
+
 
         }
         selectedFile?.let { file ->
