@@ -148,7 +148,7 @@ private fun StatsOverview(notes: List<NoteLine>) {
         Column(Modifier.padding(16.dp)) {
             Text("Total notes: ${notes.size}")
             Text("Categories: $categories")
-            Text("Avg sets/main entry: ${"%.1f".format(avgSets)}")
+            Text("Average Sets: ${"%.1f".format(avgSets)}")
         }
     }
 }

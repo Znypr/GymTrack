@@ -160,9 +160,6 @@ fun NoteEditor(
     val view = LocalView.current
     SideEffect {
         val window = (view.context as Activity).window
-        val bgColor = MaterialTheme.git colorScheme.background.toArgb()
-        window.statusBarColor = bgColor
-        window.navigationBarColor = bgColor
         val controller = WindowInsetsControllerCompat(window, view)
         val light = !settings.darkMode
         controller.isAppearanceLightStatusBars = light
