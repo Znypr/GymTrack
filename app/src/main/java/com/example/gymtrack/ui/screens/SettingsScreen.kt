@@ -106,6 +106,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.background,
                     unfocusedBorderColor = MaterialTheme.colorScheme.background,
+                    cursorColor = MaterialTheme.colorScheme.onSurface,
                 ),
                 label = { Text("Rounding seconds") },
             )
@@ -137,6 +138,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.background,
                             unfocusedBorderColor = MaterialTheme.colorScheme.background,
+                            cursorColor = MaterialTheme.colorScheme.onSurface,
                         ),
                     )
                     Spacer(Modifier.width(4.dp))
@@ -187,6 +189,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.background,
                         unfocusedBorderColor = MaterialTheme.colorScheme.background,
+                        cursorColor = MaterialTheme.colorScheme.onSurface,
                     ),
                 )
                 Spacer(Modifier.width(4.dp))
