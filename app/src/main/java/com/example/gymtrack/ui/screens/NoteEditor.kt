@@ -217,7 +217,7 @@ fun NoteEditor(
                     modifier = Modifier
                         .fillMaxWidth()
                         .verticalScroll(scroll)
-                        .padding(16.dp)
+                        .padding(12.dp)
                         .imePadding(),
                 ) {
                     // Navigation Row
@@ -255,7 +255,6 @@ fun NoteEditor(
                         }
                     }
 
-                    Spacer(Modifier.height(12.dp))
 
                     // Header
                     Row(
@@ -326,7 +325,7 @@ fun NoteEditor(
                                             leadingIcon = {
                                                 Box(
                                                     Modifier
-                                                        .size(14.dp)
+                                                        .size(12.dp)
                                                         .background(Color(cat.color.toInt()))
                                                 )
                                             },
