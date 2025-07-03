@@ -57,6 +57,7 @@ import com.example.gymtrack.util.formatDate
 import com.example.gymtrack.util.formatTime
 import com.example.gymtrack.util.rememberRelativeTimeVisualTransformation
 import android.app.Activity
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -385,117 +386,143 @@ fun NoteEditor(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                val relColor = MaterialTheme.colorScheme.onSurface
-                                    .copy(alpha = if (isSystemInDarkTheme()) 0.75f else 0.45f)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    val relColor = MaterialTheme.colorScheme.onSurface
+                                        .copy(alpha = if (isSystemInDarkTheme()) 0.75f else 0.45f)
 
-                                Box(Modifier.width(48.dp), contentAlignment = Alignment.Center) {
-                                    if (isMain) {
-                                        OutlinedButton(
-                                            onClick = { row.isUni.value = !row.isUni.value },
-                                            border = BorderStroke(1.dp, if (row.isUni.value) MaterialTheme.colorScheme.error else relColor),
-                                            colors = ButtonDefaults.outlinedButtonColors(
-                                                containerColor = Color.Transparent,
-                                                contentColor = if (row.isUni.value) MaterialTheme.colorScheme.error else relColor
-                                            ),
-                                            shape = RoundedCornerShape(4.dp),
-                                            modifier = Modifier.height(28.dp)
+                                    if (row.text.value.text.isNotBlank()) {
+                                        Box(
+                                            Modifier.width(30.dp).height(20.dp), contentAlignment =
+                                                Alignment
+                                                .Center
                                         ) {
-                                            Text(if (row.isUni.value) "uni." else "bi.")
-                                        }
-                                    } else {
-                                        val parentUni = run {
-                                            var p = index - 1
-                                            while (p >= 0) {
-                                                val pIsMain = p == 0 || lines.getOrNull(p - 1)?.text?.value?.text?.isBlank() != false
-                                                if (pIsMain && lines[p].text.value.text.isNotBlank()) break
-                                                p--
+                                            if (isMain) {
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        row.isUni.value = !row.isUni.value
+                                                    },
+                                                    border = BorderStroke(
+                                                        1.dp,
+                                                        if (row.isUni.value) MaterialTheme.colorScheme.error else relColor
+                                                    ),
+                                                    colors = ButtonDefaults.outlinedButtonColors(
+                                                        containerColor = Color.Transparent,
+                                                        contentColor = if (row.isUni.value) MaterialTheme.colorScheme.error else relColor,
+                                                    ),
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    contentPadding = PaddingValues(
+                                                        horizontal = 4.dp,
+                                                        vertical = 0.dp
+                                                    ),
+                                                    modifier = Modifier.height(28.dp)
+                                                ) {
+                                                    Text(if (row.isUni.value) "uni." else "bi.",
+                                                        textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                                                }
+                                            } else {
+                                                val parentUni = run {
+                                                    var p = index - 1
+                                                    while (p >= 0) {
+                                                        val pIsMain =
+                                                            p == 0 || lines.getOrNull(p - 1)?.text?.value?.text?.isBlank() != false
+                                                        if (pIsMain && lines[p].text.value.text.isNotBlank()) break
+                                                        p--
+                                                    }
+                                                    lines.getOrNull(p)?.isUni?.value ?: false
+                                                }
+                                                if (parentUni) {
+                                                    OutlinedButton(
+                                                        onClick = {},
+                                                        enabled = false,
+                                                        border = BorderStroke(
+                                                            1.dp,
+                                                            MaterialTheme.colorScheme.error
+                                                        ),
+                                                        colors = ButtonDefaults.outlinedButtonColors(
+                                                            containerColor = Color.Transparent,
+                                                            disabledContentColor = MaterialTheme.colorScheme.error,
+                                                        ),
+                                                        shape = RoundedCornerShape(4.dp),
+                                                        contentPadding = PaddingValues(
+                                                            horizontal = 4.dp,
+                                                            vertical = 0.dp
+                                                        ),
+                                                        modifier = Modifier.height(28.dp)
+                                                    ) { Text("2x",
+                                                        textAlign = TextAlign.Center, fontWeight = FontWeight.Bold) }
+                                                }
+
                                             }
-                                            lines.getOrNull(p)?.isUni?.value ?: false
                                         }
-                                        if (parentUni) {
-                                            OutlinedButton(
-                                                onClick = {},
-                                                enabled = false,
-                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
-                                                colors = ButtonDefaults.outlinedButtonColors(
-                                                    containerColor = Color.Transparent,
-                                                    disabledContentColor = MaterialTheme.colorScheme.error
-                                                ),
-                                                shape = RoundedCornerShape(4.dp),
-                                                modifier = Modifier.height(28.dp)
-                                            ) { Text("2x") }
-                                        }
+
                                     }
-                                }
+                                    Spacer(Modifier.width(8.dp))
+                                    BasicTextField(
+                                        value = row.text.value,
+                                        onValueChange = { newValue ->
+                                            saved = false
+                                            if (newValue.text.endsWith("\n")) {
 
-                                Spacer(Modifier.width(8.dp))
+                                                val content = newValue.text.dropLast(1)
 
-                                BasicTextField(
-                                    value = row.text.value,
-                                    onValueChange = { newValue ->
-                                        saved = false
-                                        if (newValue.text.endsWith("\n")) {
+                                                val now = System.currentTimeMillis()
+                                                val diffSec = (now - lastEnter) / 1000
+                                                if (content.isNotBlank()) lastEnter = now
 
-                                            val content = newValue.text.dropLast(1)
-
-                                            val now = System.currentTimeMillis()
-                                            val diffSec = (now - lastEnter) / 1000
-                                            if (content.isNotBlank()) lastEnter = now
-
-                                            val rel = formatSecondsToMinutesSeconds(diffSec)
-                                            if (startTime == null && content.isNotBlank() && isMain) {
-                                                startTime = now
-                                            }
-                                            val abs = formatElapsedMinutesSeconds(
-                                                startTime ?: now, now, settings
-                                            )
-
-                                            row.text.value =
-                                                if (content.isNotBlank() && isMain)
-                                                    TextFieldValue("$content ($rel)")
-                                                else if (content.isNotBlank() && !isMain)
-                                                    TextFieldValue("    $content ($rel)")
-                                                else TextFieldValue("")
-
-                                            if (content.isNotBlank()) {
-                                                if (timestamps.size <= index) timestamps.add(abs)
-                                                else timestamps[index] = abs
-                                            } else {
-                                                if (timestamps.size <= index) timestamps.add("")
-                                                else timestamps[index] = ""
-                                            }
-
-                                            lines.add(
-                                                index + 1, NoteRow(
-                                                    nextId++, mutableStateOf(TextFieldValue(""))
+                                                val rel = formatSecondsToMinutesSeconds(diffSec)
+                                                if (startTime == null && content.isNotBlank() && isMain) {
+                                                    startTime = now
+                                                }
+                                                val abs = formatElapsedMinutesSeconds(
+                                                    startTime ?: now, now, settings
                                                 )
-                                            )
-                                            timestamps.add(index + 1, "")
 
-                                            if (focusRequesters.size <= index + 1) {
-                                                focusRequesters.add(FocusRequester())
+                                                row.text.value =
+                                                    if (content.isNotBlank() && isMain)
+                                                        TextFieldValue("$content ($rel)")
+                                                    else if (content.isNotBlank() && !isMain)
+                                                        TextFieldValue("    $content ($rel)")
+                                                    else TextFieldValue("")
+
+                                                if (content.isNotBlank()) {
+                                                    if (timestamps.size <= index) timestamps.add(abs)
+                                                    else timestamps[index] = abs
+                                                } else {
+                                                    if (timestamps.size <= index) timestamps.add("")
+                                                    else timestamps[index] = ""
+                                                }
+
+                                                lines.add(
+                                                    index + 1, NoteRow(
+                                                        nextId++, mutableStateOf(TextFieldValue(""))
+                                                    )
+                                                )
+                                                timestamps.add(index + 1, "")
+
+                                                if (focusRequesters.size <= index + 1) {
+                                                    focusRequesters.add(FocusRequester())
+                                                } else {
+                                                    focusRequesters.add(index + 1, FocusRequester())
+                                                }
+
+                                                pendingFocusId = nextId - 1
                                             } else {
-                                                focusRequesters.add(index + 1, FocusRequester())
+                                                row.text.value = newValue
                                             }
-
-                                            pendingFocusId = nextId - 1
-                                        } else {
-                                            row.text.value = newValue
-                                        }
-                                    },
-                                    textStyle = LocalTextStyle.current.copy(
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        fontSize = if (isMain) 20.sp else 14.sp,
-                                        fontWeight = if (isMain) FontWeight.Bold else null,
-
+                                        },
+                                        textStyle = LocalTextStyle.current.copy(
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontSize = if (isMain) 20.sp else 14.sp,
+                                            fontWeight = if (isMain) FontWeight.Bold else null,
+                                            ),
+                                        cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
+                                        visualTransformation = rememberRelativeTimeVisualTransformation(
+                                            if (isMain) 20.sp else 14.sp
                                         ),
-                                    cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
-                                    visualTransformation = rememberRelativeTimeVisualTransformation(
-                                        if (isMain) 20.sp else 14.sp
-                                    ),
-                                    modifier = Modifier
-                                        .focusRequester(fr),
-                                )
+                                        modifier = Modifier
+                                            .focusRequester(fr),
+                                    )
+                                }
                                 val absText = timestamps.getOrNull(index).orEmpty()
                                 val absAnnotated =
                                     SmallSecondsVisualTransformation(if (isMain) 20.sp else 14.sp).filter(
