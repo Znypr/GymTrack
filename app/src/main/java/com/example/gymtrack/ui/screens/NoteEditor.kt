@@ -171,6 +171,13 @@ fun NoteEditor(
             color = MaterialTheme.colorScheme.background,
         ) {
             val scroll = rememberScrollState()
+            var autoScrolled by remember { mutableStateOf(false) }
+            LaunchedEffect(scroll.maxValue) {
+                if (!autoScrolled && scroll.maxValue > 0) {
+                    scroll.scrollTo(scroll.maxValue)
+                    autoScrolled = true
+                }
+            }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
