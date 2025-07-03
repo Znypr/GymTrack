@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.R
+import com.example.gymtrack.ui.components.gymTrackOutlinedTextFieldColors
 import com.example.gymtrack.data.Category
 import com.example.gymtrack.data.Settings
 import com.example.gymtrack.ui.components.ColorDropdown
@@ -103,11 +104,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                         ),
                     )
                 },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.background,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.background,
-                    cursorColor = MaterialTheme.colorScheme.onSurface,
-                ),
+                colors = gymTrackOutlinedTextFieldColors(),
                 label = { Text("Rounding seconds") },
             )
             Spacer(Modifier.height(16.dp))
@@ -135,11 +132,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                         },
                         modifier = Modifier.weight(1f),
                         label = { Text("Name") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.background,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.background,
-                            cursorColor = MaterialTheme.colorScheme.onSurface,
-                        ),
+                        colors = gymTrackOutlinedTextFieldColors(),
                     )
                     Spacer(Modifier.width(4.dp))
                     ColorDropdown(
@@ -186,11 +179,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                     onValueChange = { newName = it },
                     modifier = Modifier.weight(1f),
                     label = { Text("New category") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.background,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.background,
-                        cursorColor = MaterialTheme.colorScheme.onSurface,
-                    ),
+                    colors = gymTrackOutlinedTextFieldColors(),
                 )
                 Spacer(Modifier.width(4.dp))
                 ColorDropdown(

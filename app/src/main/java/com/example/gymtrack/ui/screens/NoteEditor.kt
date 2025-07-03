@@ -2,15 +2,8 @@ package com.example.gymtrack.ui.screens
 
 import android.annotation.SuppressLint
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -56,6 +49,9 @@ import com.example.gymtrack.util.formatDate
 import com.example.gymtrack.util.formatTime
 import com.example.gymtrack.util.rememberRelativeTimeVisualTransformation
 import android.app.Activity
+import com.example.gymtrack.ui.components.CategoryDropdown
+import com.example.gymtrack.ui.components.LearningsDialog
+import com.example.gymtrack.ui.components.gymTrackOutlinedTextFieldColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -158,7 +154,6 @@ fun NoteEditor(
         }
     }
 
-    var expanded by remember { mutableStateOf(false) }
     var showLearnings by remember { mutableStateOf(false) }
 
     BackHandler {
@@ -270,70 +265,18 @@ fun NoteEditor(
                                 },
                                 placeholder = { Text("Title") },
                                 modifier = Modifier.weight(1f),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = MaterialTheme.colorScheme.background,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.background,
-                                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                    cursorColor = MaterialTheme.colorScheme.onSurface,
-                                ),
+                                colors = gymTrackOutlinedTextFieldColors(),
                             )
                         }
                         if (settings.categories.isNotEmpty()) {
-                            ExposedDropdownMenuBox(
-                                expanded = expanded, onExpandedChange = { expanded = !expanded }) {
-                                OutlinedTextField(
-                                    modifier = Modifier
-                                        .menuAnchor()
-                                        .width(140.dp),
-                                    readOnly = true,
-                                    value = selectedCategory?.name ?: "None",
-                                    onValueChange = {},
-                                    label = { Text("Category") },
-                                    trailingIcon = {
-                                        ExposedDropdownMenuDefaults.TrailingIcon(
-                                            expanded
-                                        )
-                                    },
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = MaterialTheme.colorScheme.background,
-                                        unfocusedBorderColor = MaterialTheme.colorScheme.background,
-                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        cursorColor = MaterialTheme.colorScheme.onSurface,
-                                    ),
-                                )
-                                DropdownMenu(
-                                    expanded = expanded,
-                                    onDismissRequest = { expanded = false }) {
-                                    DropdownMenuItem(
-                                        text = { Text("None") },
-                                        onClick = {
-                                            selectedCategory = null
-                                            expanded = false
-                                            saved = false
-                                        })
-                                    settings.categories.forEach { cat ->
-                                        DropdownMenuItem(
-                                            text = { Text(cat.name) },
-                                            leadingIcon = {
-                                                Box(
-                                                    Modifier
-                                                        .size(14.dp)
-                                                        .background(Color(cat.color.toInt()))
-                                                )
-                                            },
-                                            onClick = {
-                                                selectedCategory = cat
-                                                expanded = false
-                                                saved = false
-                                            },
-                                        )
-                                    }
-                                }
-                            }
+                            CategoryDropdown(
+                                categories = settings.categories,
+                                selected = selectedCategory,
+                                onSelected = {
+                                    selectedCategory = it
+                                    saved = false
+                                },
+                            )
                         }
                     }
 
@@ -465,82 +408,15 @@ fun NoteEditor(
                 }
             }
 
-            AnimatedVisibility(
+            LearningsDialog(
                 visible = showLearnings,
-                enter = scaleIn() + fadeIn(),
-                exit = scaleOut() + fadeOut()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .padding(horizontal = 10.dp)
-                        .fillMaxSize()
-                        .clickable { showLearnings = false },
-                    contentAlignment = Alignment.TopCenter
-                ) {
-                    BoxWithConstraints {
-                        val offset = maxHeight / 3
-                        Surface(
-                            color = MaterialTheme.colorScheme.surface,
-                            tonalElevation = 0.dp,
-                            shape = MaterialTheme.shapes.medium,
-                            border = BorderStroke(2.dp, Color.LightGray.copy(alpha = 0.2F)),
-                            modifier = Modifier
-                                .padding(
-                                    top = offset,
-                                    start = 16.dp,
-                                    end = 16.dp,
-                                    bottom = 16.dp
-                                )
-                                .imePadding()
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .padding(16.dp)
-                                    .fillMaxWidth()
-                            ) {
-                                Text(
-                                    "Notes",
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                                )
-                                Spacer(Modifier.height(8.dp))
-                                Column(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .verticalScroll(rememberScrollState())
-                                ) {
-                                    OutlinedTextField(
-                                        value = learningsValue,
-                                        onValueChange = {
-                                            learningsValue = it
-                                            saved = false
-                                        },
-                                        placeholder = { Text("Learnings") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = Color.Transparent,
-                                            unfocusedBorderColor = Color.Transparent,
-                                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                            cursorColor = MaterialTheme.colorScheme.onSurface,
-                                        )
-                                    )
-                                }
-                                Spacer(Modifier.height(8.dp))
-                                Button(
-                                    onClick = { showLearnings = false },
-                                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                                ) {
-                                    Text("Save")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+                value = learningsValue,
+                onValueChange = {
+                    learningsValue = it
+                    saved = false
+                },
+                onDismiss = { showLearnings = false }
+            )
 
         }
     }
