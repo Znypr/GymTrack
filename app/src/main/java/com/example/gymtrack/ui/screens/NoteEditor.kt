@@ -59,6 +59,7 @@ import com.example.gymtrack.util.rememberRelativeTimeVisualTransformation
 import android.app.Activity
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.gymtrack.ui.components.UniBiButton
+import com.example.gymtrack.ui.components.UniBiFlag
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -434,28 +435,10 @@ fun NoteEditor(
                                                     }
                                                     lines.getOrNull(p)?.isUni?.value ?: false
                                                 }
-                                                if (parentUni) {
-                                                    OutlinedButton(
-                                                        onClick = {},
-                                                        enabled = false,
-                                                        border = BorderStroke(
-                                                            1.dp,
-                                                            MaterialTheme.colorScheme.error
-                                                        ),
-                                                        colors = ButtonDefaults.outlinedButtonColors(
-                                                            containerColor = Color.Transparent,
-                                                            disabledContentColor = MaterialTheme.colorScheme.error,
-                                                        ),
-                                                        shape = RoundedCornerShape(4.dp),
-                                                        contentPadding = PaddingValues(
-                                                            horizontal = 4.dp,
-                                                            vertical = 0.dp
-                                                        ),
-                                                        modifier = Modifier.height(28.dp)
-                                                    ) { Text("2x",
-                                                        textAlign = TextAlign.Center, fontWeight = FontWeight.Bold) }
-                                                }
-
+                                                UniBiFlag(
+                                                    isUni = parentUni,
+                                                    relColor = relColor
+                                                )
                                             }
                                         }
 
