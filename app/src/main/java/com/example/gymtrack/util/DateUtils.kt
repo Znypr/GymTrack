@@ -137,3 +137,16 @@ fun formatWeekRelativeTime(timestamp: Long, settings: Settings): String {
         else -> fullFormat.format(dateCal.time)
     }
 }
+
+fun parseFullDateTime(value: String): Long {
+    val patterns = listOf("dd/MM/yyyy HH:mm", "dd/MM/yyyy hh:mm a")
+    for (p in patterns) {
+        try {
+            val format = SimpleDateFormat(p, Locale.getDefault())
+            val date = format.parse(value)
+            if (date != null) return date.time
+        } catch (_: Exception) {
+        }
+    }
+    return 0L
+}
