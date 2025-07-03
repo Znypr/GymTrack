@@ -28,6 +28,11 @@ fun NavigationHost(
     startDestination: String = "main"
 ) {
     val context = LocalContext.current
+    val daoState = remember { mutableStateOf<NoteDao?>(null) }
+    var notes by remember { mutableStateOf(listOf<NoteLine>()) }
+    var selectedNotes by remember { mutableStateOf(setOf<NoteLine>()) }
+    var currentNote by remember { mutableStateOf<NoteLine?>(null) }
+
     val importLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
             uri ?: return@rememberLauncherForActivityResult
@@ -60,10 +65,7 @@ fun NavigationHost(
                 }
             }
         }
-    val daoState = remember { mutableStateOf<NoteDao?>(null) }
-    var notes by remember { mutableStateOf(listOf<NoteLine>()) }
-    var selectedNotes by remember { mutableStateOf(setOf<NoteLine>()) }
-    var currentNote by remember { mutableStateOf<NoteLine?>(null) }
+
 
     LaunchedEffect(Unit) {
         val dao = withContext(Dispatchers.IO) {
