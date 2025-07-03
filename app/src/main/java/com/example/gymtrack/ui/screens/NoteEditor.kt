@@ -48,12 +48,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import com.example.gymtrack.R
 import com.example.gymtrack.util.formatDate
 import com.example.gymtrack.util.formatTime
 import com.example.gymtrack.util.rememberRelativeTimeVisualTransformation
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowInsetsControllerCompat
+import android.app.Activity
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -151,6 +155,18 @@ fun NoteEditor(
     BackHandler {
         saveIfNeeded()
         onCancel()
+    }
+
+    val view = LocalView.current
+    SideEffect {
+        val window = (view.context as Activity).window
+        val bgColor = MaterialTheme.colorScheme.background.toArgb()
+        window.statusBarColor = bgColor
+        window.navigationBarColor = bgColor
+        val controller = WindowInsetsControllerCompat(window, view)
+        val light = !settings.darkMode
+        controller.isAppearanceLightStatusBars = light
+        controller.isAppearanceLightNavigationBars = light
     }
 
     DisposableEffect(lifecycleOwner) {
