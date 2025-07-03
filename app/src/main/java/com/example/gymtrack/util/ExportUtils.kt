@@ -61,13 +61,15 @@ fun exportNote(context: Context, note: NoteLine, settings: Settings): File {
         .replace(" ", "_")
         .replace(Regex("[^A-Za-z0-9_-]"), "")
         .ifEmpty { "note" }
-    val date = java.text.SimpleDateFormat("dd-MM-yy", java.util.Locale.getDefault()).format(java.util.Date(note.timestamp))
+    val date = java.text.SimpleDateFormat("dd-MM-yy", java.util.Locale.getDefault())
+        .format(java.util.Date(note.timestamp))
     val file = File(dir, "${safeTitle}-$date.csv")
     file.writeText(builder.toString())
 
     // Also copy to public Downloads directory if writable
     try {
-        val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val downloads =
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         if (downloads?.exists() == false) downloads.mkdirs()
         if (downloads != null && downloads.canWrite()) {
             file.copyTo(File(downloads, file.name), overwrite = true)
@@ -100,12 +102,14 @@ private fun parseCsvRow(row: String): List<String> {
                     inQuotes = !inQuotes
                 }
             }
+
             ',' -> {
                 if (inQuotes) current.append(c) else {
                     result += current.toString()
                     current = StringBuilder()
                 }
             }
+
             else -> current.append(c)
         }
         i++

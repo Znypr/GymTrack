@@ -45,6 +45,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -171,13 +172,7 @@ fun NoteEditor(
             color = MaterialTheme.colorScheme.background,
         ) {
             val scroll = rememberScrollState()
-            var autoScrolled by remember { mutableStateOf(false) }
-            LaunchedEffect(scroll.maxValue) {
-                if (!autoScrolled && scroll.maxValue > 0) {
-                    scroll.scrollTo(scroll.maxValue)
-                    autoScrolled = true
-                }
-            }
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -303,9 +298,18 @@ fun NoteEditor(
 
             val focusRequesters = remember { mutableStateListOf<FocusRequester>() }
             var pendingFocusId by remember { mutableStateOf<Long?>(null) }
+            val listState = rememberLazyListState()
+
+            LaunchedEffect(note?.timestamp) {
+                if (note != null && lines.isNotEmpty()) {
+                    withFrameNanos { }
+                    listState.scrollToItem(lines.lastIndex)
+                }
+            }
 
             // Body
             LazyColumn(
+                state = listState,
                 modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 contentPadding = PaddingValues(horizontal = 15.dp, vertical = 20.dp),

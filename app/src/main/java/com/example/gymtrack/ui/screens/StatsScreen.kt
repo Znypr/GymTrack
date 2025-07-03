@@ -103,19 +103,7 @@ fun StatsScreen(
             Spacer(Modifier.height(32.dp))
             Text("Saved CSVs", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(8.dp))
-            Column(Modifier.fillMaxWidth()) {
-                csvFiles.forEach { file ->
-                    ListItem(
-                        headlineContent = { Text(file.name) },
-                        leadingContent = {
-                            Icon(Icons.Default.Info, contentDescription = null)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { selectedFile = file }
-                    )
-                }
-            }
+
         }
         selectedFile?.let { file ->
             AlertDialog(
