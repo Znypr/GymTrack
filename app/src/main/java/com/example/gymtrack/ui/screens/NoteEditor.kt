@@ -19,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -63,12 +62,24 @@ import com.example.gymtrack.ui.components.UniBiFlag
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun GymTrackTopBar() {
+private fun GymTrackTopBar(onEdit: () -> Unit) {
     CenterAlignedTopAppBar(
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
+        navigationIcon = {
+            Image(
+                painter = painterResource(id = R.drawable.ic_gymtrack_logo),
+                contentDescription = "GymTrack logo",
+                modifier = Modifier.size(45.dp)
+            )
+        },
         title = { Text("GymTrack", fontSize = 24.sp) },
+        actions = {
+            SmallFloatingActionButton(onClick = onEdit) {
+                Icon(Icons.Default.Edit, contentDescription = "Edit")
+            }
+        }
     )
 }
 
@@ -210,7 +221,7 @@ fun NoteEditor(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        topBar = { GymTrackTopBar() },
+        topBar = { GymTrackTopBar(onEdit = { showLearnings = true }) },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showLearnings = true },
@@ -239,38 +250,22 @@ fun NoteEditor(
                         .imePadding(),
                 ) {
                     // Navigation Row
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_gymtrack_logo),
-                            contentDescription = "GymTrack logo",
-                            modifier = Modifier.size(45.dp) // optional size
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            formatDate(noteTimestamp, settings),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
                         )
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                formatDate(noteTimestamp, settings),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                textAlign = TextAlign.Center,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
-                            )
-                            Text(
-                                formatTime(noteTimestamp, settings),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                textAlign = TextAlign.Center,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                            )
-                        }
-                        IconButton(onClick = {
-                            saveIfNeeded()
-                            onCancel()
-                        }) {
-                            Icon(
-                                Icons.Default.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onBackground,
-                            )
-                        }
+                        Text(
+                            formatTime(noteTimestamp, settings),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
                     }
 
 
@@ -596,12 +591,6 @@ fun NoteEditor(
                                     )
                                 }
                                 Spacer(Modifier.height(8.dp))
-                                Button(
-                                    onClick = { showLearnings = false },
-                                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                                ) {
-                                    Text("Save")
-                                }
                             }
                         }
                     }
