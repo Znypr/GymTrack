@@ -1,6 +1,7 @@
 package com.example.gymtrack.util
 
 import android.content.Context
+import android.os.Environment
 import com.example.gymtrack.data.NoteLine
 import com.example.gymtrack.data.Settings
 import java.io.File
@@ -61,6 +62,18 @@ fun exportNote(context: Context, note: NoteLine, settings: Settings): File {
     val date = java.text.SimpleDateFormat("dd-MM-yy", java.util.Locale.getDefault()).format(java.util.Date(note.timestamp))
     val file = File(dir, "${safeTitle}-$date.csv")
     file.writeText(builder.toString())
+
+    // Also copy to public Downloads directory if writable
+    try {
+        val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        if (downloads?.exists() == false) downloads.mkdirs()
+        if (downloads != null && downloads.canWrite()) {
+            file.copyTo(File(downloads, file.name), overwrite = true)
+        }
+    } catch (_: Exception) {
+        // ignore failures copying to public storage
+    }
+
     return file
 }
 
