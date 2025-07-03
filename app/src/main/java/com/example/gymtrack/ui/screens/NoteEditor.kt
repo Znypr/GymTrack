@@ -240,6 +240,7 @@ fun NoteEditor(
                             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                             focusedTextColor = MaterialTheme.colorScheme.onSurface,
                             unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            cursorColor = MaterialTheme.colorScheme.onSurface,
                         ),
                     )
                 }
@@ -260,6 +261,7 @@ fun NoteEditor(
                                 unfocusedBorderColor = MaterialTheme.colorScheme.background,
                                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                                 unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                cursorColor = MaterialTheme.colorScheme.onSurface,
                             ),
                         )
                         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -387,6 +389,7 @@ fun NoteEditor(
                             visualTransformation = rememberRelativeTimeVisualTransformation( if (isMain) 20.sp else 14.sp),
                             modifier = Modifier
                                 .focusRequester(fr),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
                         )
                         val absText = timestamps.getOrNull(index).orEmpty()
                         val absAnnotated =
@@ -475,6 +478,7 @@ fun NoteEditor(
                                         unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                                         focusedTextColor = MaterialTheme.colorScheme.onSurface,
                                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        cursorColor = MaterialTheme.colorScheme.onSurface,
                                     )
                                 )
                             }

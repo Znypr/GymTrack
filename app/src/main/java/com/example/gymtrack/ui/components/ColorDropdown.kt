@@ -27,6 +27,7 @@ fun ColorDropdown(
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.background,
                 unfocusedBorderColor = MaterialTheme.colorScheme.background,
+                cursorColor = MaterialTheme.colorScheme.onSurface,
             ),
             modifier = modifier.menuAnchor(),
             label = { Text(label) },
