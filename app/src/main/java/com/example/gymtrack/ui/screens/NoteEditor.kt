@@ -1,7 +1,6 @@
 package com.example.gymtrack.ui.screens
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -24,13 +23,11 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -52,23 +49,12 @@ import com.example.gymtrack.util.formatSecondsToMinutesSeconds
 import com.example.gymtrack.util.SmallSecondsVisualTransformation
 import com.example.gymtrack.util.parseNoteText
 import com.example.gymtrack.util.parseDurationSeconds
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.Alignment
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import com.example.gymtrack.R
 import com.example.gymtrack.util.formatDate
 import com.example.gymtrack.util.formatTime
 import com.example.gymtrack.util.rememberRelativeTimeVisualTransformation
-import androidx.compose.ui.platform.LocalView
-import androidx.core.view.WindowInsetsControllerCompat
 import android.app.Activity
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,7 +64,7 @@ private fun GymTrackTopBar() {
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        title = { Text("Gym Track", fontSize = 24.sp) },
+        title = { Text("GymTrack", fontSize = 24.sp) },
     )
 }
 
@@ -220,331 +206,342 @@ fun NoteEditor(
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colorScheme.background,
             ) {
-            val scroll = rememberScrollState()
+                val scroll = rememberScrollState()
 
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(scroll)
-                    .padding(16.dp)
-                    .imePadding(),
-        ) {
-            // Navigation Row
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_gymtrack_logo),
-                    contentDescription = "GymTrack logo",
-                    modifier = Modifier.size(45.dp) // optional size
-                )
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        formatDate(noteTimestamp, settings),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        textAlign = TextAlign.Center,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        formatTime(noteTimestamp, settings),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        textAlign = TextAlign.Center,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                    )
-                }
-                IconButton(onClick = {
-                    saveIfNeeded()
-                    onCancel()
-                }) {
-                    Icon(
-                        Icons.Default.Check,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onBackground,
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            // Header
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .height(IntrinsicSize.Min),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Spacer(Modifier.height(4.dp))
-                    OutlinedTextField(
-                        value = titleValue,
-                        onValueChange = {
-                            titleValue = it
-                            saved = false
-                        },
-                        placeholder = { Text("Title") },
-                        modifier = Modifier.weight(1f),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.background,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.background,
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                            cursorColor = MaterialTheme.colorScheme.onSurface,
-                        ),
-                    )
-                }
-                if (settings.categories.isNotEmpty()) {
-                    ExposedDropdownMenuBox(
-                        expanded = expanded, onExpandedChange = { expanded = !expanded }) {
-                        OutlinedTextField(
-                            modifier = Modifier
-                                .menuAnchor()
-                                .width(140.dp),
-                            readOnly = true,
-                            value = selectedCategory?.name ?: "None",
-                            onValueChange = {},
-                            label = { Text("Category") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.background,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.background,
-                                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                cursorColor = MaterialTheme.colorScheme.onSurface,
-                            ),
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(scroll)
+                        .padding(16.dp)
+                        .imePadding(),
+                ) {
+                    // Navigation Row
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_gymtrack_logo),
+                            contentDescription = "GymTrack logo",
+                            modifier = Modifier.size(45.dp) // optional size
                         )
-                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                            DropdownMenuItem(
-                                text = { Text("None") },
-                                onClick = {
-                                    selectedCategory = null
-                                    expanded = false
-                                    saved = false
-                                })
-                            settings.categories.forEach { cat ->
-                                DropdownMenuItem(
-                                    text = { Text(cat.name) },
-                                    leadingIcon = {
-                                        Box(
-                                            Modifier
-                                                .size(14.dp)
-                                                .background(Color(cat.color.toInt()))
-                                        )
-                                    },
-                                    onClick = {
-                                        selectedCategory = cat
-                                        expanded = false
-                                        saved = false
-                                    },
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            val focusRequesters = remember { mutableStateListOf<FocusRequester>() }
-            var pendingFocusId by remember { mutableStateOf<Long?>(null) }
-            val listState = rememberLazyListState()
-
-            LaunchedEffect(note?.timestamp) {
-                if (note != null && lines.isNotEmpty()) {
-                    withFrameNanos { }
-                    listState.scrollToItem(lines.lastIndex)
-                }
-            }
-
-            // Body
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                contentPadding = PaddingValues(horizontal = 15.dp, vertical = 20.dp),
-            ) {
-                itemsIndexed(
-                    lines, key = { _, row -> row.id }) { index, row ->
-                    val fr =
-                        if (focusRequesters.size > index) focusRequesters[index] else FocusRequester().also {
-                            focusRequesters.add(it)
-                        }
-
-                    LaunchedEffect(pendingFocusId, row.id) {
-                        if (pendingFocusId == row.id) {
-                            withFrameNanos { }         // wait one frame -> requester attached
-                            fr.requestFocus()
-                            pendingFocusId = null
-                        }
-                    }
-
-                    val isMain =
-                        index == 0 || lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        BasicTextField(
-                            value = row.text.value,
-                            onValueChange = { newValue ->
-                                saved = false
-                                if (newValue.text.endsWith("\n")) {
-
-                                    val content = newValue.text.dropLast(1)
-
-                                    val now = System.currentTimeMillis()
-                                    val diffSec = (now - lastEnter) / 1000
-                                    if (content.isNotBlank()) lastEnter = now
-
-                                    val rel = formatSecondsToMinutesSeconds(diffSec)
-                                    if (startTime == null && content.isNotBlank() && isMain) {
-                                        startTime = now
-                                    }
-                                    val abs = formatElapsedMinutesSeconds(
-                                        startTime ?: now, now, settings
-                                    )
-
-                                    row.text.value =
-                                        if (content.isNotBlank() && isMain)
-                                            TextFieldValue("$content ($rel)")
-                                        else if (content.isNotBlank() && !isMain)
-                                            TextFieldValue("    $content ($rel)")
-                                        else TextFieldValue("")
-
-                                    if (content.isNotBlank()) {
-                                        if (timestamps.size <= index) timestamps.add(abs)
-                                        else timestamps[index] = abs
-                                    } else {
-                                        if (timestamps.size <= index) timestamps.add("")
-                                        else timestamps[index] = ""
-                                    }
-
-                                    lines.add(
-                                        index + 1, Row(
-                                            nextId++, mutableStateOf(TextFieldValue(""))
-                                        )
-                                    )
-                                    timestamps.add(index + 1, "")
-
-                                    if (focusRequesters.size <= index + 1) {
-                                        focusRequesters.add(FocusRequester())
-                                    } else {
-                                        focusRequesters.add(index + 1, FocusRequester())
-                                    }
-
-                                    pendingFocusId = nextId - 1
-                                } else {
-                                    row.text.value = newValue
-                                }
-                            },
-                            textStyle = LocalTextStyle.current.copy(
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontSize = if (isMain) 20.sp else 14.sp,
-                                fontWeight = if (isMain) FontWeight.Bold else null,
-
-                            ),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
-                            visualTransformation = rememberRelativeTimeVisualTransformation( if (isMain) 20.sp else 14.sp),
-                            modifier = Modifier
-                                .focusRequester(fr),
-                        )
-                        val absText = timestamps.getOrNull(index).orEmpty()
-                        val absAnnotated =
-                            SmallSecondsVisualTransformation(if (isMain) 20.sp else 14.sp,).filter(
-                                AnnotatedString(absText)
-                            ).text
-                        Text(
-                            absAnnotated,
-                            fontSize = if (isMain) 20.sp else 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = if (isMain) FontWeight.Bold else null,
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-        AnimatedVisibility(
-            visible = showLearnings,
-            enter = scaleIn() + fadeIn(),
-            exit = scaleOut() + fadeOut()
-        ) {
-            Box(
-                modifier = Modifier
-                    .padding(horizontal = 10.dp)
-                    .fillMaxSize()
-                    .clickable { showLearnings = false },
-                contentAlignment = Alignment.TopCenter
-            ) {
-                BoxWithConstraints {
-                    val offset = maxHeight / 3
-                    Surface(
-                        color = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 0.dp,
-                        shape = MaterialTheme.shapes.medium,
-                        border = BorderStroke(2.dp, Color.LightGray.copy(alpha = 0.2F)),
-                        modifier = Modifier
-                            .padding(
-                                top = offset,
-                                start = 16.dp,
-                                end = 16.dp,
-                                bottom = 16.dp
-                            )
-                            .imePadding()
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .padding(16.dp)
-                                .fillMaxWidth()
-                        ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                "Notes",
-                                fontWeight = FontWeight.Bold,
+                                formatDate(noteTimestamp, settings),
                                 color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.align(Alignment.CenterHorizontally)
+                                textAlign = TextAlign.Center,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
                             )
-                            Spacer(Modifier.height(8.dp))
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .verticalScroll(rememberScrollState())
-                            ) {
+                            Text(
+                                formatTime(noteTimestamp, settings),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                textAlign = TextAlign.Center,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                            )
+                        }
+                        IconButton(onClick = {
+                            saveIfNeeded()
+                            onCancel()
+                        }) {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onBackground,
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    // Header
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(IntrinsicSize.Min),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Spacer(Modifier.height(4.dp))
+                            OutlinedTextField(
+                                value = titleValue,
+                                onValueChange = {
+                                    titleValue = it
+                                    saved = false
+                                },
+                                placeholder = { Text("Title") },
+                                modifier = Modifier.weight(1f),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = MaterialTheme.colorScheme.background,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.background,
+                                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    cursorColor = MaterialTheme.colorScheme.onSurface,
+                                ),
+                            )
+                        }
+                        if (settings.categories.isNotEmpty()) {
+                            ExposedDropdownMenuBox(
+                                expanded = expanded, onExpandedChange = { expanded = !expanded }) {
                                 OutlinedTextField(
-                                    value = learningsValue,
-                                    onValueChange = {
-                                        learningsValue = it
-                                        saved = false
+                                    modifier = Modifier
+                                        .menuAnchor()
+                                        .width(140.dp),
+                                    readOnly = true,
+                                    value = selectedCategory?.name ?: "None",
+                                    onValueChange = {},
+                                    label = { Text("Category") },
+                                    trailingIcon = {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(
+                                            expanded
+                                        )
                                     },
-                                    placeholder = { Text("Learnings") },
-                                    modifier = Modifier.fillMaxWidth(),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = Color.Transparent,
-                                        unfocusedBorderColor = Color.Transparent,
+                                        focusedBorderColor = MaterialTheme.colorScheme.background,
+                                        unfocusedBorderColor = MaterialTheme.colorScheme.background,
                                         focusedContainerColor = MaterialTheme.colorScheme.surface,
                                         unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                                         cursorColor = MaterialTheme.colorScheme.onSurface,
-                                    )
+                                    ),
                                 )
+                                DropdownMenu(
+                                    expanded = expanded,
+                                    onDismissRequest = { expanded = false }) {
+                                    DropdownMenuItem(
+                                        text = { Text("None") },
+                                        onClick = {
+                                            selectedCategory = null
+                                            expanded = false
+                                            saved = false
+                                        })
+                                    settings.categories.forEach { cat ->
+                                        DropdownMenuItem(
+                                            text = { Text(cat.name) },
+                                            leadingIcon = {
+                                                Box(
+                                                    Modifier
+                                                        .size(14.dp)
+                                                        .background(Color(cat.color.toInt()))
+                                                )
+                                            },
+                                            onClick = {
+                                                selectedCategory = cat
+                                                expanded = false
+                                                saved = false
+                                            },
+                                        )
+                                    }
+                                }
                             }
-                            Spacer(Modifier.height(8.dp))
-                            Button(
-                                onClick = { showLearnings = false },
-                                modifier = Modifier.align(Alignment.CenterHorizontally)
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    val focusRequesters = remember { mutableStateListOf<FocusRequester>() }
+                    var pendingFocusId by remember { mutableStateOf<Long?>(null) }
+                    val listState = rememberLazyListState()
+
+                    LaunchedEffect(note?.timestamp) {
+                        if (note != null && lines.isNotEmpty()) {
+                            withFrameNanos { }
+                            listState.scrollToItem(lines.lastIndex)
+                        }
+                    }
+
+                    // Body
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(MaterialTheme.colorScheme.surface),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        contentPadding = PaddingValues(horizontal = 15.dp, vertical = 20.dp),
+                    ) {
+                        itemsIndexed(
+                            lines, key = { _, row -> row.id }) { index, row ->
+                            val fr =
+                                if (focusRequesters.size > index) focusRequesters[index] else FocusRequester().also {
+                                    focusRequesters.add(it)
+                                }
+
+                            LaunchedEffect(pendingFocusId, row.id) {
+                                if (pendingFocusId == row.id) {
+                                    withFrameNanos { }         // wait one frame -> requester attached
+                                    fr.requestFocus()
+                                    pendingFocusId = null
+                                }
+                            }
+
+                            val isMain =
+                                index == 0 || lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text("Save")
+                                BasicTextField(
+                                    value = row.text.value,
+                                    onValueChange = { newValue ->
+                                        saved = false
+                                        if (newValue.text.endsWith("\n")) {
+
+                                            val content = newValue.text.dropLast(1)
+
+                                            val now = System.currentTimeMillis()
+                                            val diffSec = (now - lastEnter) / 1000
+                                            if (content.isNotBlank()) lastEnter = now
+
+                                            val rel = formatSecondsToMinutesSeconds(diffSec)
+                                            if (startTime == null && content.isNotBlank() && isMain) {
+                                                startTime = now
+                                            }
+                                            val abs = formatElapsedMinutesSeconds(
+                                                startTime ?: now, now, settings
+                                            )
+
+                                            row.text.value =
+                                                if (content.isNotBlank() && isMain)
+                                                    TextFieldValue("$content ($rel)")
+                                                else if (content.isNotBlank() && !isMain)
+                                                    TextFieldValue("    $content ($rel)")
+                                                else TextFieldValue("")
+
+                                            if (content.isNotBlank()) {
+                                                if (timestamps.size <= index) timestamps.add(abs)
+                                                else timestamps[index] = abs
+                                            } else {
+                                                if (timestamps.size <= index) timestamps.add("")
+                                                else timestamps[index] = ""
+                                            }
+
+                                            lines.add(
+                                                index + 1, Row(
+                                                    nextId++, mutableStateOf(TextFieldValue(""))
+                                                )
+                                            )
+                                            timestamps.add(index + 1, "")
+
+                                            if (focusRequesters.size <= index + 1) {
+                                                focusRequesters.add(FocusRequester())
+                                            } else {
+                                                focusRequesters.add(index + 1, FocusRequester())
+                                            }
+
+                                            pendingFocusId = nextId - 1
+                                        } else {
+                                            row.text.value = newValue
+                                        }
+                                    },
+                                    textStyle = LocalTextStyle.current.copy(
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontSize = if (isMain) 20.sp else 14.sp,
+                                        fontWeight = if (isMain) FontWeight.Bold else null,
+
+                                        ),
+                                    cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
+                                    visualTransformation = rememberRelativeTimeVisualTransformation(
+                                        if (isMain) 20.sp else 14.sp
+                                    ),
+                                    modifier = Modifier
+                                        .focusRequester(fr),
+                                )
+                                val absText = timestamps.getOrNull(index).orEmpty()
+                                val absAnnotated =
+                                    SmallSecondsVisualTransformation(if (isMain) 20.sp else 14.sp).filter(
+                                        AnnotatedString(absText)
+                                    ).text
+                                Text(
+                                    absAnnotated,
+                                    fontSize = if (isMain) 20.sp else 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = if (isMain) FontWeight.Bold else null,
+                                )
                             }
                         }
                     }
                 }
             }
-        }
 
+            AnimatedVisibility(
+                visible = showLearnings,
+                enter = scaleIn() + fadeIn(),
+                exit = scaleOut() + fadeOut()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 10.dp)
+                        .fillMaxSize()
+                        .clickable { showLearnings = false },
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    BoxWithConstraints {
+                        val offset = maxHeight / 3
+                        Surface(
+                            color = MaterialTheme.colorScheme.surface,
+                            tonalElevation = 0.dp,
+                            shape = MaterialTheme.shapes.medium,
+                            border = BorderStroke(2.dp, Color.LightGray.copy(alpha = 0.2F)),
+                            modifier = Modifier
+                                .padding(
+                                    top = offset,
+                                    start = 16.dp,
+                                    end = 16.dp,
+                                    bottom = 16.dp
+                                )
+                                .imePadding()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .padding(16.dp)
+                                    .fillMaxWidth()
+                            ) {
+                                Text(
+                                    "Notes",
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .verticalScroll(rememberScrollState())
+                                ) {
+                                    OutlinedTextField(
+                                        value = learningsValue,
+                                        onValueChange = {
+                                            learningsValue = it
+                                            saved = false
+                                        },
+                                        placeholder = { Text("Learnings") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = Color.Transparent,
+                                            unfocusedBorderColor = Color.Transparent,
+                                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                            cursorColor = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    )
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                Button(
+                                    onClick = { showLearnings = false },
+                                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                                ) {
+                                    Text("Save")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+        }
     }
 }
