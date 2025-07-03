@@ -53,7 +53,13 @@ fun exportNote(context: Context, note: NoteLine, settings: Settings): File {
     }
 
     val dir = File(context.filesDir, "csv").apply { mkdirs() }
-    val file = File(dir, "note_${note.timestamp}.csv")
+    val safeTitle = note.title
+        .trim()
+        .replace(" ", "_")
+        .replace(Regex("[^A-Za-z0-9_-]"), "")
+        .ifEmpty { "note" }
+    val date = java.text.SimpleDateFormat("dd-MM-yy", java.util.Locale.getDefault()).format(java.util.Date(note.timestamp))
+    val file = File(dir, "${safeTitle}-$date.csv")
     file.writeText(builder.toString())
     return file
 }

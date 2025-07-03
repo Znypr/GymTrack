@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,6 +43,7 @@ fun NotesScreen(
     onDelete: (Set<NoteLine>) -> Unit,
     onExport: (Set<NoteLine>) -> Unit,
     onCreate: () -> Unit,
+    onImport: () -> Unit,
     onOpenSettings: () -> Unit,
     onSwipeRight: () -> Unit,
     settings: Settings,
@@ -74,6 +76,9 @@ fun NotesScreen(
                     },
                     title = { Text("GymTrack", fontSize = 24.sp) },
                     actions = {
+                        IconButton(onClick = onImport) {
+                            Icon(Icons.Default.FileOpen, contentDescription = "Import")
+                        }
                         IconButton(onClick = onOpenSettings) {
                             Icon(Icons.Default.Settings, contentDescription = "Settings")
                         }
