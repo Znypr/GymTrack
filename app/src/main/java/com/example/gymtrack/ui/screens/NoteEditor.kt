@@ -58,6 +58,7 @@ import com.example.gymtrack.util.formatTime
 import com.example.gymtrack.util.rememberRelativeTimeVisualTransformation
 import android.app.Activity
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.example.gymtrack.ui.components.UniBiButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -397,28 +398,11 @@ fun NoteEditor(
                                                 .Center
                                         ) {
                                             if (isMain) {
-                                                OutlinedButton(
-                                                    onClick = {
-                                                        row.isUni.value = !row.isUni.value
-                                                    },
-                                                    border = BorderStroke(
-                                                        1.dp,
-                                                        if (row.isUni.value) MaterialTheme.colorScheme.error else relColor
-                                                    ),
-                                                    colors = ButtonDefaults.outlinedButtonColors(
-                                                        containerColor = Color.Transparent,
-                                                        contentColor = if (row.isUni.value) MaterialTheme.colorScheme.error else relColor,
-                                                    ),
-                                                    shape = RoundedCornerShape(4.dp),
-                                                    contentPadding = PaddingValues(
-                                                        horizontal = 4.dp,
-                                                        vertical = 0.dp
-                                                    ),
-                                                    modifier = Modifier.height(28.dp)
-                                                ) {
-                                                    Text(if (row.isUni.value) "uni." else "bi.",
-                                                        textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
-                                                }
+                                                UniBiButton(
+                                                    isUni = row.isUni.value,
+                                                    relColor = relColor,
+                                                    onToggle = { row.isUni.value = !row.isUni.value }
+                                                )
                                             } else {
                                                 val parentUni = run {
                                                     var p = index - 1
