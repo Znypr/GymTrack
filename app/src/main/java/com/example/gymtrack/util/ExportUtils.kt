@@ -23,13 +23,14 @@ fun exportNote(context: Context, note: NoteLine, settings: Settings): File {
     var currentMain = -1
     parsed.first.forEachIndexed { idx, line ->
         val time = parsed.second.getOrNull(idx).orEmpty()
+        if (line.isBlank()) return@forEachIndexed
         if (line.startsWith("    ")) {
             if (currentMain >= 0) {
                 subs += Triple(currentMain, line.trim(), time)
             }
         } else {
             currentMain = main.size
-            main += line to time
+            main += line.trim() to time
         }
     }
 
@@ -40,9 +41,10 @@ fun exportNote(context: Context, note: NoteLine, settings: Settings): File {
         .append(csvEscape(formatFullDateTime(note.timestamp, settings))).append(',')
         .append(csvEscape(note.learnings)).append('\n')
 
-    builder.append("Main Entry,Time\n")
-    main.forEach { (text, time) ->
-        builder.append(csvEscape(text)).append(',')
+    builder.append("Main Index,Main Entry,Time\n")
+    main.forEachIndexed { index, (text, time) ->
+        builder.append(index).append(',')
+            .append(csvEscape(text)).append(',')
             .append(csvEscape(time)).append('\n')
     }
 
@@ -124,15 +126,32 @@ fun importNote(file: File, settings: Settings): NoteLine? {
 
     var idx = 2
     while (idx < lines.size && lines[idx].isBlank()) idx++
-    if (idx >= lines.size || !lines[idx].startsWith("Main Entry")) return null
-    idx++
+    if (idx >= lines.size) return null
 
     val main = mutableListOf<Pair<String, String>>()
-    while (idx < lines.size && !lines[idx].startsWith("Main Index")) {
-        val row = parseCsvRow(lines[idx])
-        main += row.getOrNull(0).orEmpty() to row.getOrNull(1).orEmpty()
+
+    if (lines[idx].startsWith("Main Entry")) {
         idx++
-    }
+        while (idx < lines.size && !lines[idx].startsWith("Main Index")) {
+            val row = parseCsvRow(lines[idx])
+            val text = row.getOrNull(0).orEmpty()
+            val time = row.getOrNull(1).orEmpty()
+            if (text.isNotBlank() || time.isNotBlank()) main += text to time
+            idx++
+        }
+    } else if (lines[idx].startsWith("Main Index")) {
+        val header = parseCsvRow(lines[idx])
+        if (header.getOrNull(1) != "Main Entry") return null
+        idx++
+        while (idx < lines.size) {
+            if (lines[idx].startsWith("Main Index") && parseCsvRow(lines[idx]).getOrNull(1) == "Sub Entry") break
+            val row = parseCsvRow(lines[idx])
+            val text = row.getOrNull(1).orEmpty()
+            val time = row.getOrNull(2).orEmpty()
+            if (text.isNotBlank() || time.isNotBlank()) main += text to time
+            idx++
+        }
+    } else return null
 
     val subs = mutableListOf<Triple<Int, String, String>>()
     if (idx < lines.size && lines[idx].startsWith("Main Index")) {

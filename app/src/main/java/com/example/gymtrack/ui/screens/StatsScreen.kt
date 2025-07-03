@@ -185,7 +185,9 @@ private fun CategoryChart(notes: List<NoteLine>) {
 @Composable
 private fun WorkoutDurationChart(notes: List<NoteLine>) {
     val points = notes.mapNotNull { note ->
-        val secs = parseNoteText(note.text).second.filter { it.isNotBlank() }.lastOrNull()?.let { parseDurationSeconds(it) }
+        val secs = parseNoteText(note.text).second.mapNotNull {
+            if (it.isBlank()) null else parseDurationSeconds(it)
+        }.maxOrNull()
         secs?.let { note.timestamp to it / 60f }
     }.sortedBy { it.first }
     if (points.isEmpty()) return

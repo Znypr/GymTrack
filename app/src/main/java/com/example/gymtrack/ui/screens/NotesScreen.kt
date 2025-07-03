@@ -173,9 +173,9 @@ fun NotesScreen(
                                 .fillMaxWidth()
                         ) {
                             val totalSec =
-                                parseNoteText(note.text).second.filter { it.isNotBlank() }
-                                    .lastOrNull()
-                                    ?.let { parseDurationSeconds(it) }
+                                parseNoteText(note.text).second.mapNotNull {
+                                    if (it.isBlank()) null else parseDurationSeconds(it)
+                                }.maxOrNull()
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
