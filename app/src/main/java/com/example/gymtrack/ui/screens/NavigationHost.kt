@@ -28,38 +28,6 @@ fun NavigationHost(
     startDestination: String = "main"
 ) {
     val context = LocalContext.current
-    val importLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-            uri ?: return@rememberLauncherForActivityResult
-            CoroutineScope(Dispatchers.IO).launch {
-                val temp = java.io.File(context.cacheDir, "import.csv")
-                context.contentResolver.openInputStream(uri)?.use { input ->
-                    temp.outputStream().use { output -> input.copyTo(output) }
-                }
-                val imported = importNote(temp, settingsState.value)
-                if (imported != null) {
-                    daoState.value?.insert(
-                        NoteEntity(
-                            imported.timestamp,
-                            imported.title,
-                            imported.text,
-                            imported.categoryName,
-                            imported.categoryColor,
-                            imported.learnings,
-                        )
-                    )
-                    exportNote(context, imported, settingsState.value)
-                    withContext(Dispatchers.Main) {
-                        notes = notes + imported
-                        android.widget.Toast.makeText(context, "Imported ${temp.name}", android.widget.Toast.LENGTH_LONG).show()
-                    }
-                } else {
-                    withContext(Dispatchers.Main) {
-                        android.widget.Toast.makeText(context, "Failed to import", android.widget.Toast.LENGTH_LONG).show()
-                    }
-                }
-            }
-        }
     val daoState = remember { mutableStateOf<NoteDao?>(null) }
     var notes by remember { mutableStateOf(listOf<NoteLine>()) }
     var selectedNotes by remember { mutableStateOf(setOf<NoteLine>()) }
