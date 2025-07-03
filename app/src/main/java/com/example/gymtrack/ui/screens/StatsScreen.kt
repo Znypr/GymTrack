@@ -199,7 +199,7 @@ private fun AverageDurationChart(notes: List<NoteLine>) {
             averages.entries.forEachIndexed { index, entry ->
                 val barHeight = size.height * (entry.value / max)
                 drawRect(
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                    color = Color.White.copy(alpha = 0.6f),
                     topLeft = Offset(barWidth * (1 + index * 2), size.height - barHeight),
                     size = Size(barWidth, barHeight)
                 )
