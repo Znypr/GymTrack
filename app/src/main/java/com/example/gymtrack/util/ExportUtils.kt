@@ -169,6 +169,10 @@ fun importNote(file: File, settings: Settings): NoteLine? {
     val bodyLines = mutableListOf<String>()
     val times = mutableListOf<String>()
     main.forEachIndexed { i, (text, time) ->
+        if (i > 0) {
+            bodyLines += ""
+            times += ""
+        }
         bodyLines += text
         times += time
         subs.filter { it.first == i }.forEach { (_, sText, sTime) ->
