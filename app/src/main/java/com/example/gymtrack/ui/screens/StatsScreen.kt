@@ -19,6 +19,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.example.gymtrack.util.formatRelativeTime
 
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -97,10 +100,14 @@ fun StatsScreen(
             Spacer(Modifier.height(24.dp))
             StatsOverview(notes)
             Spacer(Modifier.height(32.dp))
-            WorkoutDurationChart(notes)
+            AverageDurationChart(notes)
             Spacer(Modifier.height(32.dp))
             CategoryChart(notes)
             Spacer(Modifier.height(32.dp))
+            LearningsOverview(notes, settings)
+            Spacer(Modifier.height(32.dp))
+            Text("Saved CSVs", style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(8.dp))
 
 
         }
@@ -170,77 +177,84 @@ private fun CategoryChart(notes: List<NoteLine>) {
 }
 
 @Composable
-private fun WorkoutDurationChart(notes: List<NoteLine>) {
-    val points = notes.mapNotNull { note ->
-        val secs = parseNoteText(note.text).second.mapNotNull {
-            if (it.isBlank()) null else parseDurationSeconds(it)
-        }.maxOrNull()
-        secs?.let { note.timestamp to it / 60f }
-    }.sortedBy { it.first }
-    if (points.isEmpty()) return
+private fun AverageDurationChart(notes: List<NoteLine>) {
+    val averages = notes.groupBy { it.categoryName ?: "Other" }
+        .mapValues { entry ->
+            val durations = entry.value.mapNotNull { note ->
+                parseNoteText(note.text).second.mapNotNull {
+                    if (it.isBlank()) null else parseDurationSeconds(it)
+                }.maxOrNull()
+            }
+            if (durations.isEmpty()) 0f else durations.average().toFloat() / 60f
+        }
 
-    val max = points.maxOf { it.second }
-    val density = LocalDensity.current
+    if (averages.isEmpty()) return
+
+    val max = averages.values.maxOrNull() ?: 1f
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-        Text("Workout length (min)", style = MaterialTheme.typography.titleLarge)
+        Text("Avg workout length by category (min)", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(12.dp))
         Canvas(modifier = Modifier.fillMaxWidth().height(200.dp)) {
-            val labelSpace = with(density) { 32.dp.toPx() }
-            val chartWidth = size.width - labelSpace
-            val stepX = chartWidth / (points.size - 1).coerceAtLeast(1)
-            val scaleY = size.height / max
-
-            drawRect(color = Color.White, size = size)
-
-            // axes
-            drawLine(
-                color = Color.DarkGray,
-                start = Offset(labelSpace, 0f),
-                end = Offset(labelSpace, size.height),
-                strokeWidth = 2f
-            )
-            drawLine(
-                color = Color.DarkGray,
-                start = Offset(labelSpace, size.height),
-                end = Offset(size.width, size.height),
-                strokeWidth = 2f
-            )
-
-            // grid lines and labels
-            val textPaint = android.graphics.Paint().apply {
-                color = android.graphics.Color.DKGRAY
-                textSize = with(density) { 12.sp.toPx() }
-            }
-            val stepY = max / 4
-            for (i in 0..4) {
-                val value = stepY * i
-                val y = size.height - (value * scaleY)
-                drawLine(
-                    color = Color.Gray.copy(alpha = 0.3f),
-                    start = Offset(labelSpace, y),
-                    end = Offset(size.width, y),
-                    strokeWidth = 1f
-                )
-                drawContext.canvas.nativeCanvas.drawText(
-                    value.toInt().toString(),
-                    0f,
-                    y + textPaint.textSize / 2,
-                    textPaint
+            val barWidth = size.width / (averages.size * 2f)
+            averages.entries.forEachIndexed { index, entry ->
+                val barHeight = size.height * (entry.value / max)
+                drawRect(
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                    topLeft = Offset(barWidth * (1 + index * 2), size.height - barHeight),
+                    size = Size(barWidth, barHeight)
                 )
             }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceAround
+        ) {
+            averages.keys.forEach { label ->
+                Text(label, fontSize = 12.sp)
+            }
+        }
+    }
+}
 
-            // plot line
-            for (i in 0 until points.lastIndex) {
-                val x1 = labelSpace + i * stepX
-                val y1 = size.height - points[i].second * scaleY
-                val x2 = labelSpace + (i + 1) * stepX
-                val y2 = size.height - points[i + 1].second * scaleY
-                drawLine(
-                    color = Color.White,
-                    start = Offset(x1, y1),
-                    end = Offset(x2, y2),
-                    strokeWidth = 4f
-                )
+@Composable
+private fun LearningsOverview(notes: List<NoteLine>, settings: Settings) {
+    val items = notes.flatMap { note ->
+        val time = formatRelativeTime(note.timestamp, settings)
+        val category = note.categoryName ?: "Other"
+        note.learnings.split("\n").mapNotNull { line ->
+            val trimmed = line.trim()
+            if (trimmed.isEmpty()) null else Triple(trimmed, time, category)
+        }
+    }
+
+    if (items.isEmpty()) return
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text("Learnings", style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(12.dp))
+        items.forEach { (text, time, cat) ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(vertical = 4.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    tonalElevation = 2.dp
+                ) {
+                    Text(
+                        text,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Column {
+                    Text(time, style = MaterialTheme.typography.bodySmall)
+                    Text(cat, style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
     }
