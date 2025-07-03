@@ -46,6 +46,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -396,11 +397,12 @@ fun NoteEditor(
                                 color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = if (isMain) 20.sp else 14.sp,
                                 fontWeight = if (isMain) FontWeight.Bold else null,
+
                             ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
                             visualTransformation = rememberRelativeTimeVisualTransformation( if (isMain) 20.sp else 14.sp),
                             modifier = Modifier
                                 .focusRequester(fr),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
                         )
                         val absText = timestamps.getOrNull(index).orEmpty()
                         val absAnnotated =
