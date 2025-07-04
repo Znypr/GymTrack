@@ -55,6 +55,7 @@ import com.example.gymtrack.util.formatTime
 import com.example.gymtrack.util.rememberRelativeTimeVisualTransformation
 import android.app.Activity
 import androidx.compose.material.icons.filled.Menu
+import com.example.gymtrack.ui.components.LearningsPopup
 import com.example.gymtrack.ui.components.UniBiButton
 import com.example.gymtrack.ui.components.UniBiFlag
 
@@ -245,20 +246,20 @@ fun NoteEditor(
                 ) {
                     // Navigation Row
                     Row(
-                        Modifier.fillMaxWidth(),
+                        Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
                             formatDate(noteTimestamp, settings),
                             color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
+                            fontSize = 20.sp
                         )
                         Text(
                             formatTime(noteTimestamp, settings),
                             color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
+                            fontSize = 20.sp
                         )
                     }
 
@@ -528,86 +529,15 @@ fun NoteEditor(
                     }
                 }
             }
-
-            AnimatedVisibility(
-                visible = showLearnings,
-                enter = scaleIn() + fadeIn(),
-                exit = scaleOut() + fadeOut()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .padding(horizontal = 10.dp)
-                        .fillMaxSize()
-                        .clickable { showLearnings = false },
-                    contentAlignment = Alignment.TopCenter
-                ) {
-                    BoxWithConstraints {
-                        val offset = maxHeight / 3
-                        Surface(
-                            color = MaterialTheme.colorScheme.surface,
-                            tonalElevation = 0.dp,
-                            shape = MaterialTheme.shapes.medium,
-                            border = BorderStroke(2.dp, Color.LightGray.copy(alpha = 0.4F)),
-                            shadowElevation = 10.dp,
-                            modifier = Modifier
-                                .padding(
-                                    top = offset,
-                                    start = 16.dp,
-                                    end = 16.dp,
-                                    bottom = 20.dp
-                                )
-                                .imePadding()
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(MaterialTheme.colorScheme.background)
-                                        .padding(vertical = 12.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        "Notes",
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                    )
-                                }
-                                Spacer(Modifier.height(8.dp))
-                                Column(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(horizontal = 12.dp)
-                                        .verticalScroll(rememberScrollState())
-                                ) {
-                                    OutlinedTextField(
-                                        value = learningsValue,
-                                        onValueChange = {
-                                            learningsValue = it
-                                            saved = false
-                                        },
-                                        placeholder = { Text("Learnings") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = Color.Transparent,
-                                            unfocusedBorderColor = Color.Transparent,
-                                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                            cursorColor = MaterialTheme.colorScheme.onSurface,
-                                        )
-                                    )
-                                }
-                                Spacer(Modifier.height(8.dp))
-                            }
-                        }
-                    }
+            LearningsPopup(
+                showLearnings = showLearnings,
+                learningsValue = learningsValue,
+                onDismiss = { showLearnings = false },
+                onValueChange = {
+                    learningsValue = it
+                    saved = false
                 }
-            }
-
+            )
         }
     }
 }
