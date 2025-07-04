@@ -34,7 +34,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowInsetsControllerCompat
@@ -56,7 +55,6 @@ import com.example.gymtrack.util.formatDate
 import com.example.gymtrack.util.formatTime
 import com.example.gymtrack.util.rememberRelativeTimeVisualTransformation
 import android.app.Activity
-import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.gymtrack.ui.components.UniBiButton
 import com.example.gymtrack.ui.components.UniBiFlag
 
@@ -239,7 +237,7 @@ fun NoteEditor(
                     modifier = Modifier
                         .fillMaxWidth()
                         .verticalScroll(scroll)
-                        .padding(horizontal = 15.dp, vertical = 15.dp)
+                        .padding(horizontal = 12.dp, vertical = 15.dp)
                         .imePadding(),
                 ) {
                     // Navigation Row
@@ -478,8 +476,14 @@ fun NoteEditor(
                                                         mutableStateOf(false)
                                                     )
                                                 )
+
+                                                if (unis.size <= index) unis.add(row.isUni.value)
+                                                else unis[index] = row.isUni.value
+
+                                                if (unis.size <= index + 1) unis.add(false)
+                                                else unis.add(index + 1, false)
+
                                                 timestamps.add(index + 1, "")
-                                                unis.add(index + 1, false)
 
                                                 if (focusRequesters.size <= index + 1) {
                                                     focusRequesters.add(FocusRequester())
