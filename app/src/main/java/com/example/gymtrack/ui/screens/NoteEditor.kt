@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -54,6 +55,7 @@ import com.example.gymtrack.R
 import com.example.gymtrack.util.formatDate
 import com.example.gymtrack.util.formatTime
 import com.example.gymtrack.util.rememberRelativeTimeVisualTransformation
+import com.example.gymtrack.util.rememberBulletListTransformation
 import android.app.Activity
 import com.example.gymtrack.ui.components.UniBiButton
 import com.example.gymtrack.ui.components.UniBiFlag
@@ -579,6 +581,8 @@ fun NoteEditor(
                                         },
                                         placeholder = { Text("Learnings") },
                                         modifier = Modifier.fillMaxWidth(),
+                                        textStyle = LocalTextStyle.current.copy(lineHeight = 22.sp),
+                                        visualTransformation = rememberBulletListTransformation(),
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedBorderColor = Color.Transparent,
                                             unfocusedBorderColor = Color.Transparent,
