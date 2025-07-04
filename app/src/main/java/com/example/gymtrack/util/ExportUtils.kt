@@ -139,10 +139,10 @@ fun importNote(file: File, settings: Settings): NoteLine? {
 
     val main = mutableListOf<Triple<String, String, Boolean>>()
 
-    if (lines[idx].startsWith("Main Entry")) {
-        val hasUni = parseCsvRow(lines[idx]).contains("Uni")
+    if (lines[idx].trimStart().startsWith("Main Entry")) {
+        val hasUni = parseCsvRow(lines[idx]).any { it.trim().equals("Uni", true) }
         idx++
-        while (idx < lines.size && !lines[idx].startsWith("Main Index")) {
+        while (idx < lines.size && !lines[idx].trimStart().startsWith("Main Index")) {
             val row = parseCsvRow(lines[idx])
             val text = row.getOrNull(0).orEmpty()
             val time = row.getOrNull(1).orEmpty()
@@ -150,13 +150,15 @@ fun importNote(file: File, settings: Settings): NoteLine? {
             if (text.isNotBlank() || time.isNotBlank()) main += Triple(text, time, uni)
             idx++
         }
-    } else if (lines[idx].startsWith("Main Index")) {
+    } else if (lines[idx].trimStart().startsWith("Main Index")) {
         val header = parseCsvRow(lines[idx])
-        if (header.getOrNull(1) != "Main Entry") return null
-        val hasUni = header.contains("Uni")
+        val secondCol = header.getOrNull(1)?.trim()?.lowercase()
+        if (secondCol != "main entry") return null
+        val hasUni = header.any { it.trim().equals("Uni", true) }
         idx++
         while (idx < lines.size) {
-            if (lines[idx].startsWith("Main Index") && parseCsvRow(lines[idx]).getOrNull(1) == "Sub Entry") break
+            if (lines[idx].trimStart().startsWith("Main Index") &&
+                parseCsvRow(lines[idx]).getOrNull(1)?.trim()?.equals("Sub Entry", true) == true) break
             val row = parseCsvRow(lines[idx])
             val text = row.getOrNull(1).orEmpty()
             val time = row.getOrNull(2).orEmpty()
@@ -167,9 +169,9 @@ fun importNote(file: File, settings: Settings): NoteLine? {
     } else return null
 
     val subs = mutableListOf<SubEntry>()
-    if (idx < lines.size && lines[idx].startsWith("Main Index")) {
-        val header = parseCsvRow(lines[idx - 1])
-        val hasUni = header.contains("Uni")
+    if (idx < lines.size && lines[idx].trimStart().startsWith("Main Index")) {
+        val header = parseCsvRow(lines[idx])
+        val hasUni = header.any { it.trim().equals("Uni", true) }
         idx++
         while (idx < lines.size) {
             val row = parseCsvRow(lines[idx])
