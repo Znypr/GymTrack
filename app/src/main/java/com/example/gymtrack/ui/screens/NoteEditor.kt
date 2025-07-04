@@ -19,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -55,6 +54,7 @@ import com.example.gymtrack.util.formatDate
 import com.example.gymtrack.util.formatTime
 import com.example.gymtrack.util.rememberRelativeTimeVisualTransformation
 import android.app.Activity
+import androidx.compose.material.icons.filled.Menu
 import com.example.gymtrack.ui.components.UniBiButton
 import com.example.gymtrack.ui.components.UniBiFlag
 
@@ -74,10 +74,13 @@ private fun GymTrackTopBar(onEdit: () -> Unit) {
         },
         title = { Text("GymTrack", fontSize = 24.sp) },
         actions = {
-            Icon(
-                Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme
-                    .colorScheme.onSurface, modifier = Modifier.padding(end = 10.dp)
-            )
+            IconButton(onClick = onEdit, modifier = Modifier.padding(end = 10.dp)) {
+                Icon(
+                    Icons.Default.Menu,
+                    contentDescription = "Edit",
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+            }
         }
     )
 }
@@ -365,8 +368,8 @@ fun NoteEditor(
                         modifier = Modifier
                             .weight(1f)
                             .background(MaterialTheme.colorScheme.surface),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 20.dp),
                     ) {
                         itemsIndexed(
                             lines, key = { _, row -> row.id }) { index, row ->
@@ -544,31 +547,39 @@ fun NoteEditor(
                             color = MaterialTheme.colorScheme.surface,
                             tonalElevation = 0.dp,
                             shape = MaterialTheme.shapes.medium,
-                            border = BorderStroke(2.dp, Color.LightGray.copy(alpha = 0.2F)),
+                            border = BorderStroke(2.dp, Color.LightGray.copy(alpha = 0.4F)),
+                            shadowElevation = 10.dp,
                             modifier = Modifier
                                 .padding(
                                     top = offset,
                                     start = 16.dp,
                                     end = 16.dp,
-                                    bottom = 16.dp
+                                    bottom = 20.dp
                                 )
                                 .imePadding()
                         ) {
                             Column(
                                 modifier = Modifier
-                                    .padding(16.dp)
                                     .fillMaxWidth()
                             ) {
-                                Text(
-                                    "Notes",
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(MaterialTheme.colorScheme.background)
+                                        .padding(vertical = 12.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "Notes",
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                }
                                 Spacer(Modifier.height(8.dp))
                                 Column(
                                     modifier = Modifier
                                         .weight(1f)
+                                        .padding(horizontal = 12.dp)
                                         .verticalScroll(rememberScrollState())
                                 ) {
                                     OutlinedTextField(
