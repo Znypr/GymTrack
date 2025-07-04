@@ -52,8 +52,10 @@ fun NotesScreen(
         floatingActionButton = {
             if (selectedNotes.isEmpty()) {
                 FloatingActionButton(
+                    elevation = FloatingActionButtonDefaults.bottomAppBarFabElevation
+                        (defaultElevation = 5.dp),
                     onClick = onCreate,
-                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                    containerColor = MaterialTheme.colorScheme.background.lighten(0.1f),
                     shape = MaterialTheme.shapes.large,
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Add Note")
