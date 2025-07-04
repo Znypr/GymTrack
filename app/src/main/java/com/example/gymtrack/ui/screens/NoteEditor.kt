@@ -545,6 +545,7 @@ fun NoteEditor(
                             tonalElevation = 0.dp,
                             shape = MaterialTheme.shapes.medium,
                             border = BorderStroke(2.dp, Color.LightGray.copy(alpha = 0.2F)),
+                            shadowElevation = 8.dp,
                             modifier = Modifier
                                 .padding(
                                     top = offset,
@@ -559,12 +560,19 @@ fun NoteEditor(
                                     .padding(16.dp)
                                     .fillMaxWidth()
                             ) {
-                                Text(
-                                    "Notes",
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "Notes",
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                }
                                 Spacer(Modifier.height(8.dp))
                                 Column(
                                     modifier = Modifier
