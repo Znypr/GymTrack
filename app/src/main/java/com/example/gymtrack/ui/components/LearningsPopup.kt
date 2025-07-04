@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -33,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.gymtrack.util.rememberBulletListTransformation
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
@@ -52,7 +54,7 @@ fun LearningsPopup(
                 .padding(horizontal = 10.dp)
                 .fillMaxSize()
                 .clickable { onDismiss() },
-            contentAlignment = Alignment.TopCenter
+                    contentAlignment = Alignment.TopCenter
         ) {
             BoxWithConstraints {
                 val offset = maxHeight / 3
@@ -60,46 +62,40 @@ fun LearningsPopup(
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 0.dp,
                     shape = MaterialTheme.shapes.medium,
-                    border = BorderStroke(2.dp, Color.LightGray.copy(alpha = 0.4f)),
-                    shadowElevation = 10.dp,
+                    border = BorderStroke(2.dp, Color.LightGray.copy(alpha = 0.2F)),
                     modifier = Modifier
                         .padding(
                             top = offset,
                             start = 16.dp,
                             end = 16.dp,
-                            bottom = 20.dp
+                            bottom = 16.dp
                         )
                         .imePadding()
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .fillMaxWidth()
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.background)
-                                .padding(vertical = 16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Notes",
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontSize = 18.sp
-                            )
-                        }
+                        Text(
+                            "Notes",
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        )
                         Spacer(Modifier.height(8.dp))
                         Column(
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(horizontal = 12.dp)
                                 .verticalScroll(rememberScrollState())
                         ) {
                             OutlinedTextField(
                                 value = learningsValue,
-                                onValueChange = onValueChange,
+                                onValueChange = { onValueChange(it) },
                                 placeholder = { Text("Learnings") },
                                 modifier = Modifier.fillMaxWidth(),
+                                textStyle = LocalTextStyle.current.copy(lineHeight = 22.sp),
+                                visualTransformation = rememberBulletListTransformation(),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = Color.Transparent,
                                     unfocusedBorderColor = Color.Transparent,

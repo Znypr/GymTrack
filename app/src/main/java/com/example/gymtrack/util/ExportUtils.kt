@@ -68,7 +68,9 @@ fun exportNote(context: Context, note: NoteLine, settings: Settings): File {
         .ifEmpty { "note" }
     val date = java.text.SimpleDateFormat("dd-MM-yy", java.util.Locale.getDefault())
         .format(java.util.Date(note.timestamp))
-    val file = File(dir, "${safeTitle}-$date.csv")
+    val time = java.text.SimpleDateFormat("HH-mm", java.util.Locale.getDefault())
+        .format(java.util.Date(note.timestamp))
+    val file = File(dir, "${safeTitle}-$date-$time.csv")
     file.writeText(builder.toString())
 
     // Also copy to public Downloads directory if writable
