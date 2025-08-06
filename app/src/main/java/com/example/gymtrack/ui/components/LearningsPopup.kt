@@ -7,7 +7,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -27,10 +26,16 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,6 +49,21 @@ fun LearningsPopup(
     onDismiss: () -> Unit,
     onValueChange: (TextFieldValue) -> Unit,
 ) {
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(showLearnings) {
+        if (showLearnings) {
+            var text = learningsValue.text
+            if (text.isNotEmpty() && !text.endsWith("\n")) {
+                text += "\n"
+            }
+            val selection = TextRange(text.length)
+            onValueChange(TextFieldValue(text, selection))
+            withFrameNanos { }
+            focusRequester.requestFocus()
+        }
+    }
+
     AnimatedVisibility(
         visible = showLearnings,
         enter = scaleIn() + fadeIn(),
@@ -93,7 +113,9 @@ fun LearningsPopup(
                                 value = learningsValue,
                                 onValueChange = { onValueChange(it) },
                                 placeholder = { Text("Learnings") },
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusRequester(focusRequester),
                                 textStyle = LocalTextStyle.current.copy(lineHeight = 22.sp),
                                 visualTransformation = rememberBulletListTransformation(),
                                 colors = OutlinedTextFieldDefaults.colors(
