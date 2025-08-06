@@ -6,13 +6,15 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,6 +32,7 @@ import com.example.gymtrack.util.formatWeekRelativeTime
 import com.example.gymtrack.util.lighten
 import com.example.gymtrack.util.parseNoteText
 import com.example.gymtrack.util.parseDurationSeconds
+import java.util.Calendar
 import androidx.compose.ui.input.pointer.pointerInput
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -121,6 +124,21 @@ fun NotesScreen(
                     }
                 }
         ) {
+            var query by remember { mutableStateOf("") }
+            var newestFirst by remember { mutableStateOf(true) }
+
+            val displayNotes = remember(notes, query, newestFirst) {
+                notes
+                    .filter { n ->
+                        if (query.isBlank()) true
+                        else parseNoteText(n.text).first.any { it.contains(query, ignoreCase = true) }
+                    }
+                    .let { list ->
+                        if (newestFirst) list.sortedByDescending { it.timestamp }
+                        else list.sortedBy { it.timestamp }
+                    }
+            }
+
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(160.dp),
                 contentPadding = padding,
@@ -128,86 +146,138 @@ fun NotesScreen(
                     .fillMaxSize()
                     .padding(8.dp),
             ) {
-                itemsIndexed(notes.reversed(), key = { _, n -> n.timestamp }) { _, note ->
-                    val isSelected = selectedNotes.contains(note)
-                    Card(
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Row(
                         modifier = Modifier
-                            .padding(6.dp)
                             .fillMaxWidth()
-                            .combinedClickable(
-                                onClick = {
-                                    if (selectedNotes.isNotEmpty()) {
-                                        onSelect(selectedNotes.toMutableSet().also { set ->
-                                            if (set.contains(note)) set.remove(note) else set.add(
-                                                note
-                                            )
-                                        })
-                                    } else {
-                                        onEdit(note)
+                            .padding(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = query,
+                            onValueChange = { query = it },
+                            modifier = Modifier.weight(1f),
+                            placeholder = { Text("Filter exercise") },
+                            singleLine = true,
+                            trailingIcon = {
+                                if (query.isNotEmpty()) {
+                                    IconButton(onClick = { query = "" }) {
+                                        Icon(Icons.Default.Clear, contentDescription = "Clear")
                                     }
-                                },
-                                onLongClick = {
-                                    onSelect(selectedNotes.toMutableSet().also { it.add(note) })
-                                },
-                            ),
-                        shape = MaterialTheme.shapes.medium,
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isSelected) {
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-                            } else {
-                                val base = note.categoryColor?.let { Color(it.toInt()) }
-                                    ?: if (settings.darkMode) MaterialTheme.colorScheme.surface
-                                    else MaterialTheme.colorScheme.surfaceVariant
-                                if (note.categoryColor == null) {
-                                    base
-                                } else if (settings.darkMode) {
-                                    base.darken(0.7f)
+                                }
+                            }
+                        )
+                        IconButton(onClick = { newestFirst = !newestFirst }) {
+                            Icon(Icons.Default.Sort, contentDescription = "Sort")
+                        }
+                    }
+                }
+
+                var lastWeek: Pair<Int, Int>? = null
+                displayNotes.forEach { note ->
+                    val cal = Calendar.getInstance().apply { timeInMillis = note.timestamp }
+                    val weekPair = cal.get(Calendar.YEAR) to cal.get(Calendar.WEEK_OF_YEAR)
+                    if (weekPair != lastWeek) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Divider(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
+                        }
+                        lastWeek = weekPair
+                    }
+
+                    item(key = note.timestamp) {
+                        val isSelected = selectedNotes.contains(note)
+                        NoteCard(
+                            note = note,
+                            isSelected = isSelected,
+                            onClick = {
+                                if (selectedNotes.isNotEmpty()) {
+                                    onSelect(selectedNotes.toMutableSet().also { set ->
+                                        if (set.contains(note)) set.remove(note) else set.add(note)
+                                    })
                                 } else {
-                                    base.lighten(0.1f)
+                                    onEdit(note)
                                 }
                             },
-                            contentColor = MaterialTheme.colorScheme.onSurface,
-                        ),
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .padding(12.dp)
-                                .fillMaxWidth()
-                        ) {
-                            val totalSec =
-                                parseNoteText(note.text).second.mapNotNull {
-                                    if (it.isBlank()) null else parseDurationSeconds(it)
-                                }.maxOrNull()
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                totalSec?.let {
-                                    Text(
-                                        text = "${it / 60}'",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                    )
-                                }
-                                Text(
-                                    text = formatWeekRelativeTime(note.timestamp, settings),
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = note.title,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.align(Alignment.Start)
-                            )
-                        }
-
+                            onLongClick = {
+                                onSelect(selectedNotes.toMutableSet().also { it.add(note) })
+                            },
+                            settings = settings
+                        )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun NoteCard(
+    note: NoteLine,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    settings: Settings,
+) {
+    Card(
+        modifier = Modifier
+            .padding(6.dp)
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+            } else {
+                val base = note.categoryColor?.let { Color(it.toInt()) }
+                    ?: if (settings.darkMode) MaterialTheme.colorScheme.surface
+                    else MaterialTheme.colorScheme.surfaceVariant
+                if (note.categoryColor == null) {
+                    base
+                } else if (settings.darkMode) {
+                    base.darken(0.7f)
+                } else {
+                    base.lighten(0.1f)
+                }
+            },
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
+        ) {
+            val totalSec =
+                parseNoteText(note.text).second.mapNotNull {
+                    if (it.isBlank()) null else parseDurationSeconds(it)
+                }.maxOrNull()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                totalSec?.let {
+                    Text(
+                        text = "${it / 60}'",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+                Text(
+                    text = formatWeekRelativeTime(note.timestamp, settings),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = note.categoryName?.uppercase() ?: "",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.Start)
+            )
+        }
+
     }
 }
