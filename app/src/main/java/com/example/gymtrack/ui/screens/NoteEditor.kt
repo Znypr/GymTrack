@@ -58,6 +58,7 @@ import com.example.gymtrack.util.formatDate
 import com.example.gymtrack.util.formatTime
 import com.example.gymtrack.util.rememberRelativeTimeVisualTransformation
 import android.app.Activity
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.material.icons.filled.Menu
 import com.example.gymtrack.ui.components.LearningsPopup
 import com.example.gymtrack.ui.components.ExerciseFlagButton
@@ -93,7 +94,7 @@ private fun GymTrackTopBar(onEdit: () -> Unit) {
 }
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun NoteEditor(
     note: NoteLine?,

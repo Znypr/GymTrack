@@ -152,7 +152,7 @@ fun importNote(file: File, settings: Settings): NoteLine? {
     while (idx < lines.size && lines[idx].isBlank()) idx++
     if (idx >= lines.size) return null
 
-    val main = mutableListOf<Triple<String, String, Boolean>>()
+    val main = mutableListOf<Triple<String, String, ExerciseFlag>>()
 
     if (lines[idx].trimStart().startsWith("Main Entry")) {
         val hasFlag = parseCsvRow(lines[idx]).any { it.trim().equals("Flag", true) || it.trim().equals("Uni", true) }
