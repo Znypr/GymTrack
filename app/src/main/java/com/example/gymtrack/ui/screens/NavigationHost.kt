@@ -34,54 +34,41 @@ fun NavigationHost(
     var currentNote by remember { mutableStateOf<NoteLine?>(null) }
 
     val importLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-            uri ?: return@rememberLauncherForActivityResult
+        rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+            if (uris.isEmpty()) return@rememberLauncherForActivityResult
             CoroutineScope(Dispatchers.IO).launch {
-                val temp = java.io.File(context.cacheDir, "import.csv")
-                context.contentResolver.openInputStream(uri)?.use { input ->
-                    temp.outputStream().use { output -> input.copyTo(output) }
-                }
-                val imported = importNote(temp, settingsState.value)
-                if (imported != null) {
-                    val exists = withContext(Dispatchers.Main) {
-                        notes.any { it.timestamp == imported.timestamp }
+                val importedNotes = mutableListOf<NoteLine>()
+                uris.forEach { uri ->
+                    val temp = java.io.File.createTempFile("import", ".csv", context.cacheDir)
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        temp.outputStream().use { output -> input.copyTo(output) }
                     }
-                    if (exists) {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(
-                                context,
-                                "Note already exists",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    } else {
+                    val note = importNote(temp, settingsState.value)
+                    if (note != null) {
                         daoState.value?.insert(
                             NoteEntity(
-                                imported.timestamp,
-                                imported.title,
-                                imported.text,
-                                imported.categoryName,
-                                imported.categoryColor,
-                                imported.learnings,
+                                note.timestamp,
+                                note.title,
+                                note.text,
+                                note.categoryName,
+                                note.categoryColor,
+                                note.learnings,
                             )
                         )
-                        exportNote(context, imported, settingsState.value)
-                        withContext(Dispatchers.Main) {
-                            notes = notes + imported
-                            Toast.makeText(
-                                context,
-                                "Imported ${temp.name}",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
+                        exportNote(context, note, settingsState.value)
+                        importedNotes += note
                     }
-                } else {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(
-                            context,
-                            "Failed to import",
-                            Toast.LENGTH_LONG
-                        ).show()
+                }
+                withContext(Dispatchers.Main) {
+                    if (importedNotes.isNotEmpty()) {
+                        notes = notes + importedNotes
+                        val msg = if (importedNotes.size == 1)
+                            "Imported ${importedNotes.first().title}"
+                        else
+                            "Imported ${importedNotes.size} notes"
+                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                    } else {
+                        android.widget.Toast.makeText(context, "Failed to import", android.widget.Toast.LENGTH_LONG).show()
                     }
                 }
             }
