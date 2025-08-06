@@ -43,24 +43,45 @@ fun NavigationHost(
                 }
                 val imported = importNote(temp, settingsState.value)
                 if (imported != null) {
-                    daoState.value?.insert(
-                        NoteEntity(
-                            imported.timestamp,
-                            imported.title,
-                            imported.text,
-                            imported.categoryName,
-                            imported.categoryColor,
-                            imported.learnings,
+                    val exists = withContext(Dispatchers.Main) {
+                        notes.any { it.timestamp == imported.timestamp }
+                    }
+                    if (exists) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(
+                                context,
+                                "Note already exists",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    } else {
+                        daoState.value?.insert(
+                            NoteEntity(
+                                imported.timestamp,
+                                imported.title,
+                                imported.text,
+                                imported.categoryName,
+                                imported.categoryColor,
+                                imported.learnings,
+                            )
                         )
-                    )
-                    exportNote(context, imported, settingsState.value)
-                    withContext(Dispatchers.Main) {
-                        notes = notes + imported
-                        android.widget.Toast.makeText(context, "Imported ${temp.name}", android.widget.Toast.LENGTH_LONG).show()
+                        exportNote(context, imported, settingsState.value)
+                        withContext(Dispatchers.Main) {
+                            notes = notes + imported
+                            Toast.makeText(
+                                context,
+                                "Imported ${temp.name}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
                     }
                 } else {
                     withContext(Dispatchers.Main) {
-                        android.widget.Toast.makeText(context, "Failed to import", android.widget.Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                            context,
+                            "Failed to import",
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
                 }
             }
