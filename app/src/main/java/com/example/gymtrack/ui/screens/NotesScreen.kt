@@ -10,11 +10,11 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.R
+import com.example.gymtrack.data.Category
 import com.example.gymtrack.data.NoteLine
 import com.example.gymtrack.data.Settings
 import com.example.gymtrack.util.darken
@@ -34,6 +35,7 @@ import com.example.gymtrack.util.parseNoteText
 import com.example.gymtrack.util.parseDurationSeconds
 import java.util.Calendar
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.background
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -124,14 +126,14 @@ fun NotesScreen(
                     }
                 }
         ) {
-            var query by remember { mutableStateOf("") }
             var newestFirst by remember { mutableStateOf(true) }
+            var categoryFilter by remember { mutableStateOf<Category?>(null) }
+            var filterExpanded by remember { mutableStateOf(false) }
 
-            val displayNotes = remember(notes, query, newestFirst) {
+            val displayNotes = remember(notes, categoryFilter, newestFirst) {
                 notes
                     .filter { n ->
-                        if (query.isBlank()) true
-                        else parseNoteText(n.text).first.any { it.contains(query, ignoreCase = true) }
+                        categoryFilter?.let { n.categoryName == it.name } ?: true
                     }
                     .let { list ->
                         if (newestFirst) list.sortedByDescending { it.timestamp }
@@ -154,20 +156,37 @@ fun NotesScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        OutlinedTextField(
-                            value = query,
-                            onValueChange = { query = it },
-                            modifier = Modifier.weight(1f),
-                            placeholder = { Text("Filter exercise") },
-                            singleLine = true,
-                            trailingIcon = {
-                                if (query.isNotEmpty()) {
-                                    IconButton(onClick = { query = "" }) {
-                                        Icon(Icons.Default.Clear, contentDescription = "Clear")
+                        Spacer(Modifier.weight(1f))
+                        Box {
+                            IconButton(onClick = { filterExpanded = true }) {
+                                Icon(Icons.Default.FilterList, contentDescription = "Filter")
+                            }
+                            DropdownMenu(expanded = filterExpanded, onDismissRequest = { filterExpanded = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("All") },
+                                    onClick = {
+                                        categoryFilter = null
+                                        filterExpanded = false
                                     }
+                                )
+                                settings.categories.forEach { cat ->
+                                    DropdownMenuItem(
+                                        text = { Text(cat.name) },
+                                        leadingIcon = {
+                                            Box(
+                                                Modifier
+                                                    .size(12.dp)
+                                                    .background(Color(cat.color.toInt()))
+                                            )
+                                        },
+                                        onClick = {
+                                            categoryFilter = cat
+                                            filterExpanded = false
+                                        }
+                                    )
                                 }
                             }
-                        )
+                        }
                         IconButton(onClick = { newestFirst = !newestFirst }) {
                             Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Sort")
                         }

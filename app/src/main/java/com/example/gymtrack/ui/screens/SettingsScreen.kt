@@ -5,24 +5,26 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.R
+import com.example.gymtrack.BuildConfig
 import com.example.gymtrack.data.Category
 import com.example.gymtrack.data.Settings
+import com.example.gymtrack.data.DEFAULT_CATEGORIES
+import com.example.gymtrack.data.DEFAULT_CATEGORY_NAMES
 import com.example.gymtrack.ui.components.ColorDropdown
 import com.example.gymtrack.util.presetColors
-import com.example.gymtrack.BuildConfig
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,7 +32,12 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
     var is24 by remember { mutableStateOf(settings.is24Hour) }
     var rounding by remember { mutableStateOf(settings.roundingSeconds.toString()) }
     var dark by remember { mutableStateOf(settings.darkMode) }
-    var categories by remember { mutableStateOf(settings.categories.toMutableList()) }
+    val defaultCategories = DEFAULT_CATEGORIES
+    var customCategories by remember {
+        mutableStateOf(
+            settings.categories.filter { it.name !in DEFAULT_CATEGORY_NAMES }.toMutableList()
+        )
+    }
     var newName by remember { mutableStateOf("") }
     var newColor by remember { mutableStateOf(presetColors.first()) }
 
@@ -68,7 +75,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                             is24Hour = it,
                             roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds,
                             darkMode = dark,
-                            categories = categories,
+                            categories = defaultCategories + customCategories,
                         ),
                     )
                 })
@@ -83,7 +90,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                             is24Hour = is24,
                             roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds,
                             darkMode = it,
-                            categories = categories,
+                            categories = defaultCategories + customCategories,
                         ),
                     )
                 })
@@ -99,7 +106,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                             is24Hour = is24,
                             roundingSeconds = filtered.toIntOrNull() ?: settings.roundingSeconds,
                             darkMode = dark,
-                            categories = categories,
+                            categories = defaultCategories + customCategories,
                         ),
                     )
                 },
@@ -112,7 +119,20 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
             )
             Spacer(Modifier.height(16.dp))
             Text("Categories", fontWeight = FontWeight.Bold)
-            categories.forEachIndexed { index, cat ->
+            defaultCategories.forEach { cat ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(cat.name, modifier = Modifier.weight(1f))
+                    Spacer(Modifier.width(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(100.dp)
+                            .height(65.dp)
+                            .background(Color(cat.color.toInt()))
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+            customCategories.forEachIndexed { index, cat ->
                 var name by remember { mutableStateOf(cat.name) }
                 var colorValue by remember { mutableStateOf(cat.color) }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -120,7 +140,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                         value = name,
                         onValueChange = {
                             name = it
-                            categories = categories.toMutableList().also { list ->
+                            customCategories = customCategories.toMutableList().also { list ->
                                 list[index] = list[index].copy(name = it)
                             }
                             onChange(
@@ -129,7 +149,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                                     roundingSeconds = rounding.toIntOrNull()
                                         ?: settings.roundingSeconds,
                                     darkMode = dark,
-                                    categories = categories,
+                                    categories = defaultCategories + customCategories,
                                 ),
                             )
                         },
@@ -149,7 +169,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                             .height(65.dp),
                         onSelected = { clr ->
                             colorValue = clr
-                            categories = categories.toMutableList().also { list ->
+                            customCategories = customCategories.toMutableList().also { list ->
                                 list[index] = list[index].copy(color = clr)
                             }
                             onChange(
@@ -158,20 +178,20 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                                     roundingSeconds = rounding.toIntOrNull()
                                         ?: settings.roundingSeconds,
                                     darkMode = dark,
-                                    categories = categories,
+                                    categories = defaultCategories + customCategories,
                                 ),
                             )
                         },
                     )
                     IconButton(onClick = {
-                        categories = categories.toMutableList().also { it.removeAt(index) }
+                        customCategories = customCategories.toMutableList().also { it.removeAt(index) }
                         onChange(
                             settings.copy(
                                 is24Hour = is24,
                                 roundingSeconds = rounding.toIntOrNull()
                                     ?: settings.roundingSeconds,
                                 darkMode = dark,
-                                categories = categories,
+                                categories = defaultCategories + customCategories,
                             ),
                         )
                     }) {
@@ -201,7 +221,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                     onSelected = { newColor = it },
                 )
             IconButton(onClick = {
-                categories = (categories + Category(
+                customCategories = (customCategories + Category(
                     newName.ifBlank { "Category" },
                     newColor,
                 )).toMutableList()
@@ -210,7 +230,7 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onBack: () 
                         is24Hour = is24,
                         roundingSeconds = rounding.toIntOrNull() ?: settings.roundingSeconds,
                         darkMode = dark,
-                        categories = categories,
+                        categories = defaultCategories + customCategories,
                     ),
                 )
                 newName = ""

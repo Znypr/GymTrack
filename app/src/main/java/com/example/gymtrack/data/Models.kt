@@ -11,6 +11,8 @@ val DEFAULT_CATEGORIES = listOf(
     Category("Legs", 0xFF008000),
 )
 
+val DEFAULT_CATEGORY_NAMES = DEFAULT_CATEGORIES.map { it.name }.toSet()
+
 data class Settings(
     val is24Hour: Boolean = true,
     val roundingSeconds: Int = 5,
