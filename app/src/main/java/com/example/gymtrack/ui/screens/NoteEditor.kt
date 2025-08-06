@@ -19,8 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.*
@@ -38,7 +36,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -105,7 +102,6 @@ fun NoteEditor(
     onSave: (String, String, Category?, String, Long) -> Unit,
     onCancel: () -> Unit,
 ) {
-    var titleValue by remember { mutableStateOf(TextFieldValue(note?.title ?: "")) }
     var learningsValue by remember { mutableStateOf(TextFieldValue(note?.learnings ?: "")) }
     val parsed = remember(note) { parseNoteText(note?.text ?: "") }
 
@@ -157,8 +153,6 @@ fun NoteEditor(
 
     val saveIfNeeded = {
         if (!saved) {
-            val title = titleValue.text.trim()
-
             lines.forEachIndexed { i, row ->
                 if (row.text.value.text.isNotBlank() && timestamps[i].isBlank()) {
                     // write current clock value if user never pressed Enter on that line
@@ -174,7 +168,7 @@ fun NoteEditor(
 
             val plainContent = lines.joinToString("\n") { it.text.value.text }
 
-            if (note != null || title.isNotEmpty() || plainContent.isNotEmpty()) {
+            if (note != null || plainContent.isNotEmpty()) {
                 saved = true
 
                 if (timestamps.size < lines.size) {
@@ -195,7 +189,7 @@ fun NoteEditor(
                 val combined = combineTextAndTimes(plainContent, timestamps, flags)
 
                 onSave(
-                    titleValue.text,
+                    "",
                     combined,
                     selectedCategory,
                     learningsValue.text,
@@ -277,95 +271,55 @@ fun NoteEditor(
 
                     Spacer(Modifier.height(12.dp))
 
-                    // Header
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(IntrinsicSize.Min),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Spacer(Modifier.height(4.dp))
+                    if (settings.categories.isNotEmpty()) {
+                        ExposedDropdownMenuBox(
+                            expanded = expanded, onExpandedChange = { expanded = !expanded }
+                        ) {
                             OutlinedTextField(
-                                value = titleValue,
-                                onValueChange = {
-                                    titleValue = it
-                                    saved = false
+                                modifier = Modifier
+                                    .menuAnchor()
+                                    .fillMaxWidth(),
+                                readOnly = true,
+                                value = selectedCategory?.name ?: "None",
+                                onValueChange = {},
+                                label = { Text("Category") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded)
                                 },
-                                placeholder = { Text("Title") },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                                keyboardActions = KeyboardActions(
-                                    onNext = {
-                                        if (lines.size == 1 && lines[0].text.value.text.isBlank()) {
-                                            pendingFocusId = lines[0].id
-                                        }
-                                    }
-                                ),
-                                modifier = Modifier.weight(1f),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = MaterialTheme.colorScheme.surface,
                                     unfocusedBorderColor = MaterialTheme.colorScheme.surface,
                                     focusedContainerColor = MaterialTheme.colorScheme.surface,
                                     unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                                     cursorColor = MaterialTheme.colorScheme.onSurface,
                                 ),
                             )
-                        }
-                        if (settings.categories.isNotEmpty()) {
-                            ExposedDropdownMenuBox(
-                                expanded = expanded, onExpandedChange = { expanded = !expanded }) {
-                                OutlinedTextField(
-                                    modifier = Modifier
-                                        .menuAnchor()
-                                        .width(140.dp),
-                                    readOnly = true,
-                                    value = selectedCategory?.name ?: "None",
-                                    onValueChange = {},
-                                    label = { Text("Category") },
-                                    trailingIcon = {
-                                        ExposedDropdownMenuDefaults.TrailingIcon(
-                                            expanded
-                                        )
-                                    },
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = MaterialTheme.colorScheme.surface,
-                                        unfocusedBorderColor = MaterialTheme.colorScheme.surface,
-                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        cursorColor = MaterialTheme.colorScheme.onSurface,
-                                    ),
-                                )
-                                DropdownMenu(
-                                    expanded = expanded,
-                                    onDismissRequest = { expanded = false }) {
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("None") },
+                                    onClick = {
+                                        selectedCategory = null
+                                        expanded = false
+                                        saved = false
+                                    })
+                                settings.categories.forEach { cat ->
                                     DropdownMenuItem(
-                                        text = { Text("None") },
+                                        text = { Text(cat.name) },
+                                        leadingIcon = {
+                                            Box(
+                                                Modifier
+                                                    .size(12.dp)
+                                                    .background(Color(cat.color.toInt()))
+                                            )
+                                        },
                                         onClick = {
-                                            selectedCategory = null
+                                            selectedCategory = cat
                                             expanded = false
                                             saved = false
-                                        })
-                                    settings.categories.forEach { cat ->
-                                        DropdownMenuItem(
-                                            text = { Text(cat.name) },
-                                            leadingIcon = {
-                                                Box(
-                                                    Modifier
-                                                        .size(12.dp)
-                                                        .background(Color(cat.color.toInt()))
-                                                )
-                                            },
-                                            onClick = {
-                                                selectedCategory = cat
-                                                expanded = false
-                                                saved = false
-                                            },
-                                        )
-                                    }
+                                        },
+                                    )
                                 }
                             }
                         }

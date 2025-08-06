@@ -5,11 +5,17 @@ data class Category(
     val color: Long
 )
 
+val DEFAULT_CATEGORIES = listOf(
+    Category("Push", 0xFFFF0000),
+    Category("Pull", 0xFF800080),
+    Category("Legs", 0xFF008000),
+)
+
 data class Settings(
     val is24Hour: Boolean = true,
     val roundingSeconds: Int = 5,
     val darkMode: Boolean = true,
-    val categories: List<Category> = emptyList()
+    val categories: List<Category> = DEFAULT_CATEGORIES
 )
 
 data class NoteLine(

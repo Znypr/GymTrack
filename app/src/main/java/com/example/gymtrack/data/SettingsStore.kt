@@ -23,7 +23,7 @@ object SettingsStore {
             val name = parts.getOrNull(0) ?: "Category"
             val color = parts.getOrNull(1)?.toLongOrNull() ?: 0L
             Category(name, color)
-        } ?: emptyList()
+        } ?: DEFAULT_CATEGORIES
 
         return Settings(
             is24Hour = prefs[IS_24_HOUR] ?: true,
