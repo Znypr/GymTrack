@@ -14,7 +14,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -169,7 +169,7 @@ fun NotesScreen(
                             }
                         )
                         IconButton(onClick = { newestFirst = !newestFirst }) {
-                            Icon(Icons.Default.Sort, contentDescription = "Sort")
+                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Sort")
                         }
                     }
                 }
@@ -211,6 +211,7 @@ fun NotesScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun NoteCard(
     note: NoteLine,
