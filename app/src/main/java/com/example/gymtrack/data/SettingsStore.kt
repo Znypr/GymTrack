@@ -18,12 +18,13 @@ object SettingsStore {
 
     suspend fun load(context: Context): Settings {
         val prefs = context.settingsDataStore.data.first()
-        val cats = prefs[CATEGORIES]?.takeIf { it.isNotEmpty() }?.split("|")?.map {
+        val custom = prefs[CATEGORIES]?.takeIf { it.isNotEmpty() }?.split("|")?.map {
             val parts = it.split(":")
             val name = parts.getOrNull(0) ?: "Category"
             val color = parts.getOrNull(1)?.toLongOrNull() ?: 0L
             Category(name, color)
-        } ?: DEFAULT_CATEGORIES
+        } ?: emptyList()
+        val cats = (DEFAULT_CATEGORIES + custom).distinctBy { it.name }
 
         return Settings(
             is24Hour = prefs[IS_24_HOUR] ?: true,
@@ -35,10 +36,11 @@ object SettingsStore {
 
     suspend fun save(context: Context, settings: Settings) {
         context.settingsDataStore.edit { prefs ->
+            val custom = settings.categories.filter { it.name !in DEFAULT_CATEGORY_NAMES }
             prefs[IS_24_HOUR] = settings.is24Hour
             prefs[ROUNDING_SECONDS] = settings.roundingSeconds
             prefs[DARK_MODE] = settings.darkMode
-            prefs[CATEGORIES] = settings.categories.joinToString("|") { "${it.name}:${it.color}" }
+            prefs[CATEGORIES] = custom.joinToString("|") { "${it.name}:${it.color}" }
         }
     }
 }
