@@ -2,6 +2,7 @@ package com.example.gymtrack.data
 
 import android.content.Context
 import androidx.room.*
+import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "notes")
 data class NoteEntity(
@@ -16,7 +17,7 @@ data class NoteEntity(
 @Dao
 interface NoteDao {
     @Query("SELECT * FROM notes ORDER BY timestamp ASC")
-    suspend fun getAll(): List<NoteEntity>
+    fun getAll(): Flow<List<NoteEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(note: NoteEntity)
