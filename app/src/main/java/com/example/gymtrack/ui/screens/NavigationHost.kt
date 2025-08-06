@@ -12,7 +12,6 @@ import com.example.gymtrack.data.NoteEntity
 import com.example.gymtrack.data.NoteLine
 import com.example.gymtrack.data.NoteDao
 import com.example.gymtrack.data.Settings
-import com.example.gymtrack.ui.screens.StatsScreen
 import com.example.gymtrack.util.exportNote
 import com.example.gymtrack.util.importNote
 import android.widget.Toast
@@ -138,19 +137,7 @@ fun NavigationHost(
                 },
                 onImport = { importLauncher.launch("text/*") },
                 onOpenSettings = { navController.navigate("settings") },
-                onSwipeRight = { navController.navigate("stats") },
                 settings = settingsState.value,
-            )
-        }
-        composable("stats") {
-            StatsScreen(
-                notes = notes,
-                settings = settingsState.value,
-                onBack = {
-                    if (!navController.popBackStack("main", false)) {
-                        navController.navigate("main")
-                    }
-                },
             )
         }
         composable("edit") {
