@@ -16,6 +16,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -24,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -58,6 +61,7 @@ import androidx.compose.material.icons.filled.Menu
 import com.example.gymtrack.ui.components.LearningsPopup
 import com.example.gymtrack.ui.components.UniBiButton
 import com.example.gymtrack.ui.components.UniBiFlag
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -241,8 +245,7 @@ fun NoteEditor(
                     modifier = Modifier
                         .fillMaxWidth()
                         .verticalScroll(scroll)
-                        .padding(horizontal = 12.dp, vertical = 15.dp)
-                        .imePadding(),
+                        .padding(horizontal = 12.dp, vertical = 15.dp),
                 ) {
                     // Navigation Row
                     Row(
@@ -355,6 +358,7 @@ fun NoteEditor(
                     val focusRequesters = remember { mutableStateListOf<FocusRequester>() }
                     var pendingFocusId by remember { mutableStateOf<Long?>(null) }
                     val listState = rememberLazyListState()
+                    val coroutineScope = rememberCoroutineScope()
 
                     LaunchedEffect(note?.timestamp) {
                         if (note != null && lines.isNotEmpty()) {
@@ -366,7 +370,9 @@ fun NoteEditor(
                     // Body
                     LazyColumn(
                         state = listState,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .imePadding(),
                         verticalArrangement = Arrangement.spacedBy(2.dp),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 20.dp),
                     ) {
@@ -376,6 +382,7 @@ fun NoteEditor(
                                 if (focusRequesters.size > index) focusRequesters[index] else FocusRequester().also {
                                     focusRequesters.add(it)
                                 }
+                            val bringIntoViewRequester = remember { BringIntoViewRequester() }
 
                             LaunchedEffect(pendingFocusId, row.id) {
                                 if (pendingFocusId == row.id) {
@@ -511,7 +518,15 @@ fun NoteEditor(
                                             if (isMain) 20.sp else 14.sp
                                         ),
                                         modifier = Modifier
-                                            .focusRequester(fr),
+                                            .focusRequester(fr)
+                                            .bringIntoViewRequester(bringIntoViewRequester)
+                                            .onFocusChanged {
+                                                if (it.isFocused) {
+                                                    coroutineScope.launch {
+                                                        bringIntoViewRequester.bringIntoView()
+                                                    }
+                                                }
+                                            },
                                     )
                                 }
                                 val absText = timestamps.getOrNull(index).orEmpty()
