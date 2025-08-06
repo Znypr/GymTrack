@@ -4,9 +4,10 @@ import android.content.Context
 import android.os.Environment
 import com.example.gymtrack.data.NoteLine
 import com.example.gymtrack.data.Settings
+import com.example.gymtrack.data.ExerciseFlag
 import java.io.File
 
-data class SubEntry(val parent: Int, val text: String, val time: String, val uni: Boolean)
+data class SubEntry(val parent: Int, val text: String, val time: String, val flag: ExerciseFlag)
 
 private fun csvEscape(value: String): String {
     var v = value.replace("\"", "\"\"")
@@ -16,24 +17,36 @@ private fun csvEscape(value: String): String {
     return v
 }
 
+private fun ExerciseFlag.toCsvString(): String = when (this) {
+    ExerciseFlag.UNILATERAL -> "uni"
+    ExerciseFlag.SUPERSET -> "ss"
+    ExerciseFlag.BILATERAL -> "bi"
+}
+
+private fun parseFlag(value: String?): ExerciseFlag = when (value?.lowercase()) {
+    "uni" -> ExerciseFlag.UNILATERAL
+    "ss" -> ExerciseFlag.SUPERSET
+    else -> ExerciseFlag.BILATERAL
+}
+
 fun exportNote(context: Context, note: NoteLine, settings: Settings): File {
     val parsed = parseNoteText(note.text)
 
-    val main = mutableListOf<Triple<String, String, Boolean>>()
+    val main = mutableListOf<Triple<String, String, ExerciseFlag>>()
     val subs = mutableListOf<SubEntry>()
 
     var currentMain = -1
     parsed.first.forEachIndexed { idx, line ->
         val time = parsed.second.getOrNull(idx).orEmpty()
-        val uni = parsed.third.getOrNull(idx) ?: false
+        val flag = parsed.third.getOrNull(idx) ?: ExerciseFlag.BILATERAL
         if (line.isBlank()) return@forEachIndexed
         if (line.startsWith("    ")) {
             if (currentMain >= 0) {
-                subs += SubEntry(currentMain, line.trim(), time, uni)
+                subs += SubEntry(currentMain, line.trim(), time, flag)
             }
         } else {
             currentMain = main.size
-            main += Triple(line.trim(), time, uni)
+            main += Triple(line.trim(), time, flag)
         }
     }
 
@@ -44,20 +57,20 @@ fun exportNote(context: Context, note: NoteLine, settings: Settings): File {
         .append(csvEscape(formatFullDateTime(note.timestamp, settings))).append(',')
         .append(csvEscape(note.learnings)).append('\n')
 
-    builder.append("Main Index,Main Entry,Time,Uni\n")
-    main.forEachIndexed { index, (text, time, uni) ->
+    builder.append("Main Index,Main Entry,Time,Flag\n")
+    main.forEachIndexed { index, (text, time, flag) ->
         builder.append(index).append(',')
             .append(csvEscape(text)).append(',')
             .append(csvEscape(time)).append(',')
-            .append(if (uni) "uni" else "bi").append('\n')
+            .append(flag.toCsvString()).append('\n')
     }
 
-    builder.append("Main Index,Sub Entry,Time,Uni\n")
-    subs.forEach { (index, text, time, uni) ->
+    builder.append("Main Index,Sub Entry,Time,Flag\n")
+    subs.forEach { (index, text, time, flag) ->
         builder.append(index).append(',')
             .append(csvEscape(text)).append(',')
             .append(csvEscape(time)).append(',')
-            .append(if (uni) "uni" else "bi").append('\n')
+            .append(flag.toCsvString()).append('\n')
     }
 
     val dir = File(context.filesDir, "csv").apply { mkdirs() }
@@ -142,21 +155,21 @@ fun importNote(file: File, settings: Settings): NoteLine? {
     val main = mutableListOf<Triple<String, String, Boolean>>()
 
     if (lines[idx].trimStart().startsWith("Main Entry")) {
-        val hasUni = parseCsvRow(lines[idx]).any { it.trim().equals("Uni", true) }
+        val hasFlag = parseCsvRow(lines[idx]).any { it.trim().equals("Flag", true) || it.trim().equals("Uni", true) }
         idx++
         while (idx < lines.size && !lines[idx].trimStart().startsWith("Main Index")) {
             val row = parseCsvRow(lines[idx])
             val text = row.getOrNull(0).orEmpty()
             val time = row.getOrNull(1).orEmpty()
-            val uni = if (hasUni) row.getOrNull(2)?.equals("uni", true) == true else false
-            if (text.isNotBlank() || time.isNotBlank()) main += Triple(text, time, uni)
+            val flag = if (hasFlag) parseFlag(row.getOrNull(2)) else ExerciseFlag.BILATERAL
+            if (text.isNotBlank() || time.isNotBlank()) main += Triple(text, time, flag)
             idx++
         }
     } else if (lines[idx].trimStart().startsWith("Main Index")) {
         val header = parseCsvRow(lines[idx])
         val secondCol = header.getOrNull(1)?.trim()?.lowercase()
         if (secondCol != "main entry") return null
-        val hasUni = header.any { it.trim().equals("Uni", true) }
+        val hasFlag = header.any { it.trim().equals("Flag", true) || it.trim().equals("Uni", true) }
         idx++
         while (idx < lines.size) {
             if (lines[idx].trimStart().startsWith("Main Index") &&
@@ -164,8 +177,8 @@ fun importNote(file: File, settings: Settings): NoteLine? {
             val row = parseCsvRow(lines[idx])
             val text = row.getOrNull(1).orEmpty()
             val time = row.getOrNull(2).orEmpty()
-            val uni = if (hasUni) row.getOrNull(3)?.equals("uni", true) == true else false
-            if (text.isNotBlank() || time.isNotBlank()) main += Triple(text, time, uni)
+            val flag = if (hasFlag) parseFlag(row.getOrNull(3)) else ExerciseFlag.BILATERAL
+            if (text.isNotBlank() || time.isNotBlank()) main += Triple(text, time, flag)
             idx++
         }
     } else return null
@@ -173,39 +186,39 @@ fun importNote(file: File, settings: Settings): NoteLine? {
     val subs = mutableListOf<SubEntry>()
     if (idx < lines.size && lines[idx].trimStart().startsWith("Main Index")) {
         val header = parseCsvRow(lines[idx])
-        val hasUni = header.any { it.trim().equals("Uni", true) }
+        val hasFlag = header.any { it.trim().equals("Flag", true) || it.trim().equals("Uni", true) }
         idx++
         while (idx < lines.size) {
             val row = parseCsvRow(lines[idx])
             val parent = row.getOrNull(0)?.toIntOrNull() ?: -1
             val text = row.getOrNull(1).orEmpty()
             val time = row.getOrNull(2).orEmpty()
-            val uni = if (hasUni) row.getOrNull(3)?.equals("uni", true) == true else false
-            if (parent >= 0) subs += SubEntry(parent, text, time, uni)
+            val flag = if (hasFlag) parseFlag(row.getOrNull(3)) else ExerciseFlag.BILATERAL
+            if (parent >= 0) subs += SubEntry(parent, text, time, flag)
             idx++
         }
     }
 
     val bodyLines = mutableListOf<String>()
     val times = mutableListOf<String>()
-    val unis = mutableListOf<Boolean>()
-    main.forEachIndexed { i, (text, time, uni) ->
+    val flags = mutableListOf<ExerciseFlag>()
+    main.forEachIndexed { i, (text, time, flag) ->
         if (i > 0) {
             bodyLines += ""
             times += ""
-            unis += false
+            flags += ExerciseFlag.BILATERAL
         }
         bodyLines += text
         times += time
-        unis += uni
-        subs.filter { it.parent == i }.forEach { (_, sText, sTime, sUni) ->
+        flags += flag
+        subs.filter { it.parent == i }.forEach { (_, sText, sTime, sFlag) ->
             bodyLines += "    $sText"
             times += sTime
-            unis += sUni
+            flags += sFlag
         }
     }
 
-    val fullText = combineTextAndTimes(bodyLines.joinToString("\n"), times, unis)
+    val fullText = combineTextAndTimes(bodyLines.joinToString("\n"), times, flags)
     val time = parseFullDateTime(timestampStr)
     return NoteLine(title, fullText, time, category, null, learnings)
 }

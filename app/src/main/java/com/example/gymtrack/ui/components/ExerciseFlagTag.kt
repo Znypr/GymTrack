@@ -14,29 +14,36 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.example.gymtrack.data.ExerciseFlag
 
 @Composable
-fun UniBiFlag(
-    isUni: Boolean,
+fun ExerciseFlagTag(
+    flag: ExerciseFlag,
     relColor: Color,
     modifier: Modifier = Modifier
 ) {
+    val color = when (flag) {
+        ExerciseFlag.UNILATERAL -> MaterialTheme.colorScheme.error
+        ExerciseFlag.SUPERSET -> MaterialTheme.colorScheme.primary
+        ExerciseFlag.BILATERAL -> relColor
+    }
     OutlinedButton(
         onClick = {},
         enabled = false,
-        border = BorderStroke(1.dp, if (isUni) MaterialTheme.colorScheme.error else relColor),
+        border = BorderStroke(1.dp, color),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = Color.Transparent,
-            disabledContentColor = if (isUni) MaterialTheme.colorScheme.error else relColor,
+            disabledContentColor = color,
         ),
         shape = RoundedCornerShape(4.dp),
         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
         modifier = modifier.height(28.dp)
     ) {
-        Text(
-            if (isUni) "2x" else "1x",
-            textAlign = TextAlign.Center,
-            fontWeight = FontWeight.Bold
-        )
+        val text = when (flag) {
+            ExerciseFlag.UNILATERAL -> "2x"
+            ExerciseFlag.SUPERSET -> "SS"
+            ExerciseFlag.BILATERAL -> "1x"
+        }
+        Text(text, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
     }
 }
