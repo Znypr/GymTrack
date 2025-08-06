@@ -366,9 +366,7 @@ fun NoteEditor(
                     // Body
                     LazyColumn(
                         state = listState,
-                        modifier = Modifier
-                            .weight(1f)
-                            .background(MaterialTheme.colorScheme.surface),
+                        modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(2.dp),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 20.dp),
                     ) {
@@ -391,7 +389,9 @@ fun NoteEditor(
                                 index == 0 || lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
 
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.surface),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
@@ -487,7 +487,8 @@ fun NoteEditor(
                                                 if (unis.size <= index + 1) unis.add(false)
                                                 else unis.add(index + 1, false)
 
-                                                timestamps.add(index + 1, "")
+                                                if (timestamps.size <= index + 1) timestamps.add("")
+                                                else timestamps.add(index + 1, "")
 
                                                 if (focusRequesters.size <= index + 1) {
                                                     focusRequesters.add(FocusRequester())
