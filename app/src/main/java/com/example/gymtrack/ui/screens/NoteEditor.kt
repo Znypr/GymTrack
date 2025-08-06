@@ -228,7 +228,7 @@ fun NoteEditor(
     }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = MaterialTheme.colorScheme.surface,
         topBar = { GymTrackTopBar(onEdit = { showLearnings = true }) },
     ) { padding ->
         Box(
@@ -238,7 +238,7 @@ fun NoteEditor(
         ) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.background,
+                color = MaterialTheme.colorScheme.surface,
             ) {
                 val scroll = rememberScrollState()
 
@@ -288,8 +288,8 @@ fun NoteEditor(
                                 placeholder = { Text("Title") },
                                 modifier = Modifier.weight(1f),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = MaterialTheme.colorScheme.background,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.background,
+                                    focusedBorderColor = MaterialTheme.colorScheme.surface,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.surface,
                                     focusedContainerColor = MaterialTheme.colorScheme.surface,
                                     unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                                     focusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -315,8 +315,8 @@ fun NoteEditor(
                                         )
                                     },
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = MaterialTheme.colorScheme.background,
-                                        unfocusedBorderColor = MaterialTheme.colorScheme.background,
+                                        focusedBorderColor = MaterialTheme.colorScheme.surface,
+                                        unfocusedBorderColor = MaterialTheme.colorScheme.surface,
                                         focusedContainerColor = MaterialTheme.colorScheme.surface,
                                         unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                                         cursorColor = MaterialTheme.colorScheme.onSurface,
@@ -374,7 +374,7 @@ fun NoteEditor(
                         modifier = Modifier
                             .weight(1f)
                             .imePadding(),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalArrangement = Arrangement.spacedBy(0.dp),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 20.dp),
                     ) {
                         itemsIndexed(
@@ -384,6 +384,8 @@ fun NoteEditor(
                                     focusRequesters.add(it)
                                 }
                             val bringIntoViewRequester = remember { BringIntoViewRequester() }
+
+                            var rowFocused by remember { mutableStateOf(false) }
 
                             LaunchedEffect(pendingFocusId, row.id) {
                                 if (pendingFocusId == row.id) {
@@ -399,7 +401,9 @@ fun NoteEditor(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(MaterialTheme.colorScheme.surface),
+                                    .background(
+                                        if (rowFocused) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent
+                                    ),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
@@ -448,8 +452,8 @@ fun NoteEditor(
                                     BasicTextField(
                                         value = row.text.value,
                                         onValueChange = { newValue ->
-                                            saved = false
-                                            if (newValue.text.endsWith("\n")) {
+                                                saved = false
+                                                if (newValue.text.endsWith("\n")) {
 
                                                 val content = newValue.text.dropLast(1)
 
@@ -529,6 +533,7 @@ fun NoteEditor(
                                             .focusRequester(fr)
                                             .bringIntoViewRequester(bringIntoViewRequester)
                                             .onFocusChanged {
+                                                rowFocused = it.isFocused
                                                 if (it.isFocused) {
                                                     coroutineScope.launch {
                                                         bringIntoViewRequester.bringIntoView()
