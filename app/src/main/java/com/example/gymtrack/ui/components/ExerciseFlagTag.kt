@@ -3,6 +3,7 @@ package com.example.gymtrack.ui.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -13,8 +14,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.gymtrack.data.ExerciseFlag
+import com.example.gymtrack.ui.theme.SupersetBlue
 
 @Composable
 fun ExerciseFlagTag(
@@ -24,7 +25,7 @@ fun ExerciseFlagTag(
 ) {
     val color = when (flag) {
         ExerciseFlag.UNILATERAL -> MaterialTheme.colorScheme.error
-        ExerciseFlag.SUPERSET -> MaterialTheme.colorScheme.primary
+        ExerciseFlag.SUPERSET -> SupersetBlue
         ExerciseFlag.BILATERAL -> relColor
     }
     OutlinedButton(

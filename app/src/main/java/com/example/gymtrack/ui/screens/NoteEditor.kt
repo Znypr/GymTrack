@@ -19,6 +19,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.*
@@ -36,6 +38,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -204,6 +207,7 @@ fun NoteEditor(
 
     var expanded by remember { mutableStateOf(false) }
     var showLearnings by remember { mutableStateOf(false) }
+    var pendingFocusId by remember { mutableStateOf<Long?>(null) }
 
     BackHandler {
         saveIfNeeded()
@@ -288,6 +292,15 @@ fun NoteEditor(
                                     saved = false
                                 },
                                 placeholder = { Text("Title") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                                keyboardActions = KeyboardActions(
+                                    onNext = {
+                                        if (lines.size == 1 && lines[0].text.value.text.isBlank()) {
+                                            pendingFocusId = lines[0].id
+                                        }
+                                    }
+                                ),
                                 modifier = Modifier.weight(1f),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = MaterialTheme.colorScheme.surface,
@@ -357,9 +370,10 @@ fun NoteEditor(
                     }
 
                     Spacer(Modifier.height(8.dp))
+                    Divider()
+                    Spacer(Modifier.height(8.dp))
 
                     val focusRequesters = remember { mutableStateListOf<FocusRequester>() }
-                    var pendingFocusId by remember { mutableStateOf<Long?>(null) }
                     val listState = rememberLazyListState()
                     val coroutineScope = rememberCoroutineScope()
 
@@ -371,16 +385,20 @@ fun NoteEditor(
                     }
 
                     // Body
-                    LazyColumn(
-                        state = listState,
+                    Surface(
                         modifier = Modifier
                             .weight(1f)
                             .imePadding(),
-                        verticalArrangement = Arrangement.spacedBy(0.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 20.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
                     ) {
-                        itemsIndexed(
-                            lines, key = { _, row -> row.id }) { index, row ->
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(0.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 20.dp),
+                        ) {
+                            itemsIndexed(
+                                lines, key = { _, row -> row.id }) { index, row ->
                             val fr =
                                 if (focusRequesters.size > index) focusRequesters[index] else FocusRequester().also {
                                     focusRequesters.add(it)
@@ -571,4 +589,5 @@ fun NoteEditor(
             )
         }
     }
+}
 }
