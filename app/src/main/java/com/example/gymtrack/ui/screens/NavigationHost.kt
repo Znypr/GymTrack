@@ -20,6 +20,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.collect
 
 @Composable
 fun NavigationHost(
@@ -61,7 +62,6 @@ fun NavigationHost(
                 }
                 withContext(Dispatchers.Main) {
                     if (importedNotes.isNotEmpty()) {
-                        notes = notes + importedNotes
                         val msg = if (importedNotes.size == 1)
                             "Imported ${importedNotes.first().title}"
                         else
@@ -74,22 +74,22 @@ fun NavigationHost(
             }
         }
 
-
     LaunchedEffect(Unit) {
         val dao = withContext(Dispatchers.IO) {
             NoteDatabase.getDatabase(context).noteDao()
         }
         daoState.value = dao
-        val retrieved = withContext(Dispatchers.IO) { dao.getAll() }
-        notes = retrieved.map {
-            NoteLine(
-                it.title,
-                it.text,
-                it.timestamp,
-                it.categoryName,
-                it.categoryColor,
-                it.learnings ?: "",
-            )
+        dao.getAll().collect { entities ->
+            notes = entities.map {
+                NoteLine(
+                    it.title,
+                    it.text,
+                    it.timestamp,
+                    it.categoryName,
+                    it.categoryColor,
+                    it.learnings ?: "",
+                )
+            }
         }
     }
 
@@ -119,7 +119,6 @@ fun NavigationHost(
                                 )
                             }
                             withContext(Dispatchers.Main) {
-                                notes = notes.filterNot { it in toDelete }
                                 selectedNotes = emptySet()
                             }
                         }
@@ -193,13 +192,6 @@ fun NavigationHost(
                                )
                            )
                             exportNote(context, updated, settingsState.value)
-                            withContext(Dispatchers.Main) {
-                                notes = if (notes.any { it.timestamp == updated.timestamp }) {
-                                    notes.map { if (it.timestamp == updated.timestamp) updated else it }
-                                } else {
-                                    notes + updated
-                                }
-                            }
                         }
                     }
                 },
