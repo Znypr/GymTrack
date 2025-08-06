@@ -59,8 +59,9 @@ import com.example.gymtrack.util.rememberRelativeTimeVisualTransformation
 import android.app.Activity
 import androidx.compose.material.icons.filled.Menu
 import com.example.gymtrack.ui.components.LearningsPopup
-import com.example.gymtrack.ui.components.UniBiButton
-import com.example.gymtrack.ui.components.UniBiFlag
+import com.example.gymtrack.ui.components.ExerciseFlagButton
+import com.example.gymtrack.ui.components.ExerciseFlagTag
+import com.example.gymtrack.data.ExerciseFlag
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -106,7 +107,7 @@ fun NoteEditor(
     data class NoteRow(
         val id: Long,
         val text: MutableState<TextFieldValue>,   // ← wrapped in state
-        val isUni: MutableState<Boolean> = mutableStateOf(false),
+        val flag: MutableState<ExerciseFlag> = mutableStateOf(ExerciseFlag.BILATERAL),
     )
 
     var nextId by remember { mutableStateOf(0L) }
@@ -119,7 +120,7 @@ fun NoteEditor(
                     NoteRow(
                         nextId++,
                         mutableStateOf(TextFieldValue(txt)),
-                        mutableStateOf(parsed.third.getOrNull(idx) ?: false)
+                        mutableStateOf(parsed.third.getOrNull(idx) ?: ExerciseFlag.BILATERAL)
                     )
                 )
             }
@@ -127,8 +128,8 @@ fun NoteEditor(
     }
     val timestamps =
         remember(parsed.second) { mutableStateListOf<String>().apply { addAll(parsed.second) } }
-    val unis =
-        remember(parsed.third) { mutableStateListOf<Boolean>().apply { addAll(parsed.third) } }
+    val flags =
+        remember(parsed.third) { mutableStateListOf<ExerciseFlag>().apply { addAll(parsed.third) } }
     var selectedCategory by remember { mutableStateOf<Category?>(settings.categories.find { it.name == note?.categoryName }) }
 
     val initialTimes = remember(note) {
@@ -163,7 +164,7 @@ fun NoteEditor(
                     )
                     timestamps[i] = nowAbs
                 }
-                if (unis.size <= i) unis.add(row.isUni.value) else unis[i] = row.isUni.value
+                if (flags.size <= i) flags.add(row.flag.value) else flags[i] = row.flag.value
             }
 
             val plainContent = lines.joinToString("\n") { it.text.value.text }
@@ -178,13 +179,13 @@ fun NoteEditor(
                 }
 
 
-                if (unis.size < lines.size) {
-                    repeat(lines.size - unis.size) { unis.add(false) }
-                } else if (unis.size > lines.size) {
-                    unis.subList(lines.size, unis.size).clear()
+                if (flags.size < lines.size) {
+                    repeat(lines.size - flags.size) { flags.add(ExerciseFlag.BILATERAL) }
+                } else if (flags.size > lines.size) {
+                    flags.subList(lines.size, flags.size).clear()
                 }
 
-                val combined = combineTextAndTimes(plainContent, timestamps, unis)
+                val combined = combineTextAndTimes(plainContent, timestamps, flags)
 
                 onSave(
                     titleValue.text,
@@ -415,17 +416,17 @@ fun NoteEditor(
                                                     .Center
                                         ) {
                                             if (isMain) {
-                                                UniBiButton(
-                                                    isUni = row.isUni.value,
+                                                ExerciseFlagButton(
+                                                    flag = row.flag.value,
                                                     relColor = relColor,
                                                     onToggle = {
-                                                        row.isUni.value = !row.isUni.value
-                                                        unis[index] = row.isUni.value
+                                                        row.flag.value = row.flag.value.next()
+                                                        flags[index] = row.flag.value
                                                         saved = false
                                                     }
                                                 )
                                             } else {
-                                                val parentUni = run {
+                                                val parentFlag = run {
                                                     var p = index - 1
                                                     while (p >= 0) {
                                                         val pIsMain =
@@ -433,10 +434,10 @@ fun NoteEditor(
                                                         if (pIsMain && lines[p].text.value.text.isNotBlank()) break
                                                         p--
                                                     }
-                                                    lines.getOrNull(p)?.isUni?.value ?: false
+                                                    lines.getOrNull(p)?.flag?.value ?: ExerciseFlag.BILATERAL
                                                 }
-                                                UniBiFlag(
-                                                    isUni = parentUni,
+                                                ExerciseFlagTag(
+                                                    flag = parentFlag,
                                                     relColor = relColor
                                                 )
                                             }
@@ -484,15 +485,15 @@ fun NoteEditor(
                                                     NoteRow(
                                                         nextId++,
                                                         mutableStateOf(TextFieldValue("")),
-                                                        mutableStateOf(false)
+                                                        mutableStateOf(ExerciseFlag.BILATERAL)
                                                     )
                                                 )
 
-                                                if (unis.size <= index) unis.add(row.isUni.value)
-                                                else unis[index] = row.isUni.value
+                                                if (flags.size <= index) flags.add(row.flag.value)
+                                                else flags[index] = row.flag.value
 
-                                                if (unis.size <= index + 1) unis.add(false)
-                                                else unis.add(index + 1, false)
+                                                if (flags.size <= index + 1) flags.add(ExerciseFlag.BILATERAL)
+                                                else flags.add(index + 1, ExerciseFlag.BILATERAL)
 
                                                 if (timestamps.size <= index + 1) timestamps.add("")
                                                 else timestamps.add(index + 1, "")
