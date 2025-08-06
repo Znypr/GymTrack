@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
@@ -464,12 +465,15 @@ fun NoteEditor(
                                                     startTime ?: now, now, settings
                                                 )
 
-                                                row.text.value =
-                                                    if (content.isNotBlank() && isMain)
-                                                        TextFieldValue("$content ($rel)")
-                                                    else if (content.isNotBlank() && !isMain)
-                                                        TextFieldValue("    $content ($rel)")
-                                                    else TextFieldValue("")
+                                                val formatted = when {
+                                                    content.isNotBlank() && isMain -> "$content ($rel)"
+                                                    content.isNotBlank() && !isMain -> "    $content ($rel)"
+                                                    else -> ""
+                                                }
+                                                row.text.value = TextFieldValue(
+                                                    formatted,
+                                                    TextRange(formatted.length)
+                                                )
 
                                                 if (content.isNotBlank()) {
                                                     if (timestamps.size <= index) timestamps.add(abs)
@@ -503,6 +507,10 @@ fun NoteEditor(
                                                     focusRequesters.add(index + 1, FocusRequester())
                                                 }
 
+                                                coroutineScope.launch {
+                                                    withFrameNanos { }
+                                                    listState.animateScrollToItem(index + 1)
+                                                }
                                                 pendingFocusId = nextId - 1
                                             } else {
                                                 row.text.value = newValue
