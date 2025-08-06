@@ -41,8 +41,8 @@ fun ExerciseFlagButton(
         modifier = modifier.height(28.dp)
     ) {
         val text = when (flag) {
-            ExerciseFlag.BILATERAL -> "1x"
-            ExerciseFlag.UNILATERAL -> "2x"
+            ExerciseFlag.BILATERAL -> "bi"
+            ExerciseFlag.UNILATERAL -> "uni"
             ExerciseFlag.SUPERSET -> "SS"
         }
         Text(text, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)

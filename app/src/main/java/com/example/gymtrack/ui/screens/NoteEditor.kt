@@ -185,7 +185,9 @@ fun NoteEditor(
 
 
                 if (flags.size < lines.size) {
-                    repeat(lines.size - flags.size) { flags.add(ExerciseFlag.BILATERAL) }
+                    for (i in flags.size until lines.size) {
+                        flags.add(lines[i].flag.value)
+                    }
                 } else if (flags.size > lines.size) {
                     flags.subList(lines.size, flags.size).clear()
                 }
@@ -444,8 +446,18 @@ fun NoteEditor(
                                                     flag = row.flag.value,
                                                     relColor = relColor,
                                                     onToggle = {
-                                                        row.flag.value = row.flag.value.next()
-                                                        flags[index] = row.flag.value
+                                                        val newFlag = row.flag.value.next()
+                                                        row.flag.value = newFlag
+                                                        flags[index] = newFlag
+                                                        var j = index + 1
+                                                        while (j < lines.size) {
+                                                            val prevText = lines[j - 1].text.value.text
+                                                            val isMainLine = j == 0 || prevText.isBlank()
+                                                            if (isMainLine) break
+                                                            lines[j].flag.value = newFlag
+                                                            if (flags.size <= j) flags.add(newFlag) else flags[j] = newFlag
+                                                            j++
+                                                        }
                                                         saved = false
                                                     }
                                                 )
@@ -512,15 +524,15 @@ fun NoteEditor(
                                                     NoteRow(
                                                         nextId++,
                                                         mutableStateOf(TextFieldValue("")),
-                                                        mutableStateOf(ExerciseFlag.BILATERAL)
+                                                        mutableStateOf(row.flag.value)
                                                     )
                                                 )
 
                                                 if (flags.size <= index) flags.add(row.flag.value)
                                                 else flags[index] = row.flag.value
 
-                                                if (flags.size <= index + 1) flags.add(ExerciseFlag.BILATERAL)
-                                                else flags.add(index + 1, ExerciseFlag.BILATERAL)
+                                                if (flags.size <= index + 1) flags.add(row.flag.value)
+                                                else flags.add(index + 1, row.flag.value)
 
                                                 if (timestamps.size <= index + 1) timestamps.add("")
                                                 else timestamps.add(index + 1, "")

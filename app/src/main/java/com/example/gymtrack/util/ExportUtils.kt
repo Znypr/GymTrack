@@ -18,14 +18,22 @@ private fun csvEscape(value: String): String {
 }
 
 private fun ExerciseFlag.toCsvString(): String = when (this) {
-    ExerciseFlag.UNILATERAL -> "uni"
-    ExerciseFlag.SUPERSET -> "ss"
     ExerciseFlag.BILATERAL -> "bi"
+    ExerciseFlag.UNILATERAL -> "uni"
+    ExerciseFlag.SUPERSET -> "SS"
+}
+
+private fun ExerciseFlag.toSubEntryString(): String = when (this) {
+    ExerciseFlag.BILATERAL -> "1x"
+    ExerciseFlag.UNILATERAL -> "2x"
+    ExerciseFlag.SUPERSET -> "2x"
 }
 
 private fun parseFlag(value: String?): ExerciseFlag = when (value?.lowercase()) {
     "uni" -> ExerciseFlag.UNILATERAL
     "ss" -> ExerciseFlag.SUPERSET
+    "2x" -> ExerciseFlag.UNILATERAL
+    "1x" -> ExerciseFlag.BILATERAL
     else -> ExerciseFlag.BILATERAL
 }
 
@@ -42,7 +50,8 @@ fun exportNote(context: Context, note: NoteLine, settings: Settings): File {
         if (line.isBlank()) return@forEachIndexed
         if (line.startsWith("    ")) {
             if (currentMain >= 0) {
-                subs += SubEntry(currentMain, line.trim(), time, flag)
+                val parentFlag = main.getOrNull(currentMain)?.third ?: ExerciseFlag.BILATERAL
+                subs += SubEntry(currentMain, line.trim(), time, parentFlag)
             }
         } else {
             currentMain = main.size
@@ -70,7 +79,7 @@ fun exportNote(context: Context, note: NoteLine, settings: Settings): File {
         builder.append(index).append(',')
             .append(csvEscape(text)).append(',')
             .append(csvEscape(time)).append(',')
-            .append(flag.toCsvString()).append('\n')
+            .append(flag.toSubEntryString()).append('\n')
     }
 
     val dir = File(context.filesDir, "csv").apply { mkdirs() }
@@ -211,10 +220,10 @@ fun importNote(file: File, settings: Settings): NoteLine? {
         bodyLines += text
         times += time
         flags += flag
-        subs.filter { it.parent == i }.forEach { (_, sText, sTime, sFlag) ->
+        subs.filter { it.parent == i }.forEach { (_, sText, sTime, _) ->
             bodyLines += "    $sText"
             times += sTime
-            flags += sFlag
+            flags += flag
         }
     }
 
