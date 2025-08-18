@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
@@ -58,12 +59,15 @@ import com.example.gymtrack.util.formatDate
 import com.example.gymtrack.util.formatTime
 import com.example.gymtrack.util.rememberRelativeTimeVisualTransformation
 import android.app.Activity
+import android.content.Intent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.material.icons.filled.Menu
 import com.example.gymtrack.ui.components.LearningsPopup
 import com.example.gymtrack.ui.components.ExerciseFlagButton
 import com.example.gymtrack.ui.components.ExerciseFlagTag
 import com.example.gymtrack.data.ExerciseFlag
+import com.example.gymtrack.ui.components.NoteTimer
+import com.example.gymtrack.timer.NoteTimerService
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -99,6 +103,7 @@ private fun GymTrackTopBar(onEdit: () -> Unit) {
 fun NoteEditor(
     note: NoteLine?,
     settings: Settings,
+    isLastNote: Boolean,
     onSave: (String, String, Category?, String, Long) -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -147,6 +152,7 @@ fun NoteEditor(
     var startTime by remember { mutableStateOf(initialTimes.first) }
     var lastEnter by remember { mutableStateOf(initialTimes.second) }
     val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
+    val context = LocalContext.current
 
     val lifecycleOwner = LocalLifecycleOwner.current
     var saved by remember { mutableStateOf(false) }
@@ -195,8 +201,18 @@ fun NoteEditor(
                     learningsValue.text,
                     startTime ?: noteTimestamp,
                 )
+                if (isLastNote) {
+                    context.startService(Intent(context, NoteTimerService::class.java).apply {
+                        action = NoteTimerService.ACTION_STOP
+                    })
+                }
             } else {
                 saved = true
+                if (isLastNote) {
+                    context.startService(Intent(context, NoteTimerService::class.java).apply {
+                        action = NoteTimerService.ACTION_STOP
+                    })
+                }
             }
         }
     }
@@ -326,6 +342,10 @@ fun NoteEditor(
                     }
 
                     Spacer(Modifier.height(8.dp))
+                    if (isLastNote) {
+                        NoteTimer(noteTimestamp = noteTimestamp, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                    }
                     Divider()
                     Spacer(Modifier.height(8.dp))
 
