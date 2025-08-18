@@ -1,11 +1,13 @@
 package com.example.gymtrack.ui.components
 
+
 import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -52,6 +54,7 @@ fun NoteTimer(noteTimestamp: Long, modifier: Modifier = Modifier) {
         } else {
             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+
     }
 
     val elapsed by NoteTimerService.elapsedSeconds.collectAsState()
@@ -72,6 +75,7 @@ fun NoteTimer(noteTimestamp: Long, modifier: Modifier = Modifier) {
                 context,
                 Intent(context, NoteTimerService::class.java).apply { this.action = action }
             )
+
         }) {
             Icon(
                 imageVector = if (running) Icons.Filled.Pause else Icons.Filled.PlayArrow,
@@ -85,11 +89,13 @@ fun NoteTimer(noteTimestamp: Long, modifier: Modifier = Modifier) {
                     action = NoteTimerService.ACTION_STOP
                 }
             )
+
         }) {
             Icon(imageVector = Icons.Filled.Stop, contentDescription = "Stop")
         }
     }
 }
+
 
 private fun startTimerService(context: Context, noteTimestamp: Long) {
     ContextCompat.startForegroundService(
