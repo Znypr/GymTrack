@@ -1,7 +1,13 @@
 package com.example.gymtrack.ui.components
 
+
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -21,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.example.gymtrack.timer.NoteTimerService
 import com.example.gymtrack.util.formatSecondsToMinutesSeconds
 
@@ -28,11 +35,26 @@ import com.example.gymtrack.util.formatSecondsToMinutesSeconds
 fun NoteTimer(noteTimestamp: Long, modifier: Modifier = Modifier) {
     val context = LocalContext.current
 
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            startTimerService(context, noteTimestamp)
+        }
+    }
+
     LaunchedEffect(noteTimestamp) {
-        context.startService(Intent(context, NoteTimerService::class.java).apply {
-            action = NoteTimerService.ACTION_START
-            putExtra(NoteTimerService.EXTRA_NOTE, noteTimestamp)
-        })
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasPermission) {
+            startTimerService(context, noteTimestamp)
+        } else {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
     }
 
     val elapsed by NoteTimerService.elapsedSeconds.collectAsState()
@@ -49,7 +71,11 @@ fun NoteTimer(noteTimestamp: Long, modifier: Modifier = Modifier) {
         )
         IconButton(onClick = {
             val action = if (running) NoteTimerService.ACTION_PAUSE else NoteTimerService.ACTION_RESUME
-            context.startService(Intent(context, NoteTimerService::class.java).apply { this.action = action })
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, NoteTimerService::class.java).apply { this.action = action }
+            )
+
         }) {
             Icon(
                 imageVector = if (running) Icons.Filled.Pause else Icons.Filled.PlayArrow,
@@ -57,12 +83,27 @@ fun NoteTimer(noteTimestamp: Long, modifier: Modifier = Modifier) {
             )
         }
         IconButton(onClick = {
-            context.startService(Intent(context, NoteTimerService::class.java).apply {
-                action = NoteTimerService.ACTION_STOP
-            })
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, NoteTimerService::class.java).apply {
+                    action = NoteTimerService.ACTION_STOP
+                }
+            )
+
         }) {
             Icon(imageVector = Icons.Filled.Stop, contentDescription = "Stop")
         }
     }
+}
+
+
+private fun startTimerService(context: Context, noteTimestamp: Long) {
+    ContextCompat.startForegroundService(
+        context,
+        Intent(context, NoteTimerService::class.java).apply {
+            action = NoteTimerService.ACTION_START
+            putExtra(NoteTimerService.EXTRA_NOTE, noteTimestamp)
+        }
+    )
 }
 
