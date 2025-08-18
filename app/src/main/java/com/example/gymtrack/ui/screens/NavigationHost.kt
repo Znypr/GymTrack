@@ -161,9 +161,12 @@ fun NavigationHost(
             )
         }
         composable("edit") {
+            val lastTimestamp = notes.maxOfOrNull { it.timestamp }
+            val isLast = currentNote == null || currentNote?.timestamp == lastTimestamp
             NoteEditor(
                 note = currentNote,
                 settings = settingsState.value,
+                isLastNote = isLast,
                 onSave = { title, text, category, learn, start ->
                     val updated = currentNote?.copy(
                         title = title,
