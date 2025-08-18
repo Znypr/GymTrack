@@ -60,6 +60,7 @@ import com.example.gymtrack.util.formatTime
 import com.example.gymtrack.util.rememberRelativeTimeVisualTransformation
 import android.app.Activity
 import android.content.Intent
+import android.content.Context
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.material.icons.filled.Menu
 import com.example.gymtrack.ui.components.LearningsPopup
@@ -68,6 +69,7 @@ import com.example.gymtrack.ui.components.ExerciseFlagTag
 import com.example.gymtrack.data.ExerciseFlag
 import com.example.gymtrack.ui.components.NoteTimer
 import com.example.gymtrack.timer.NoteTimerService
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,6 +95,15 @@ private fun GymTrackTopBar(onEdit: () -> Unit) {
                     tint = MaterialTheme.colorScheme.onSurface
                 )
             }
+        }
+    )
+}
+
+private fun stopNoteTimer(context: Context) {
+    ContextCompat.startForegroundService(
+        context,
+        Intent(context, NoteTimerService::class.java).apply {
+            action = NoteTimerService.ACTION_STOP
         }
     )
 }
@@ -202,16 +213,12 @@ fun NoteEditor(
                     startTime ?: noteTimestamp,
                 )
                 if (isLastNote) {
-                    context.startService(Intent(context, NoteTimerService::class.java).apply {
-                        action = NoteTimerService.ACTION_STOP
-                    })
+                    stopNoteTimer(context)
                 }
             } else {
                 saved = true
                 if (isLastNote) {
-                    context.startService(Intent(context, NoteTimerService::class.java).apply {
-                        action = NoteTimerService.ACTION_STOP
-                    })
+                    stopNoteTimer(context)
                 }
             }
         }
