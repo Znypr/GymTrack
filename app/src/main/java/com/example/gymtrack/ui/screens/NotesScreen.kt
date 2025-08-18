@@ -12,9 +12,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.ImportExport
+import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,6 +36,7 @@ import com.example.gymtrack.util.parseDurationSeconds
 import java.util.Calendar
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.filled.Share
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -98,7 +99,7 @@ fun NotesScreen(
                     title = { Text("${selectedNotes.size} selected", fontSize = 20.sp) },
                     actions = {
                         IconButton(onClick = { onExport(selectedNotes) }) {
-                            Icon(Icons.Default.Share, contentDescription = "Export")
+                            Icon(Icons.Default.ImportExport, contentDescription = "Export")
                         }
                         IconButton(onClick = { onDelete(selectedNotes) }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete")
@@ -159,7 +160,7 @@ fun NotesScreen(
                         Spacer(Modifier.weight(1f))
                         Box {
                             IconButton(onClick = { filterExpanded = true }) {
-                                Icon(Icons.Default.List, contentDescription = "Filter")
+                                Icon(Icons.Default.FilterList, contentDescription = "Filter")
                             }
                             DropdownMenu(expanded = filterExpanded, onDismissRequest = { filterExpanded = false }) {
                                 DropdownMenuItem(
@@ -188,7 +189,7 @@ fun NotesScreen(
                             }
                         }
                         IconButton(onClick = { newestFirst = !newestFirst }) {
-                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Sort")
+                            Icon(Icons.Default.Sort, contentDescription = "Sort")
                         }
                     }
                 }
