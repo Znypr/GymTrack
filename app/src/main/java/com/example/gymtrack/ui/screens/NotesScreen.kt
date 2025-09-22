@@ -36,7 +36,7 @@ import com.example.gymtrack.util.parseDurationSeconds
 import java.util.Calendar
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.background
-
+import com.example.gymtrack.data.DEFAULT_CATEGORIES
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun NotesScreen(
@@ -193,13 +193,23 @@ fun NotesScreen(
                     }
                 }
 
+                // Replace the week key computation inside the LazyVerticalGrid loop:
                 var lastWeek: Pair<Int, Int>? = null
                 displayNotes.forEach { note ->
-                    val cal = Calendar.getInstance().apply { timeInMillis = note.timestamp }
-                    val weekPair = cal.get(Calendar.YEAR) to cal.get(Calendar.WEEK_OF_YEAR)
+                    val cal = Calendar.getInstance().apply {
+                        timeInMillis = note.timestamp
+                        firstDayOfWeek = Calendar.MONDAY
+                        minimalDaysInFirstWeek = 4
+                    }
+                    val weekYear = cal.get(Calendar.YEAR)
+                    val weekOfYear = cal.get(Calendar.WEEK_OF_YEAR)
+                    val weekPair = weekYear to weekOfYear
+
                     if (weekPair != lastWeek) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
-                            Divider(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
+                            Divider(modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp))
                         }
                         lastWeek = weekPair
                     }
@@ -218,13 +228,12 @@ fun NotesScreen(
                                     onEdit(note)
                                 }
                             },
-                            onLongClick = {
-                                onSelect(selectedNotes.toMutableSet().also { it.add(note) })
-                            },
+                            onLongClick = { onSelect(selectedNotes.toMutableSet().also { it.add(note) }) },
                             settings = settings
                         )
                     }
                 }
+
             }
         }
     }
@@ -249,19 +258,18 @@ private fun NoteCard(
             containerColor = if (isSelected) {
                 MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
             } else {
-                val base = note.categoryColor?.let { Color(it.toInt()) }
-                    ?: if (settings.darkMode) MaterialTheme.colorScheme.surface
-                    else MaterialTheme.colorScheme.surfaceVariant
-                if (note.categoryColor == null) {
+                val base = categoryColorFor(note.categoryName, settings.darkMode)
+                if (note.categoryName == null) {
                     base
                 } else if (settings.darkMode) {
-                    base.darken(0.7f)
+                    base.darken(0.6f)
                 } else {
-                    base.lighten(0.1f)
+                    base.lighten(0.55f)
                 }
             },
             contentColor = MaterialTheme.colorScheme.onSurface,
-        ),
+        )
+
     ) {
         Column(
             modifier = Modifier
@@ -300,4 +308,14 @@ private fun NoteCard(
         }
 
     }
+}
+
+@Composable
+fun categoryColorFor(name: String?, darkMode: Boolean): Color {
+    val base = DEFAULT_CATEGORIES.find { it.name.equals(name, ignoreCase = true) }
+        ?.let { Color(it.color.toInt()) }
+        ?: if (darkMode) MaterialTheme.colorScheme.surface
+        else MaterialTheme.colorScheme.surfaceVariant
+
+    return base
 }

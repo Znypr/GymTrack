@@ -114,11 +114,25 @@ fun formatDate(timestamp: Long, settings: Settings): String {
 }
 
 fun formatWeekRelativeTime(timestamp: Long, settings: Settings): String {
-    val nowCal = Calendar.getInstance()
-    val dateCal = Calendar.getInstance().apply { timeInMillis = timestamp }
-    val timeFormat = SimpleDateFormat(if (settings.is24Hour) "HH:mm" else "hh:mm a", Locale.getDefault())
+    val nowCal = Calendar.getInstance().apply {
+        firstDayOfWeek = Calendar.MONDAY
+        minimalDaysInFirstWeek = 4
+    }
+    val dateCal = Calendar.getInstance().apply {
+        timeInMillis = timestamp
+        firstDayOfWeek = Calendar.MONDAY
+        minimalDaysInFirstWeek = 4
+    }
+
+    val timeFormat = SimpleDateFormat(
+        if (settings.is24Hour) "HH:mm" else "hh:mm a",
+        Locale.getDefault()
+    )
     val dayNameFormat = SimpleDateFormat("EEEE", Locale.getDefault())
-    val fullFormat = SimpleDateFormat(if (settings.is24Hour) "dd/MM/yyyy HH:mm" else "dd/MM/yyyy hh:mm a", Locale.getDefault())
+    val fullFormat = SimpleDateFormat(
+        if (settings.is24Hour) "dd/MM/yyyy HH:mm" else "dd/MM/yyyy hh:mm a",
+        Locale.getDefault()
+    )
 
     val sameDay = nowCal.get(Calendar.YEAR) == dateCal.get(Calendar.YEAR) &&
             nowCal.get(Calendar.DAY_OF_YEAR) == dateCal.get(Calendar.DAY_OF_YEAR)
@@ -127,12 +141,17 @@ fun formatWeekRelativeTime(timestamp: Long, settings: Settings): String {
     val isYesterday = yesterdayCal.get(Calendar.YEAR) == dateCal.get(Calendar.YEAR) &&
             yesterdayCal.get(Calendar.DAY_OF_YEAR) == dateCal.get(Calendar.DAY_OF_YEAR)
 
+    // “Last 7 days” window (exclusive of Today/Yesterday checks above)
+    val sevenDaysAgo = (nowCal.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -7) }
+    val withinLast7Days = dateCal.after(sevenDaysAgo) && !sameDay && !isYesterday
+
     val sameWeek = nowCal.get(Calendar.YEAR) == dateCal.get(Calendar.YEAR) &&
             nowCal.get(Calendar.WEEK_OF_YEAR) == dateCal.get(Calendar.WEEK_OF_YEAR)
 
     return when {
         sameDay -> "Today ${timeFormat.format(dateCal.time)}"
         isYesterday -> "Yesterday ${timeFormat.format(dateCal.time)}"
+        withinLast7Days -> "${dayNameFormat.format(dateCal.time)} ${timeFormat.format(dateCal.time)}"
         sameWeek -> "${dayNameFormat.format(dateCal.time)} ${timeFormat.format(dateCal.time)}"
         else -> fullFormat.format(dateCal.time)
     }
