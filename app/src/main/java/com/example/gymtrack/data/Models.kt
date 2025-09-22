@@ -6,9 +6,9 @@ data class Category(
 )
 
 val DEFAULT_CATEGORIES = listOf(
-    Category("Push", 0xFFFF0000),
-    Category("Pull", 0xFF800080),
-    Category("Legs", 0xFF008000),
+    Category("Push", 0xFFFF3B30),
+    Category("Pull", 0xFFAF52DE),
+    Category("Legs", 0xFF34C759),
 )
 
 val DEFAULT_CATEGORY_NAMES = DEFAULT_CATEGORIES.map { it.name }.toSet()
