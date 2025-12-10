@@ -1,24 +1,29 @@
 package com.example.gymtrack.util
 
 import com.example.gymtrack.data.ExerciseFlag
+import java.util.regex.Pattern
+
+// ==============================================================================
+// 1. LEGACY UTILS (RESTORED)
+// These must exist at the top level for your old charts to work.
+// ==============================================================================
 
 val timeValueRegex = "(?:\\d+'\\d{2}''|\\d{1,2}:\\d{2}:\\d{2}(?:\\s[AP]M)?|\\d{1,2}:\\d{2})$".toRegex()
-private val relativeTimeRegex = "\\s*\\((?:\\d+'\\d{2}''|\\d+s)\\)$".toRegex()
-private val ABS_TIME = Regex("""^\d+'?\d{2}"?$""")      // 0'05"  or  12'34
-private const val SEP = '\u200B'   // invisible separator for ABS time
-private const val FLAG_SEP = '\u200C' // separator for exercise flag
+private const val SEP = '\u200B'
+private const val FLAG_SEP = '\u200C'
 
+/**
+ * Legacy parser used by AverageDurationChart, SetsDistributionChart, etc.
+ */
 fun parseNoteText(text: String): Triple<List<String>, List<String>, List<ExerciseFlag>> {
     if (text.isEmpty()) return Triple(emptyList(), emptyList(), emptyList())
-
-    val body   = mutableListOf<String>()
+    val body = mutableListOf<String>()
     val absCol = mutableListOf<String>()
     val flagCol = mutableListOf<ExerciseFlag>()
 
     for (l in text.split('\n')) {
         var line = l
         var flag = ExerciseFlag.BILATERAL
-
         val flagCut = line.lastIndexOf(FLAG_SEP)
         if (flagCut != -1) {
             flag = when (line.substring(flagCut + 1)) {
@@ -28,14 +33,13 @@ fun parseNoteText(text: String): Triple<List<String>, List<String>, List<Exercis
             }
             line = line.substring(0, flagCut)
         }
-
         val cut = line.lastIndexOf(SEP)
-        if (cut == -1) {                 // no ABS time stored
-            body   += line
+        if (cut == -1) {
+            body += line
             absCol += ""
         } else {
-            body   += line.substring(0, cut)   // keeps relative "(0'07")"
-            absCol += line.substring(cut + 1)  // absolute "0'05""
+            body += line.substring(0, cut)
+            absCol += line.substring(cut + 1)
         }
         flagCol += flag
     }
@@ -47,7 +51,6 @@ fun combineTextAndTimes(text: String, times: List<String>, flags: List<ExerciseF
     return lines.mapIndexed { idx, line ->
         var result = line
         val ts = times.getOrNull(idx).orEmpty()
-        // append ABS time only once, and only after the invisible SEP
         if (ts.isNotBlank() && !result.endsWith("$SEP$ts")) {
             result += "$SEP$ts"
         }
@@ -61,3 +64,4 @@ fun combineTextAndTimes(text: String, times: List<String>, flags: List<ExerciseF
         result
     }.joinToString("\n")
 }
+
