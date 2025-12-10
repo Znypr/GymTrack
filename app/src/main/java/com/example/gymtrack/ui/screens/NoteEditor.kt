@@ -256,11 +256,14 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                     // Timestamp
                     val absText = state.timestamps.getOrElse(index) { "" }
                     val absAnnotated = SmallSecondsVisualTransformation(if (isMain) 20.sp else 16.sp).filter(AnnotatedString(absText)).text
+
                     Text(
                         text = absAnnotated,
                         fontSize = if (isMain) 20.sp else 16.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = if (isMain) FontWeight.Bold else null
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        fontWeight = if (isMain) FontWeight.Bold else null,
+                        modifier = Modifier.padding(start = 8.dp),
+                        maxLines = 1 // Prevent wrapping
                     )
                 }
             }
