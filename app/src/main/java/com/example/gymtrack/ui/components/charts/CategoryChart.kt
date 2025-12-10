@@ -8,20 +8,24 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.gymtrack.ui.screens.StatsState
 
 @Composable
-fun SetsDistributionChart(
-    topExercises: List<Pair<String, Int>>,
+fun CategoryChart(
+    state: StatsState,
     modifier: Modifier = Modifier
 ) {
-    if (topExercises.isEmpty()) return
+    // 1. Prepare Data: Sort categories by count (highest first)
+    val data = state.categoryCounts.toList()
+        .sortedByDescending { it.second }
+        .filter { it.second > 0 } // Hide categories with 0 workouts
 
-    // 1. Prepare Data
-    val data = topExercises // Already sorted by count in ViewModel
+    if (data.isEmpty()) return
 
     // 2. Setup Theme & Dimensions
     val theme = rememberChartTheme()
@@ -32,11 +36,11 @@ fun SetsDistributionChart(
     val maxCount = data.maxOf { it.second }
     val scaleY = buildScaleY(
         values = data.map { it.second.toFloat() },
-        stepPicker = ::niceStepCount
+        stepPicker = ::niceStepCount // Use integer steps for counts
     )
 
     Column(modifier.fillMaxWidth()) {
-        Text("Top 5 Exercises (Sets)", style = MaterialTheme.typography.titleLarge)
+        Text("Workouts per Category", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(12.dp))
 
         Canvas(
@@ -57,30 +61,33 @@ fun SetsDistributionChart(
             drawYGridAndLabels(
                 drawContext.canvas.nativeCanvas, ::drawLine, scaleY, theme, layout,
                 size.width, size.height, textPaint,
-                yAxisTitle = "Sets"
+                yAxisTitle = "Count"
             )
 
             // Draw Bars
             val n = data.size
+            // Dynamic bar width based on number of items
             val groupGap = chartW / (n * 2f).coerceAtLeast(1f)
-            val barW = groupGap.coerceAtMost(100f)
+            val barW = groupGap.coerceAtMost(100f) // Cap max width
 
-            data.forEachIndexed { idx, (name, count) ->
+            data.forEachIndexed { idx, (cat, count) ->
+                // Center the bar in its slot
                 val slotWidth = chartW / n
                 val xCenter = x0 + (slotWidth * idx) + (slotWidth / 2)
                 val xLeft = xCenter - (barW / 2)
+
                 val barH = chartH * (count / scaleY.top)
 
                 // Draw Bar
                 drawRect(
-                    color = theme.secondary.copy(alpha = 0.7f), // Use secondary color to distinguish from other charts
+                    color = theme.primary.copy(alpha = 0.7f),
                     topLeft = Offset(xLeft, y0 - barH),
                     size = Size(barW, barH)
                 )
 
-                // Draw X-Label (Exercise Name)
-                // Truncate if too long
-                val label = if (name.length > 8) name.take(6) + ".." else name
+                // Draw X-Label (Category Name)
+                // We truncate long names to fit
+                val label = if (cat.length > 5) cat.take(4) + ".." else cat
                 drawXTickLabel(drawContext.canvas.nativeCanvas, label, xCenter, y0, textPaint)
             }
         }

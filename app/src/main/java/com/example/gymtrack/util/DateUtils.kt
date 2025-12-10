@@ -123,6 +123,12 @@ fun formatRoundedTime(timestamp: Long, settings: Settings): String {
     return format.format(Date(rounded))
 }
 
+fun formatSecondsToMinutesSeconds(seconds: Long): String {
+    val minutes = seconds / 60
+    val sec = seconds % 60
+    return "${minutes}'${sec.toString().padStart(2, '0')}''"
+}
+
 // --- NEW HELPER FUNCTIONS FOR RELATIVE TIME LOGIC ---
 
 /**

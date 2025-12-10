@@ -22,6 +22,8 @@ import com.example.gymtrack.ui.components.NoteEditorHeader
 import com.example.gymtrack.util.formatRoundedTime
 import com.example.gymtrack.util.getRelativeTimeDiffString
 import kotlinx.coroutines.launch
+import com.example.gymtrack.ui.screens.EditorViewModel
+
 
 // Internal state holder for a single row
 data class BodyRow(val id: Int, val text: MutableState<TextFieldValue>)
@@ -29,16 +31,23 @@ data class BodyRow(val id: Int, val text: MutableState<TextFieldValue>)
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun NoteEditor(
-    note: NoteLine?,
+    viewModel: EditorViewModel, // <-- Input is now ViewModel
     settings: Settings,
-    onSave: (String, String, Category?, String, Long) -> Unit,
-    onCancel: () -> Unit
+    isLastNote: Boolean, // Helper for UI logic
+    onCancel: () -> Unit,
+    onSaveSuccess: () -> Unit
 ) {
     // --- STATE INITIALIZATION ---
-    val title = remember { mutableStateOf(note?.title ?: "") }
-    val category = remember { mutableStateOf(Category(note?.categoryName ?: "Uncategorized", note?.categoryColor ?: 0xFF808080)) }
-    val learningsValue = remember { mutableStateOf(TextFieldValue(note?.learnings ?: "")) }
+    val title = remember { mutableStateOf(viewModel.currentTitle) }
+    val category = remember { mutableStateOf(viewModel.currentCategory ?: Category("Uncategorized", 0xFF808080)) }
+    val learningsValue = remember { mutableStateOf(TextFieldValue(viewModel.currentLearnings)) }
+
     var showLearnings by remember { mutableStateOf(false) }
+
+    // Sync local changes back to ViewModel when they change
+    LaunchedEffect(title.value) { viewModel.currentTitle = title.value }
+    LaunchedEffect(category.value) { viewModel.currentCategory = category.value }
+    LaunchedEffect(learningsValue.value.text) { viewModel.currentLearnings = learningsValue.value.text }
 
     // Editor Content State
     val bodyLines = remember { mutableStateListOf<BodyRow>() }
@@ -54,26 +63,28 @@ fun NoteEditor(
     var pendingFocusId by remember { mutableStateOf<Int?>(null) }
     var saved by remember { mutableStateOf(true) }
 
+    val uiState by viewModel.uiState.collectAsState() //
+
     // --- INITIAL DATA LOADING ---
-    LaunchedEffect(Unit) {
+    LaunchedEffect(uiState) { // Trigger when uiState loads
         if (bodyLines.isEmpty()) {
-            val initialText = note?.text ?: ""
+            // FIX: Use 'uiState' instead of the missing 'note' parameter
+            val initialText = uiState?.text ?: ""
+
             if (initialText.isNotEmpty()) {
                 initialText.split("\n").forEach { line ->
                     bodyLines.add(BodyRow(getNextId(), mutableStateOf(TextFieldValue(line))))
                     focusRequesters.add(FocusRequester())
-                    // Assume empty timestamps on load since they aren't persisted separately in NoteLine
-                    timestamps.add("")
+                    timestamps.add("") // Placeholder
                 }
             } else {
-                // Initialize with one empty line
+                // Initialize with one empty line for new notes
                 bodyLines.add(BodyRow(getNextId(), mutableStateOf(TextFieldValue(""))))
                 focusRequesters.add(FocusRequester())
                 timestamps.add("")
             }
         }
     }
-
     // --- CORE LOGIC: ADD NEW LINE ---
     fun addNewLine(currentIndex: Int) {
         val nextId = getNextId()
@@ -120,18 +131,13 @@ fun NoteEditor(
         topBar = {
             NoteEditorHeader(
                 title = title.value,
-                onTitleChange = { title.value = it; saved = false },
+                onTitleChange = { title.value = it },
                 category = category.value,
-                onCategoryChange = { category.value = it; saved = false },
+                onCategoryChange = { category.value = it },
                 onSave = {
+                    // EFFICIENCY FIX: Combine text and save via ViewModel on IO thread
                     val combinedText = bodyLines.joinToString("\n") { it.text.value.text }
-                    onSave(
-                        title.value,
-                        combinedText,
-                        category.value,
-                        learningsValue.value.text,
-                        note?.timestamp ?: System.currentTimeMillis()
-                    )
+                    viewModel.saveNote(combinedText, settings, onSaveSuccess)
                 },
                 onBack = onCancel,
                 onLearningsClick = { showLearnings = true }

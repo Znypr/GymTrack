@@ -20,22 +20,16 @@ import androidx.compose.ui.graphics.lerp
 
 @Composable
 fun TimeOfDayHeatmap(
-    notes: List<NoteLine>,
+    data: Array<IntArray>,
     modifier: Modifier = Modifier
 ) {
     val counts = Array(7) { IntArray(24) }
-    notes.forEach { n ->
-        val c = Calendar.getInstance().apply { timeInMillis = n.timestamp }
-        val day = ((c.get(Calendar.DAY_OF_WEEK) + 5) % 7) // Mon=0..Sun=6
-        val hour = c.get(Calendar.HOUR_OF_DAY)
-        counts[day][hour]++
-    }
+    val maxCount = data.maxOf { it.maxOrNull() ?: 0 }.coerceAtLeast(1)
 
     val theme = rememberChartTheme()
     val density = LocalDensity.current
     val labelPaint = makeTextPaint(theme.label, with(density) { 11.sp.toPx() })
 
-    val maxCount = counts.maxOf { it.maxOrNull() ?: 0 }.coerceAtLeast(1)
 
     // Read theme colors here (composable context) …
     val base = MaterialTheme.colorScheme.surfaceVariant

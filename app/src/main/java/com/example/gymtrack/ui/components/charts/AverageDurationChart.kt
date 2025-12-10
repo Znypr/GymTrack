@@ -13,26 +13,15 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.gymtrack.data.NoteLine
-import com.example.gymtrack.util.parseDurationSeconds
-import com.example.gymtrack.util.parseNoteText
+import com.example.gymtrack.ui.screens.StatsState // Import your State
 
 @Composable
 fun AverageDurationChart(
-    notes: List<NoteLine>,
+    state: StatsState, // <-- CHANGED: Accepts StatsState instead of List<NoteLine>
     modifier: Modifier = Modifier
 ) {
-    val averages: List<Pair<String, Float>> = notes
-        .groupBy { (it.categoryName ?: "Other") }
-        .map { (cat, list) ->
-            val mins = list.mapNotNull { n ->
-                parseNoteText(n.text).second.mapNotNull { s ->
-                    if (s.isBlank()) null else parseDurationSeconds(s)
-                }.maxOrNull()?.div(60f)
-            }
-            cat to if (mins.isEmpty()) 0f else mins.average().toFloat()
-        }
-        .sortedBy { it.first }
+    // 1. Use pre-calculated averages from ViewModel
+    val averages = state.averageDurations.toList().sortedBy { it.first }
 
     if (averages.isEmpty()) return
 
@@ -77,7 +66,10 @@ fun AverageDurationChart(
                     topLeft = Offset(xLeft, y0 - barH),
                     size = Size(barW, barH)
                 )
-                drawXTickLabel(drawContext.canvas.nativeCanvas, cat, xLeft + barW / 2f, y0, xPaint)
+
+                // Truncate long category names
+                val label = if (cat.length > 5) cat.take(4) + ".." else cat
+                drawXTickLabel(drawContext.canvas.nativeCanvas, label, xLeft + barW / 2f, y0, xPaint)
             }
         }
     }
