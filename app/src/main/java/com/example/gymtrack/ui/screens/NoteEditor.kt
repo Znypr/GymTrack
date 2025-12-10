@@ -262,8 +262,7 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                         fontSize = if (isMain) 20.sp else 16.sp,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         fontWeight = if (isMain) FontWeight.Bold else null,
-                        modifier = Modifier.padding(start = 8.dp),
-                        maxLines = 1 // Prevent wrapping
+                        maxLines = 1
                     )
                 }
             }
