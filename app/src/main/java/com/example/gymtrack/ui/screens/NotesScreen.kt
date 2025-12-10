@@ -82,6 +82,7 @@ fun NotesScreen(
                     },
                     title = { Text("GymTrack", fontSize = 24.sp) },
                     actions = {
+
                         IconButton(onClick = onImport) {
                             Icon(Icons.Default.Add, contentDescription = "Import")
                         }

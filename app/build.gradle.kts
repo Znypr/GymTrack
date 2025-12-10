@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.gymtrack"
-        minSdk = 24
+        minSdk = 26
         //noinspection OldTargetApi
         targetSdk = 35
         versionCode = 1
@@ -73,5 +73,10 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+    // YCharts (Fixes 'co.yml.charts' errors)
+    implementation("co.yml:ycharts:2.1.0")
+
+    // Extended Icons (Fixes 'Icons.Default.FitnessCenter')
+    implementation("androidx.compose.material:material-icons-extended:1.5.4")
 }
 
