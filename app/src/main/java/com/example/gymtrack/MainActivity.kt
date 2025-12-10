@@ -22,54 +22,45 @@ import com.example.gymtrack.ui.theme.GymTrackTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+// ... imports ...
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. Initialize Database & Repositories immediately
+        // 1. Database & Repositories
         val db = NoteDatabase.getDatabase(applicationContext)
         val noteRepository = NoteRepository(db.noteDao())
-        // We keep WorkoutRepository for the legacy/CSV logic for now
         val workoutRepository = WorkoutRepository(db.noteDao(), db.exerciseDao(), db.setDao())
-        val homeViewModelFactory = HomeViewModel.Factory(noteRepository)
 
         setContent {
             val settingsState = remember { mutableStateOf(Settings()) }
             val context = LocalContext.current
 
+            // Load Settings
             LaunchedEffect(Unit) {
                 settingsState.value = SettingsStore.load(context)
-                // Run migration in background on startup
                 withContext(Dispatchers.IO) {
                     workoutRepository.checkAndMigrate()
                 }
             }
 
+            // Save Settings
             LaunchedEffect(settingsState.value) {
                 SettingsStore.save(context, settingsState.value)
             }
 
             GymTrackTheme(darkTheme = settingsState.value.darkMode) {
-                val lastRoute = rememberSaveable { mutableStateOf("main") }
+                // [FIX] Just create the controller
                 val navController = rememberNavController()
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
 
-                LaunchedEffect(navBackStackEntry) {
-                    val route = navBackStackEntry?.destination?.route
-                    if (route != null && route !in setOf("settings", "edit")) {
-                        lastRoute.value = route
-                    }
-                }
-
-                val start = if (lastRoute.value == "settings") "main" else lastRoute.value
-
-                // 2. Pass repositories to NavigationHost
+                // [FIX] Pass fixed startDestination = "main"
                 NavigationHost(
                     navController = navController,
                     settingsState = settingsState,
-                    noteRepository = noteRepository,       // NEW
-                    workoutRepository = workoutRepository, // NEW
-                    startDestination = start
+                    noteRepository = noteRepository,
+                    workoutRepository = workoutRepository,
+                    startDestination = "main"
                 )
             }
         }

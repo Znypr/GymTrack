@@ -21,33 +21,29 @@ import kotlinx.coroutines.withContext
 import android.content.Context
 
 class EditorViewModel(
-    private val noteId: Long?, // If null, we are creating a new note
+    private val initialNote: NoteLine?,
     private val noteRepo: NoteRepository,
     private val workoutRepo: WorkoutRepository,
-    private val context: Context // Needed for export, pass Application context in real apps
+    private val context: Context
 ) : ViewModel() {
 
-    // UI State
-    private val _uiState = MutableStateFlow<NoteLine?>(null)
+    // Initialize immediately with the passed note
+    private val _uiState = MutableStateFlow<NoteLine?>(initialNote)
     val uiState = _uiState.asStateFlow()
 
-    // Temporary state for the editor fields
-    // We keep these public so the UI can bind to them directly
-    var currentTitle = ""
-    var currentCategory: Category? = null
-    var currentLearnings = ""
+    var currentTitle = initialNote?.title ?: ""
+    var currentCategory: Category? = initialNote?.let {
+        Category(it.categoryName ?: "Uncategorized", it.categoryColor ?: 0xFF808080)
+    }
+    var currentLearnings = initialNote?.learnings ?: ""
 
-    // We load data immediately
     init {
-        if (noteId != null) {
-            viewModelScope.launch {
-                // Fetch the latest version from DB to ensure robustness
-                // Note: You might need to add a 'getById' to your Repository/DAO.
-                // For now, we rely on the object passed or standard flow.
-                // ideally: val note = noteRepo.getById(noteId)
-            }
+        // Defaults for new note if null
+        if (initialNote == null) {
+            currentCategory = Category("Push", 0xFFFF3B30)
         }
     }
+
 
     // Initialize the editor with data (Called once when UI loads)
     fun initialize(note: NoteLine?) {
@@ -69,33 +65,34 @@ class EditorViewModel(
         onComplete: () -> Unit
     ) {
         viewModelScope.launch(Dispatchers.IO) {
-            val timestamp = noteId ?: System.currentTimeMillis()
+            withContext(kotlinx.coroutines.NonCancellable) {
+                val timestamp = initialNote?.timestamp ?: System.currentTimeMillis()
 
-            // 1. Construct the Domain Object
-            val updatedNote = NoteLine(
-                title = currentTitle,
-                text = finalText,
-                timestamp = timestamp,
-                categoryName = currentCategory?.name,
-                categoryColor = currentCategory?.color,
-                learnings = currentLearnings
-            )
+                // 1. Construct Domain Object
+                val updatedNote = NoteLine(
+                    title = currentTitle,
+                    text = finalText,
+                    timestamp = timestamp,
+                    categoryName = currentCategory?.name,
+                    categoryColor = currentCategory?.color,
+                    learnings = currentLearnings
+                )
 
-            // 2. Save to UI Database
-            noteRepo.saveNote(updatedNote)
+                // 2. Save to DB [cite: 585]
+                noteRepo.saveNote(updatedNote)
 
-            // 3. Parse & Save for Graphs (The "Robust" step)
-            // We map to Entity temporarily for the legacy helper
-            val entity = NoteEntity(
-                timestamp, updatedNote.title, updatedNote.text,
-                updatedNote.categoryName, updatedNote.categoryColor, updatedNote.learnings
-            )
-            workoutRepo.syncNoteToWorkout(entity)
+                // 3. Parse for Graphs
+                val entity = NoteEntity(
+                    timestamp, updatedNote.title, updatedNote.text,
+                    updatedNote.categoryName, updatedNote.categoryColor, updatedNote.learnings
+                )
+                workoutRepo.syncNoteToWorkout(entity)
 
-            // 4. Export to CSV
-            exportNote(context, updatedNote, settings)
+                // 4. Export CSV
+                exportNote(context, updatedNote, settings)
+            }
 
-            // 5. Notify UI
+            // 5. Notify UI (Main Thread)
             withContext(Dispatchers.Main) {
                 onComplete()
             }
@@ -104,14 +101,14 @@ class EditorViewModel(
 
     // Factory
     class Factory(
-        private val noteId: Long?,
+        private val note: NoteLine?,
         private val noteRepo: NoteRepository,
         private val workoutRepo: WorkoutRepository,
         private val context: Context
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return EditorViewModel(noteId, noteRepo, workoutRepo, context) as T
+            return EditorViewModel(note, noteRepo, workoutRepo, context) as T
         }
     }
 }

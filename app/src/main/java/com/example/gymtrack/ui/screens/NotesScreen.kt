@@ -215,7 +215,7 @@ fun NotesScreen(
                         lastWeek = weekPair
                     }
 
-                    item(key = note.timestamp) {
+                    item {
                         val isSelected = selectedNotes.contains(note)
                         NoteCard(
                             note = note,

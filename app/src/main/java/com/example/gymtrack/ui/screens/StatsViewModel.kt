@@ -22,9 +22,8 @@ data class StatsState(
     val avgSets: Float = 0f,
     val categoryCounts: Map<String, Int> = emptyMap(),
     val averageDurations: Map<String, Float> = emptyMap(),
-    // NEW: Data for restored charts
     val heatmapData: Array<IntArray> = Array(7) { IntArray(24) },
-    val topExercises: List<Pair<String, Int>> = emptyList()
+    val topExercises: List<Pair<String, Int>> = emptyList(),
 )
 
 class StatsViewModel(
@@ -38,11 +37,9 @@ class StatsViewModel(
     private suspend fun calculateStats(notes: List<NoteLine>): StatsState = withContext(Dispatchers.Default) {
         if (notes.isEmpty()) return@withContext StatsState()
 
-        val parser = WorkoutParser() // Create parser once
+        val parser = WorkoutParser()
 
-        // 1. Existing Stats (Overview, Categories, Durations)
-        // ... (Keep your existing logic for mainCount, avgSets, counts, avgs here) ...
-        // ... (Re-paste the logic from previous steps if needed) ...
+        // 1. Overview Stats
         val (mainCount, subCount) = notes.fold(0 to 0) { acc, note ->
             val lines = parseNoteText(note.text).first
             var main = 0
@@ -54,6 +51,8 @@ class StatsViewModel(
             (acc.first + main) to (acc.second + sub)
         }
         val avgSets = if (mainCount > 0) subCount.toFloat() / mainCount else 0f
+
+        // 2. Category & Duration Stats
         val counts = notes.groupingBy { it.categoryName ?: "Other" }.eachCount()
         val avgs = notes.groupBy { it.categoryName ?: "Other" }
             .mapValues { entry ->
@@ -65,7 +64,7 @@ class StatsViewModel(
                 if (durations.isEmpty()) 0f else durations.average().toFloat() / 60f
             }
 
-        // 2. NEW: Calculate Heatmap Data
+        // 3. Heatmap
         val heatmap = Array(7) { IntArray(24) }
         notes.forEach { n ->
             val c = Calendar.getInstance().apply { timeInMillis = n.timestamp }
@@ -74,8 +73,7 @@ class StatsViewModel(
             heatmap[day][hour]++
         }
 
-        // 3. NEW: Calculate Sets Distribution (Top 5 Exercises)
-        // This parses every note text, so it MUST be on background thread (which it is)
+        // 4. Top Exercises
         val exerciseCounts = notes.flatMap { note ->
             val sets = parser.parseWorkout(note.text)
             sets.map { it.exerciseName }
@@ -85,7 +83,6 @@ class StatsViewModel(
             .toList()
             .sortedByDescending { it.second }
             .take(5)
-
         StatsState(
             totalNotes = notes.size,
             totalCategories = notes.mapNotNull { it.categoryName }.distinct().size,
@@ -93,7 +90,7 @@ class StatsViewModel(
             categoryCounts = counts,
             averageDurations = avgs,
             heatmapData = heatmap,       // Pass to state
-            topExercises = exerciseCounts // Pass to state
+            topExercises = exerciseCounts, // Pass to state
         )
     }
 

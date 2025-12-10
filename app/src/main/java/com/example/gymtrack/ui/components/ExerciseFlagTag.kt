@@ -2,7 +2,7 @@ package com.example.gymtrack.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.gymtrack.data.ExerciseFlag
 import com.example.gymtrack.ui.theme.SupersetBlue
 
@@ -37,14 +38,16 @@ fun ExerciseFlagTag(
             disabledContentColor = color,
         ),
         shape = RoundedCornerShape(4.dp),
-        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-        modifier = modifier.height(28.dp)
+        // RESTORED: Standard padding
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+        // RESTORED: Default minimum size
+        modifier = modifier.defaultMinSize(minWidth = 36.dp, minHeight = 28.dp)
     ) {
         val text = when (flag) {
             ExerciseFlag.BILATERAL -> "1x"
             ExerciseFlag.UNILATERAL -> "2x"
             ExerciseFlag.SUPERSET -> "2x"
         }
-        Text(text, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+        Text(text, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
     }
 }

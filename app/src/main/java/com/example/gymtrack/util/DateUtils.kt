@@ -123,6 +123,31 @@ fun formatRoundedTime(timestamp: Long, settings: Settings): String {
     return format.format(Date(rounded))
 }
 
+fun formatElapsedMinutesSeconds(
+    start: Long,
+    now: Long,
+    settings: Settings,
+): String {
+    val rounding = settings.roundingSeconds.coerceAtLeast(1) * 1000L
+    var diff = now - start
+    diff = ((diff + rounding / 2) / rounding) * rounding
+    val totalSeconds = diff / 1000
+    return formatSecondsToMinutesSeconds(totalSeconds)
+}
+
+fun formatTime(timestamp: Long, settings: Settings): String {
+    val pattern = if (settings.is24Hour) "HH:mm" else "hh:mm a"
+    val format = SimpleDateFormat(pattern, Locale.getDefault())
+    return format.format(Date(timestamp))
+}
+
+fun formatDate(timestamp: Long, settings: Settings): String {
+    val pattern = "dd/MM/yyyy"
+    val format = SimpleDateFormat(pattern, Locale.getDefault())
+    return format.format(Date(timestamp))
+}
+
+
 fun formatSecondsToMinutesSeconds(seconds: Long): String {
     val minutes = seconds / 60
     val sec = seconds % 60

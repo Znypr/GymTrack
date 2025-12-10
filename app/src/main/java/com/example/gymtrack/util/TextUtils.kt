@@ -1,29 +1,32 @@
 package com.example.gymtrack.util
 
 import com.example.gymtrack.data.ExerciseFlag
-import java.util.regex.Pattern
 
-// ==============================================================================
-// 1. LEGACY UTILS (RESTORED)
-// These must exist at the top level for your old charts to work.
-// ==============================================================================
+// Regex to detect the "broken" format: ends with time (e.g. 0'00") followed by a flag code (b/u/s)
+// Captures: Group 1 (Body), Group 2 (Time), Group 3 (Flag)
+private val DIRTY_TAIL_REGEX = Regex("""^(.*?)(\d+'\d{2}"?)([bus])$""")
 
-val timeValueRegex = "(?:\\d+'\\d{2}''|\\d{1,2}:\\d{2}:\\d{2}(?:\\s[AP]M)?|\\d{1,2}:\\d{2})$".toRegex()
-private const val SEP = '\u200B'
-private const val FLAG_SEP = '\u200C'
+private const val SEP = '\u200B'   // invisible separator for ABS time
+private const val FLAG_SEP = '\u200C' // separator for exercise flag
 
-/**
- * Legacy parser used by AverageDurationChart, SetsDistributionChart, etc.
- */
 fun parseNoteText(text: String): Triple<List<String>, List<String>, List<ExerciseFlag>> {
     if (text.isEmpty()) return Triple(emptyList(), emptyList(), emptyList())
-    val body = mutableListOf<String>()
+
+    val body   = mutableListOf<String>()
     val absCol = mutableListOf<String>()
     val flagCol = mutableListOf<ExerciseFlag>()
 
     for (l in text.split('\n')) {
-        var line = l
+        var line = l.trimEnd() // Remove trailing spaces
+
+        // Skip lines that are just a flag code (ghost lines from the bug)
+        if (line == "b" || line == "u" || line == "s") continue
+
         var flag = ExerciseFlag.BILATERAL
+        var absTime = ""
+        var cleanBody = line
+
+        // 1. Try Standard Parsing (Invisible Separators)
         val flagCut = line.lastIndexOf(FLAG_SEP)
         if (flagCut != -1) {
             flag = when (line.substring(flagCut + 1)) {
@@ -31,16 +34,31 @@ fun parseNoteText(text: String): Triple<List<String>, List<String>, List<Exercis
                 "s" -> ExerciseFlag.SUPERSET
                 else -> ExerciseFlag.BILATERAL
             }
-            line = line.substring(0, flagCut)
+            cleanBody = line.substring(0, flagCut)
+
+            val cut = cleanBody.lastIndexOf(SEP)
+            if (cut != -1) {
+                absTime = cleanBody.substring(cut + 1)
+                cleanBody = cleanBody.substring(0, cut)
+            }
         }
-        val cut = line.lastIndexOf(SEP)
-        if (cut == -1) {
-            body += line
-            absCol += ""
-        } else {
-            body += line.substring(0, cut)
-            absCol += line.substring(cut + 1)
+        // 2. Fallback: Try "Dirty" Parsing (Visible Text)
+        else {
+            val match = DIRTY_TAIL_REGEX.find(line)
+            if (match != null) {
+                cleanBody = match.groupValues[1]
+                absTime = match.groupValues[2]
+                val code = match.groupValues[3]
+                flag = when (code) {
+                    "u" -> ExerciseFlag.UNILATERAL
+                    "s" -> ExerciseFlag.SUPERSET
+                    else -> ExerciseFlag.BILATERAL
+                }
+            }
         }
+
+        body   += cleanBody
+        absCol += absTime
         flagCol += flag
     }
     return Triple(body, absCol, flagCol)
@@ -51,6 +69,7 @@ fun combineTextAndTimes(text: String, times: List<String>, flags: List<ExerciseF
     return lines.mapIndexed { idx, line ->
         var result = line
         val ts = times.getOrNull(idx).orEmpty()
+        // append ABS time only once, and only after the invisible SEP
         if (ts.isNotBlank() && !result.endsWith("$SEP$ts")) {
             result += "$SEP$ts"
         }
@@ -64,4 +83,3 @@ fun combineTextAndTimes(text: String, times: List<String>, flags: List<ExerciseF
         result
     }.joinToString("\n")
 }
-

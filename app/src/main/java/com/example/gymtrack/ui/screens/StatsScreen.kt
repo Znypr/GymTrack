@@ -36,9 +36,10 @@ import java.io.File
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatsScreen(
-    state: StatsState,  // <-- CHANGED: Receives pre-calculated state
+    state: StatsState,
     settings: Settings,
     onBack: () -> Unit,
+    workoutRepository: WorkoutRepository
 ) {
     val context = LocalContext.current
     var selectedFile by remember { mutableStateOf<File?>(null) }
@@ -94,6 +95,9 @@ fun StatsScreen(
             StatsOverview(state)
             Spacer(Modifier.height(32.dp))
 
+            ExerciseProgressCard(repository = workoutRepository)
+            Spacer(Modifier.height(32.dp))
+
             SetsDistributionChart(topExercises = state.topExercises)
             Spacer(Modifier.height(32.dp))
 
@@ -124,4 +128,3 @@ private fun StatsOverview(state: StatsState) {
     }
 }
 
-// ... Update CategoryChart and AverageDurationChart to use state.categoryCounts ...
