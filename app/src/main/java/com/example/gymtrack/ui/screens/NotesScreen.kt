@@ -195,7 +195,7 @@ fun NotesScreen(
                     }
                 }
 
-                items(notes) { note ->
+                items(displayNotes) { note ->
                     val isSelected = selectedNotes.contains(note)
 
                     WorkoutAlbumCard(
@@ -203,16 +203,13 @@ fun NotesScreen(
                         isSelected = isSelected,
                         onClick = {
                             if (selectedNotes.isNotEmpty()) {
-                                // If we are already selecting items, a standard click should Toggle Selection
                                 val newSet = if (isSelected) selectedNotes - note else selectedNotes + note
                                 onSelect(newSet)
                             } else {
-                                // Otherwise, open the editor
                                 onEdit(note)
                             }
                         },
                         onLongClick = {
-                            // Long click always enters selection mode or toggles
                             val newSet = if (isSelected) selectedNotes - note else selectedNotes + note
                             onSelect(newSet)
                         },

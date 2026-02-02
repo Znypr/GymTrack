@@ -27,27 +27,31 @@ fun ExerciseFlagTag(
     val color = when (flag) {
         ExerciseFlag.UNILATERAL -> MaterialTheme.colorScheme.error
         ExerciseFlag.SUPERSET -> SupersetBlue
-        ExerciseFlag.BILATERAL -> relColor
+        ExerciseFlag.BILATERAL -> relColor.copy(alpha = 0.5f)
     }
+
     OutlinedButton(
         onClick = {},
         enabled = false,
-        border = BorderStroke(1.dp, color),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.3f)),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = Color.Transparent,
             disabledContentColor = color,
         ),
-        shape = RoundedCornerShape(4.dp),
-        // RESTORED: Standard padding
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-        // RESTORED: Default minimum size
-        modifier = modifier.defaultMinSize(minWidth = 36.dp, minHeight = 28.dp)
+        shape = RoundedCornerShape(6.dp),
+        contentPadding = PaddingValues(0.dp),
+        modifier = modifier.defaultMinSize(minWidth = 28.dp, minHeight = 15.dp)
     ) {
         val text = when (flag) {
             ExerciseFlag.BILATERAL -> "1x"
             ExerciseFlag.UNILATERAL -> "2x"
             ExerciseFlag.SUPERSET -> "2x"
         }
-        Text(text, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        Text(
+            text,
+            textAlign = TextAlign.Center,
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp
+        )
     }
 }
