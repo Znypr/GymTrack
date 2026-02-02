@@ -19,28 +19,33 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.content.Context
+import android.os.Build
+import androidx.annotation.RequiresApi
 
 class EditorViewModel(
-    private val initialNote: NoteLine?,
+    private val initialId: Long,
     private val noteRepo: NoteRepository,
     private val workoutRepo: WorkoutRepository,
     private val context: Context
 ) : ViewModel() {
 
-    // Initialize immediately with the passed note
-    private val _uiState = MutableStateFlow<NoteLine?>(initialNote)
+    private val _uiState = MutableStateFlow<NoteLine?>(null)
     val uiState = _uiState.asStateFlow()
 
-    var currentTitle = initialNote?.title ?: ""
-    var currentCategory: Category? = initialNote?.let {
-        Category(it.categoryName ?: "Uncategorized", it.categoryColor ?: 0xFF808080)
-    }
-    var currentLearnings = initialNote?.learnings ?: ""
+    var currentId: Long = initialId // This can now change from -1 to a real timestamp
+
+    var currentTitle = ""
+    var currentCategory: Category? = null
+    var currentLearnings = ""
 
     init {
-        // Defaults for new note if null
-        if (initialNote == null) {
-            currentCategory = Category("Push", 0xFFFF3B30)
+        if (initialId != -1L) {
+            viewModelScope.launch {
+                val note = noteRepo.getNoteById(initialId)
+                initialize(note)
+            }
+        } else {
+            initialize(null) // New note
         }
     }
 
@@ -58,17 +63,12 @@ class EditorViewModel(
         }
     }
 
-    // Heavy Logic: Save Note
-    fun saveNote(
-        finalText: String,
-        settings: Settings,
-        onComplete: () -> Unit
-    ) {
+    fun saveNote(finalText: String, settings: Settings, onComplete: () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             withContext(kotlinx.coroutines.NonCancellable) {
-                val timestamp = initialNote?.timestamp ?: System.currentTimeMillis()
+                val timestamp = if (currentId != -1L) currentId else System.currentTimeMillis()
+                currentId = timestamp
 
-                // 1. Construct Domain Object
                 val updatedNote = NoteLine(
                     title = currentTitle,
                     text = finalText,
@@ -78,21 +78,16 @@ class EditorViewModel(
                     learnings = currentLearnings
                 )
 
-                // 2. Save to DB [cite: 585]
                 noteRepo.saveNote(updatedNote)
 
-                // 3. Parse for Graphs
-                val entity = NoteEntity(
-                    timestamp, updatedNote.title, updatedNote.text,
-                    updatedNote.categoryName, updatedNote.categoryColor, updatedNote.learnings
-                )
-                workoutRepo.syncNoteToWorkout(entity)
+                // CRITICAL: Update the internal state so the ViewModel knows it's saved
+                _uiState.value = updatedNote
 
-                // 4. Export CSV
+                val entity = NoteEntity(timestamp, updatedNote.title, updatedNote.text,
+                    updatedNote.categoryName, updatedNote.categoryColor, updatedNote.learnings)
+                workoutRepo.syncNoteToWorkout(entity)
                 exportNote(context, updatedNote, settings)
             }
-
-            // 5. Notify UI (Main Thread)
             withContext(Dispatchers.Main) {
                 onComplete()
             }
@@ -101,14 +96,14 @@ class EditorViewModel(
 
     // Factory
     class Factory(
-        private val note: NoteLine?,
+        private val noteId: Long,
         private val noteRepo: NoteRepository,
         private val workoutRepo: WorkoutRepository,
         private val context: Context
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return EditorViewModel(note, noteRepo, workoutRepo, context) as T
+            return EditorViewModel(noteId, noteRepo, workoutRepo, context) as T
         }
     }
 }

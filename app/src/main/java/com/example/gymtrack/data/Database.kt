@@ -73,6 +73,11 @@ interface NoteDao {
 
     @Delete
     suspend fun delete(note: NoteEntity)
+
+    @Query("SELECT * FROM notes WHERE timestamp = :id LIMIT 1")
+    suspend fun getById(id: Long): NoteEntity?
+
+    @Query("SELECT COUNT(*) FROM notes") suspend fun getCount(): Int
 }
 
 @Dao
@@ -123,6 +128,14 @@ interface SetDao {
         ORDER BY workoutId ASC
     """)
     fun getAverageWeightHistory(exerciseId: Long): Flow<List<GraphPoint>>
+
+    @Transaction
+    suspend fun replaceSetsForWorkout(workoutId: Long, sets: List<SetEntity>) {
+        deleteSetsForWorkout(workoutId)
+        if (sets.isNotEmpty()) {
+            insertSets(sets)
+        }
+    }
 }
 // --- DATABASE ---
 

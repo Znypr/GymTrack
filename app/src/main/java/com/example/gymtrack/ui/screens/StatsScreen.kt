@@ -31,6 +31,7 @@ import com.example.gymtrack.ui.components.charts.StatsOverview
 import com.example.gymtrack.ui.components.charts.TimeOfDayHeatmap
 import androidx.compose.ui.platform.LocalContext
 import com.example.gymtrack.ui.components.charts.CategoryChart
+import com.example.gymtrack.ui.theme.AppleBlack
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -47,7 +48,7 @@ fun StatsScreen(
     var dragX by remember { mutableStateOf(0f) }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = AppleBlack,
         topBar = {
             CenterAlignedTopAppBar(
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(

@@ -25,7 +25,7 @@ fun importAndProcessCsv(
         }
 
         // --- Core Row Split ---
-        val csvRow = rowString.split(',')
+        val csvRow = parseCsvRow(rowString)
 
         // 2. Column Count Check: Must have at least the index and set details.
         if (csvRow.size < 2) return@forEach

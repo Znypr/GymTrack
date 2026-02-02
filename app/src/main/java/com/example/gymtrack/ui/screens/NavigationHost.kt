@@ -9,10 +9,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.example.gymtrack.data.NoteLine
 import com.example.gymtrack.data.Settings
 import com.example.gymtrack.data.repository.NoteRepository
 import com.example.gymtrack.data.WorkoutRepository
+import com.example.gymtrack.feature.editor.NoteEditor
 import com.example.gymtrack.presentation.home.HomeViewModel
 import com.example.gymtrack.util.WorkoutParser
 import com.example.gymtrack.util.exportNote
@@ -86,9 +88,8 @@ fun NavigationHost(
                 notes = notes,
                 selectedNotes = selectedNotes,
                 onSelect = { selectedNotes = it },
-                onEdit = {
-                    currentNote = it
-                    navController.navigate("edit")
+                onEdit = { note ->
+                    navController.navigate("edit?noteId=${note.timestamp}")
                 },
                 onDelete = { homeViewModel.deleteNotes(it) },
                 onExport = { toExport ->
@@ -100,7 +101,6 @@ fun NavigationHost(
                     }
                 },
                 onCreate = {
-                    currentNote = null
                     navController.navigate("edit")
                 },
                 onImport = { importLauncher.launch("text/*") },
@@ -124,13 +124,17 @@ fun NavigationHost(
             )
         }
 
-        composable("edit") {
-            val isLast = true // logic for isLast if needed
+        composable(
+            route = "edit?noteId={noteId}",
+            arguments = listOf(navArgument("noteId") { defaultValue = -1L })
+        ) { backStackEntry ->
+            val isLast = backStackEntry.arguments?.getBoolean("isLast") ?: false
+            val noteId = backStackEntry.arguments?.getLong("noteId") ?: -1L
 
             // Pass 'currentNote' directly to the factory
             val editorViewModel: EditorViewModel = viewModel(
                 factory = EditorViewModel.Factory(
-                    note = currentNote, // CHANGED: Pass object, not ID
+                    noteId = noteId, // Changed from 'note' object to 'noteId'
                     noteRepo = noteRepository,
                     workoutRepo = workoutRepository,
                     context = context.applicationContext

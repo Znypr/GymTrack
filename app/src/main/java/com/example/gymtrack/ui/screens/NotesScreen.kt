@@ -1,42 +1,40 @@
 package com.example.gymtrack.ui.screens
 
+import ModernNoteCard
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.gymtrack.R
 import com.example.gymtrack.data.Category
+import com.example.gymtrack.data.DEFAULT_CATEGORIES
 import com.example.gymtrack.data.NoteLine
 import com.example.gymtrack.data.Settings
-import com.example.gymtrack.util.darken
 import com.example.gymtrack.util.formatWeekRelativeTime
-import com.example.gymtrack.util.lighten
-import com.example.gymtrack.util.parseNoteText
 import com.example.gymtrack.util.parseDurationSeconds
-import java.util.Calendar
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.background
-import com.example.gymtrack.data.DEFAULT_CATEGORIES
+import com.example.gymtrack.util.parseNoteText
+
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun NotesScreen(
@@ -53,270 +51,175 @@ fun NotesScreen(
     settings: Settings,
 ) {
     Scaffold(
+        // REVERTED: Uses Theme background (Black in Dark Mode, Off-White in Light)
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             if (selectedNotes.isEmpty()) {
                 FloatingActionButton(
-                    elevation = FloatingActionButtonDefaults.bottomAppBarFabElevation
-                        (defaultElevation = 5.dp),
                     onClick = onCreate,
-                    containerColor = MaterialTheme.colorScheme.background.lighten(0.1f),
-                    shape = MaterialTheme.shapes.large,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shape = CircleShape,
+                    elevation = FloatingActionButtonDefaults.elevation(0.dp),
+                    modifier = Modifier.size(60.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Note")
+                    Icon(Icons.Default.Add, contentDescription = "Add Note", modifier = Modifier.size(30.dp))
                 }
             }
         },
         topBar = {
             if (selectedNotes.isEmpty()) {
-                CenterAlignedTopAppBar(
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface
+                // Main Header
+                TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        // REVERTED: Transparent/Theme color
+                        containerColor = MaterialTheme.colorScheme.background
                     ),
-                    navigationIcon = {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_gymtrack_logo),
-                            contentDescription = "GymTrack logo",
-                            modifier = Modifier.size(45.dp) // optional size
+                    title = {
+                        Text(
+                            "GymTrack",
+                            fontSize = 30.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            letterSpacing = (-1).sp
                         )
                     },
-                    title = { Text("GymTrack", fontSize = 24.sp) },
                     actions = {
-
                         IconButton(onClick = onImport) {
-                            Icon(Icons.Default.Add, contentDescription = "Import")
+                            Icon(Icons.Default.Add , contentDescription = "Import", tint = MaterialTheme.colorScheme.onBackground)
                         }
                         IconButton(onClick = onOpenSettings) {
-                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                            Icon(Icons.Default.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onBackground)
                         }
-                    },
+                    }
                 )
             } else {
+                // Selection Header
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface
                     ),
-                    title = { Text("${selectedNotes.size} selected", fontSize = 20.sp) },
-                    actions = {
-                        IconButton(onClick = { onExport(selectedNotes) }) {
-                            Icon(Icons.Default.Share, contentDescription = "Export")
-                        }
-                        IconButton(onClick = { onDelete(selectedNotes) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete")
-                        }
-                        IconButton(onClick = onOpenSettings) {
-                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    title = { Text("${selectedNotes.size} selected", color = MaterialTheme.colorScheme.onSurface) },
+                    navigationIcon = {
+                        IconButton(onClick = { onSelect(emptySet()) }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     },
+                    actions = {
+                        IconButton(onClick = { onDelete(selectedNotes) }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                        }
+                        IconButton(onClick = { onExport(selectedNotes) }) {
+                            Icon(Icons.Default.Download, contentDescription = "Export", tint = MaterialTheme.colorScheme.onSurface)
+                        }
+                        IconButton(onClick = {
+                            if (selectedNotes.size == notes.size) onSelect(emptySet()) else onSelect(notes.toSet())
+                        }) {
+                            Icon(
+                                imageVector = if (selectedNotes.size == notes.size) Icons.Default.ChecklistRtl else Icons.Default.Checklist,
+                                contentDescription = "Select All", tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
                 )
             }
-        },
+        }
     ) { padding ->
         var dragX by remember { mutableStateOf(0f) }
+        var newestFirst by remember { mutableStateOf(true) }
+        var categoryFilter by remember { mutableStateOf<Category?>(null) }
+        var filterExpanded by remember { mutableStateOf(false) }
+
+        val displayNotes = remember(notes, categoryFilter, newestFirst) {
+            notes
+                .filter { n -> categoryFilter?.let { n.categoryName == it.name } ?: true }
+                .let { list -> if (newestFirst) list.sortedByDescending { it.timestamp } else list.sortedBy { it.timestamp } }
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(padding)
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
-                        onDragEnd = {
-                            if (dragX > 100f) onSwipeRight()
-                            dragX = 0f
-                        }
-                    ) { change, dragAmount ->
-                        if (dragAmount > 0) dragX += dragAmount
-                    }
+                        onDragEnd = { if (dragX > 100f) onSwipeRight(); dragX = 0f }
+                    ) { _, dragAmount -> if (dragAmount > 0) dragX += dragAmount }
                 }
         ) {
-            var newestFirst by remember { mutableStateOf(true) }
-            var categoryFilter by remember { mutableStateOf<Category?>(null) }
-            var filterExpanded by remember { mutableStateOf(false) }
-
-            val displayNotes = remember(notes, categoryFilter, newestFirst) {
-                notes
-                    .filter { n ->
-                        categoryFilter?.let { n.categoryName == it.name } ?: true
-                    }
-                    .let { list ->
-                        if (newestFirst) list.sortedByDescending { it.timestamp }
-                        else list.sortedBy { it.timestamp }
-                    }
-            }
-
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(160.dp),
-                contentPadding = padding,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(8.dp),
+            LazyVerticalStaggeredGrid(
+                columns = StaggeredGridCells.Adaptive(160.dp),
+                contentPadding = PaddingValues(16.dp),
+                verticalItemSpacing = 12.dp,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxSize()
             ) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
+                // Filter Row
+                item(span = StaggeredGridItemSpan.FullLine) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            .padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Spacer(Modifier.weight(1f))
                         Box {
-                            IconButton(onClick = { filterExpanded = true }) {
-                                Icon(Icons.Default.List, contentDescription = "Filter")
+                            TextButton(onClick = { filterExpanded = true }) {
+                                Text(
+                                    text = categoryFilter?.name ?: "All Categories",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            DropdownMenu(expanded = filterExpanded, onDismissRequest = { filterExpanded = false }) {
+                            DropdownMenu(
+                                expanded = filterExpanded,
+                                onDismissRequest = { filterExpanded = false },
+                                containerColor = MaterialTheme.colorScheme.surface
+                            ) {
                                 DropdownMenuItem(
-                                    text = { Text("All") },
-                                    onClick = {
-                                        categoryFilter = null
-                                        filterExpanded = false
-                                    }
+                                    text = { Text("All", color = MaterialTheme.colorScheme.onSurface) },
+                                    onClick = { categoryFilter = null; filterExpanded = false }
                                 )
                                 settings.categories.forEach { cat ->
                                     DropdownMenuItem(
-                                        text = { Text(cat.name) },
-                                        leadingIcon = {
-                                            Box(
-                                                Modifier
-                                                    .size(12.dp)
-                                                    .background(Color(cat.color.toInt()))
-                                            )
-                                        },
-                                        onClick = {
-                                            categoryFilter = cat
-                                            filterExpanded = false
-                                        }
+                                        text = { Text(cat.name, color = MaterialTheme.colorScheme.onSurface) },
+                                        trailingIcon = { Box(Modifier.size(10.dp).background(Color(cat.color), CircleShape)) },
+                                        onClick = { categoryFilter = cat; filterExpanded = false }
                                     )
                                 }
                             }
                         }
                         IconButton(onClick = { newestFirst = !newestFirst }) {
-                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Sort")
+                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Sort", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
 
-                // Replace the week key computation inside the LazyVerticalGrid loop:
-                var lastWeek: Pair<Int, Int>? = null
-                displayNotes.forEach { note ->
-                    val cal = Calendar.getInstance().apply {
-                        timeInMillis = note.timestamp
-                        firstDayOfWeek = Calendar.MONDAY
-                        minimalDaysInFirstWeek = 4
-                    }
-                    val weekYear = cal.get(Calendar.YEAR)
-                    val weekOfYear = cal.get(Calendar.WEEK_OF_YEAR)
-                    val weekPair = weekYear to weekOfYear
+                items(notes) { note ->
+                    val isSelected = selectedNotes.contains(note)
 
-                    if (weekPair != lastWeek) {
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            Divider(modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp))
-                        }
-                        lastWeek = weekPair
-                    }
-
-                    item {
-                        val isSelected = selectedNotes.contains(note)
-                        NoteCard(
-                            note = note,
-                            isSelected = isSelected,
-                            onClick = {
-                                if (selectedNotes.isNotEmpty()) {
-                                    onSelect(selectedNotes.toMutableSet().also { set ->
-                                        if (set.contains(note)) set.remove(note) else set.add(note)
-                                    })
-                                } else {
-                                    onEdit(note)
-                                }
-                            },
-                            onLongClick = { onSelect(selectedNotes.toMutableSet().also { it.add(note) }) },
-                            settings = settings
-                        )
-                    }
-                }
-
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun NoteCard(
-    note: NoteLine,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    settings: Settings,
-) {
-    Card(
-        modifier = Modifier
-            .padding(6.dp)
-            .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-            } else {
-                val base = categoryColorFor(note.categoryName, settings.darkMode)
-                if (note.categoryName == null) {
-                    base
-                } else if (settings.darkMode) {
-                    base.darken(0.6f)
-                } else {
-                    base.lighten(0.55f)
-                }
-            },
-            contentColor = MaterialTheme.colorScheme.onSurface,
-        )
-
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(12.dp)
-                .fillMaxWidth(),
-        ) {
-            val totalSec =
-                parseNoteText(note.text).second.mapNotNull {
-                    if (it.isBlank()) null else parseDurationSeconds(it)
-                }.maxOrNull()
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                totalSec?.let {
-                    Text(
-                        text = "${it / 60}'",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    WorkoutAlbumCard(
+                        note = note,
+                        isSelected = isSelected,
+                        onClick = {
+                            if (selectedNotes.isNotEmpty()) {
+                                // If we are already selecting items, a standard click should Toggle Selection
+                                val newSet = if (isSelected) selectedNotes - note else selectedNotes + note
+                                onSelect(newSet)
+                            } else {
+                                // Otherwise, open the editor
+                                onEdit(note)
+                            }
+                        },
+                        onLongClick = {
+                            // Long click always enters selection mode or toggles
+                            val newSet = if (isSelected) selectedNotes - note else selectedNotes + note
+                            onSelect(newSet)
+                        },
+                        settings = settings
                     )
                 }
-                Text(
-                    text = formatWeekRelativeTime(note.timestamp, settings),
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = note.categoryName?.uppercase() ?: "",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.Start)
-            )
         }
-
     }
-}
-
-@Composable
-fun categoryColorFor(name: String?, darkMode: Boolean): Color {
-    val base = DEFAULT_CATEGORIES.find { it.name.equals(name, ignoreCase = true) }
-        ?.let { Color(it.color.toInt()) }
-        ?: if (darkMode) MaterialTheme.colorScheme.surface
-        else MaterialTheme.colorScheme.surfaceVariant
-
-    return base
 }

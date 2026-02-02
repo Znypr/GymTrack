@@ -35,7 +35,7 @@ class NoteEditorState(
     val timestamps = mutableStateListOf<String>()
     val flags = mutableStateListOf<ExerciseFlag>()
 
-    private var startTime: Long? = null
+    private var startTime: Long? = note?.timestamp
     private var lastEnter: Long = System.currentTimeMillis()
     private val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
     var saved by mutableStateOf(false)
@@ -43,17 +43,21 @@ class NoteEditorState(
     init {
         val parsed = parseNoteText(note?.text ?: "")
 
-        // FIX: Essential safety check. DO NOT REMOVE.
         if (parsed.first.isEmpty()) {
             addLine(NoteRow(nextId++, mutableStateOf(TextFieldValue(""))))
             timestamps.add("")
             flags.add(ExerciseFlag.BILATERAL)
         } else {
             parsed.first.forEachIndexed { idx, txt ->
+                // [FIX] If it's a main line (no indentation), remove the old relative time suffix
+                val cleanTxt = if (txt.isNotBlank() && !txt.startsWith(" ")) {
+                    txt.replace(Regex("""\s*\(\d+'\d{2}''\)$"""), "")
+                } else txt
+
                 addLine(
                     NoteRow(
                         nextId++,
-                        mutableStateOf(TextFieldValue(txt)),
+                        mutableStateOf(TextFieldValue(cleanTxt)), // Use cleanTxt here
                         mutableStateOf(parsed.third.getOrNull(idx) ?: ExerciseFlag.BILATERAL)
                     )
                 )
@@ -61,6 +65,8 @@ class NoteEditorState(
             timestamps.addAll(parsed.second)
             flags.addAll(parsed.third)
         }
+
+
 
         cleanLists()
 
@@ -86,6 +92,7 @@ class NoteEditorState(
         if (newValue.text.endsWith("\n")) {
             val content = newValue.text.dropLast(1)
             val now = System.currentTimeMillis()
+
             val diffSec = (now - lastEnter) / 1000
 
             if (content.isNotBlank()) lastEnter = now
@@ -94,9 +101,11 @@ class NoteEditorState(
             val isMain = index == 0 || lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
             if (startTime == null && content.isNotBlank() && isMain) startTime = now
 
-            val abs = formatElapsedMinutesSeconds(startTime ?: now, now, settings)
+            val effectiveStart = startTime ?: now
+            val abs = formatElapsedMinutesSeconds(effectiveStart, now, settings)
+
             val formatted = if (content.isNotBlank()) {
-                if (isMain) "$content ($rel)" else "     $content ($rel)"
+                if (isMain) content else "     $content ($rel)"
             } else ""
 
             row.text.value = TextFieldValue(formatted, TextRange(formatted.length))
@@ -131,15 +140,19 @@ class NoteEditorState(
     }
 
     fun saveNote(isLastNote: Boolean, exit: Boolean) {
-        if (saved) {
-            // If already saved and we want to exit, just call the callback
-            if (exit) onSaveSuccess()
-            return
-        }
+        if (saved && !exit) return
 
-        lines.forEachIndexed { i, row ->
+        val lastContentIndex = lines.indexOfLast { it.text.value.text.isNotBlank() }
+
+        val range = if (lastContentIndex >= 0) 0..lastContentIndex else IntRange.EMPTY
+
+        val finalStartTime = startTime ?: noteTimestamp
+
+        range.forEach { i ->
+            val row = lines[i]
+
             if (row.text.value.text.isNotBlank() && timestamps.getOrElse(i) { "" }.isBlank()) {
-                val nowAbs = formatElapsedMinutesSeconds(startTime ?: noteTimestamp, System.currentTimeMillis(), settings)
+                val nowAbs = formatElapsedMinutesSeconds(finalStartTime, System.currentTimeMillis(), settings)
                 ensureListSize(i)
                 timestamps[i] = nowAbs
             }
@@ -147,21 +160,22 @@ class NoteEditorState(
             flags[i] = row.flag.value
         }
 
-        val plainContent = lines.joinToString("\n") { it.text.value.text }
-        cleanLists()
-        val combined = combineTextAndTimes(plainContent, timestamps, flags)
+        val plainContent = range.joinToString("\n") { lines[it].text.value.text }
+        val validTimestamps = range.map { timestamps.getOrElse(it) { "" } }
+        val validFlags = range.map { flags.getOrElse(it) { ExerciseFlag.BILATERAL } }
 
-        // Pass 'exit' to the callback logic
+        val combined = combineTextAndTimes(plainContent, validTimestamps, validFlags)
+
         viewModel.saveNote(combined, settings) {
-            if (exit) onSaveSuccess()
+            if (exit) {
+                onSaveSuccess()
+            }
         }
 
         saved = true
 
         if (isLastNote) {
-            context.startService(Intent(context, NoteTimerService::class.java).apply {
-                action = NoteTimerService.ACTION_STOP
-            })
+            context.stopService(Intent(context, NoteTimerService::class.java))
         }
     }
 

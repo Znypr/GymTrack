@@ -20,6 +20,10 @@ class NoteRepository(private val dao: NoteDao) {
     suspend fun deleteNotes(notes: Set<NoteLine>) {
         notes.forEach { dao.delete(it.toEntity()) }
     }
+
+    suspend fun getNoteById(id: Long): NoteLine? {
+        return dao.getById(id)?.toDomainModel()
+    }
 }
 
 // Mappers

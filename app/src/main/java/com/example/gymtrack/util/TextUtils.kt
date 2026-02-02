@@ -1,10 +1,15 @@
 package com.example.gymtrack.util
 
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 import com.example.gymtrack.data.ExerciseFlag
+import java.util.Locale
 
 // Regex to detect the "broken" format: ends with time (e.g. 0'00") followed by a flag code (b/u/s)
 // Captures: Group 1 (Body), Group 2 (Time), Group 3 (Flag)
-private val DIRTY_TAIL_REGEX = Regex("""^(.*?)(\d+'\d{2}"?)([bus])$""")
+private val DIRTY_TAIL_REGEX = Regex("""^(.*?)(\d+'\d{2}(?:''|")?)([bus])$""")
 
 private const val SEP = '\u200B'   // invisible separator for ABS time
 private const val FLAG_SEP = '\u200C' // separator for exercise flag
@@ -82,4 +87,14 @@ fun combineTextAndTimes(text: String, times: List<String>, flags: List<ExerciseF
         result += "$FLAG_SEP$code"
         result
     }.joinToString("\n")
+}
+
+class CapitalizeWordsTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val original = text.text
+        val capitalized = original.split(" ").joinToString(" ") { word ->
+            word.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+        }
+        return TransformedText(AnnotatedString(capitalized), OffsetMapping.Identity)
+    }
 }

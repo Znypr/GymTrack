@@ -1,7 +1,11 @@
 package com.example.gymtrack.util
 
+import android.content.ContentValues
 import android.content.Context
+import android.os.Build
 import android.os.Environment
+import android.provider.MediaStore
+import androidx.annotation.RequiresApi
 import com.example.gymtrack.data.NoteLine
 import com.example.gymtrack.data.Settings
 import com.example.gymtrack.data.ExerciseFlag
@@ -96,15 +100,27 @@ fun exportNote(context: Context, note: NoteLine, settings: Settings): File {
     file.writeText(builder.toString())
 
     // Also copy to public Downloads directory if writable
-    try {
-        val downloads =
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        if (downloads?.exists() == false) downloads.mkdirs()
-        if (downloads != null && downloads.canWrite()) {
-            file.copyTo(File(downloads, file.name), overwrite = true)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, file.name)
+            put(MediaStore.MediaColumns.MIME_TYPE, "text/csv")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
         }
-    } catch (_: Exception) {
-        // ignore failures copying to public storage
+
+        val resolver = context.contentResolver
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+
+        if (uri != null) {
+            try {
+                resolver.openOutputStream(uri)?.use { output ->
+                    file.inputStream().use { input ->
+                        input.copyTo(output)
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace() // Log failure
+            }
+        }
     }
 
     return file
@@ -115,7 +131,7 @@ fun getSavedCsvFiles(context: Context): List<File> {
     return dir.listFiles()?.filter { it.extension == "csv" }?.sortedBy { it.name } ?: emptyList()
 }
 
-private fun parseCsvRow(row: String): List<String> {
+fun parseCsvRow(row: String): List<String> {
     val result = mutableListOf<String>()
     var current = StringBuilder()
     var inQuotes = false

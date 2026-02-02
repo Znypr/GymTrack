@@ -24,7 +24,7 @@ object SettingsStore {
             val color = parts.getOrNull(1)?.toLongOrNull() ?: 0L
             Category(name, color)
         } ?: emptyList()
-        val cats = (DEFAULT_CATEGORIES + custom).distinctBy { it.name }
+        val cats = (custom + DEFAULT_CATEGORIES).distinctBy { it.name }
 
         return Settings(
             is24Hour = prefs[IS_24_HOUR] ?: true,

@@ -5,29 +5,28 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
-    primary = DarkPrimary,
-    onPrimary = Color.White,
-    secondary = DarkSurface,
-    background = DarkBackground,
-    surface = DarkSurface,
-    surfaceVariant = DarkSurfaceVariant,
-    onSurface = Color.White
+    primary = SpotGreen,
+    background = SpotBlack,
+    surface = SpotDarkGray,
+    onPrimary = SpotBlack,
+    onSurface = SpotWhite,
+    onBackground = SpotWhite
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = LightPrimary,
-    onPrimary = Color.White,
-    secondary = LightSurface,
-    background = LightBackground,
-    surface = LightSurface,
-    surfaceVariant = LightSurfaceVariant,
-    onSurface = Color.Black
+    primary = AppleBlack,
+    onPrimary = TextWhite,
+    secondary = NeonGreen,
+    background = AppleWhite,        // <--- Apple style Light Gray background
+    surface = AppleLightCard,       // <--- White cards
+    surfaceVariant = AppleWhite,
+    onSurface = TextBlack,
+    onBackground = TextBlack
 )
 
 @Composable
@@ -38,8 +37,8 @@ fun GymTrackTheme(
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
     val selectionColors = TextSelectionColors(
-        handleColor = colorScheme.onSurface,
-        backgroundColor = colorScheme.primary.copy(alpha = 0.4f)
+        handleColor = NeonGreen,
+        backgroundColor = NeonGreen.copy(alpha = 0.4f)
     )
 
     CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
@@ -51,4 +50,3 @@ fun GymTrackTheme(
         )
     }
 }
-

@@ -76,11 +76,19 @@ private fun calculateLinearRegression(data: List<GraphPoint>): RegressionLine? {
     if (data.size < 2) return null
 
     val N = data.size.toFloat()
+    val minTime = data.minOf { it.originTimestamp } // FIND MINIMUM
 
-    val sumX = data.sumOf { it.originTimestamp.toDouble() }
+    // NORMALIZE: Subtract minTime from every timestamp
+    val sumX = data.sumOf { (it.originTimestamp - minTime).toDouble() }
     val sumY = data.sumOf { it.avgVal.toDouble() }
-    val sumX2 = data.sumOf { it.originTimestamp.toDouble() * it.originTimestamp.toDouble() }
-    val sumXY = data.sumOf { it.originTimestamp.toDouble() * it.avgVal.toDouble() }
+    val sumX2 = data.sumOf {
+        val x = (it.originTimestamp - minTime).toDouble()
+        x * x
+    }
+    val sumXY = data.sumOf {
+        val x = (it.originTimestamp - minTime).toDouble()
+        x * it.avgVal.toDouble()
+    }
 
     val m_numerator = (N * sumXY - sumX * sumY).toFloat()
     val m_denominator = (N * sumX2 - sumX * sumX).toFloat()
@@ -90,9 +98,16 @@ private fun calculateLinearRegression(data: List<GraphPoint>): RegressionLine? {
     }
 
     val slope = m_numerator / m_denominator
+    // Intercept is now relative to 0 (which is minTime)
     val intercept = ((sumY - slope * sumX) / N).toFloat()
 
-    return RegressionLine(slope, intercept)
+    // Adjust intercept back to absolute time for drawing logic compatibility?
+    // Actually, it's easier to keep the drawing logic aware of the shift.
+    // But to minimize changes to your drawing code, we can return the "Virtual" intercept:
+    // y = m(x - minX) + c  ->  y = mx - m*minX + c
+    val realIntercept = intercept - (slope * minTime)
+
+    return RegressionLine(slope, realIntercept)
 }
 
 // The internal drawing function (The actual line graph)
@@ -206,7 +221,9 @@ private fun ExerciseProgressChartGraph(
         // Simple X-Axis Labels (Start/End)
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(dateFormatter.format(Date(minTime)), style = MaterialTheme.typography.bodySmall)
-            Text(dateFormatter.format(Date(maxTime)), style = MaterialTheme.typography.bodySmall)
+            if (minTime != maxTime) {
+                Text(dateFormatter.format(Date(maxTime)), style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }

@@ -36,10 +36,6 @@ class WorkoutRepository(
      */
     suspend fun saveParsedSets(sets: List<ParsedSetDTO>, workoutId: Long) {
 
-        // CRITICAL FIX: Delete all existing sets for this workoutId before re-inserting.
-        // This prevents duplicate sets from accumulating if syncNoteToWorkout runs multiple times.
-        setDao.deleteSetsForWorkout(workoutId)
-
         val setEntities = sets.map { set ->
             val exerciseId = resolveExerciseId(set.exerciseName)
             SetEntity(
@@ -55,11 +51,7 @@ class WorkoutRepository(
                 absoluteTime = set.absoluteTime
             )
         }
-        if (setEntities.isNotEmpty()) {
-            // insertSets uses OnConflictStrategy.REPLACE, which is fine, but the explicit DELETE
-            // guarantees we aren't inserting duplicates with new auto-generated IDs.
-            setDao.insertSets(setEntities)
-        }
+        setDao.replaceSetsForWorkout(workoutId, setEntities)
     }
 
     // --- WRITE / MIGRATION LOGIC (Main UI Entry Point) ---
@@ -71,9 +63,11 @@ class WorkoutRepository(
     }
 
     suspend fun checkAndMigrate() {
-        val count = setDao.getCount()
-        if (count == 0) {
-            Log.d("GymTrack", "No structured sets found. Migrating legacy notes...")
+        val noteCount = noteDao.getCount()
+        val setCount = setDao.getCount()
+
+        if (noteCount > 0 && setCount == 0) {
+            Log.d("GymTrack", "Migrating legacy notes...")
             migrateAllLegacyNotes()
         }
     }

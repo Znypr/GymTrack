@@ -18,21 +18,18 @@ data class ParsedSetDTO(
 
 class WorkoutParser {
 
-    // --- REGEX ---
+    companion object {
 
-    // FIX: Weight Regex now prevents partial matching (10 from 100) by adding |\d
-    private val weightRegex = Pattern.compile("(?i)(?:^|\\s)(\\d+(?:\\.\\d+)?)(?:\\s*(kg|lbs))?(?![xX]|[':]|\\d)")
+        private val weightRegex = Pattern.compile("(?i)(?:^|\\s)(\\d+(?:\\.\\d+)?)(?:\\s*(kg|lbs))?(?![xX]|[':]|\\d)")
+        private val repsRegex = Pattern.compile("(?i)(?:x\\s*([0-9+]+)|([0-9+]+)\\s*x|([0-9+]+)\\s*reps?)")
+        private val repsCaptureRegex = Pattern.compile("([0-9+]+)\\s*x", Pattern.CASE_INSENSITIVE)
+        private val metadataStartRegex = Regex("""\s*\(?\d+\s*['’":]\s*\d+""")
+        private val plusNumberRegex = Regex("\\+\\d+")
+        private val isolatedNumberRegex = Regex("""\b\d+\b""")
+        private val parenNumberRegex = Regex("""\(\s*\d+\s*\)""")
 
-    // FIX: Reps Regex now handles '+' for rest-pause/cluster sets (e.g. "5+5x")
-    private val repsRegex = Pattern.compile("(?i)(?:x\\s*([0-9+]+)|([0-9+]+)\\s*x|([0-9+]+)\\s*reps?)")
-    private val repsCaptureRegex = Pattern.compile("([0-9+]+)\\s*x", Pattern.CASE_INSENSITIVE)
+    }
 
-    private val metadataStartRegex = Regex("""\s*\(?\d+\s*['’":]\s*\d+""")
-
-    // Cleanup Regex
-    private val plusNumberRegex = Regex("\\+\\d+")
-    private val isolatedNumberRegex = Regex("""\b\d+\b""")
-    private val parenNumberRegex = Regex("""\(\s*\d+\s*\)""")
 
     // --- DICTIONARIES & LISTS ---
 
