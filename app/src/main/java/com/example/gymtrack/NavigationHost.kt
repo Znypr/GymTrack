@@ -3,11 +3,15 @@ package com.example.gymtrack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.data.WorkoutRepository
 import com.example.gymtrack.core.data.repository.NoteRepository
@@ -37,14 +41,18 @@ fun NavigationHost(
             )
             val notes by homeViewModel.notes.collectAsState()
 
+            var selectedNotes by remember { mutableStateOf<Set<NoteLine>>(emptySet()) }
+
             NotesScreen(
                 notes = notes,
-                selectedNotes = emptySet(),
-                onSelect = { },
+                selectedNotes = selectedNotes,
+                onSelect = { selectedNotes = it },
                 onEdit = { note ->
                     navController.navigate("editor?noteId=${note.timestamp}")
                 },
-                onDelete = { selected -> homeViewModel.deleteNotes(selected) },
+                onDelete = { selected ->
+                    homeViewModel.deleteNotes(selected)
+                    selectedNotes = emptySet() },
                 onExport = { /* Export logic */ },
                 onCreate = { navController.navigate("editor?noteId=-1") },
                 // [FIX] Call the new import function
@@ -64,7 +72,12 @@ fun NavigationHost(
             val context = LocalContext.current
 
             val editorViewModel: EditorViewModel = viewModel(
-                factory = EditorViewModel.Factory(noteId, noteRepository, workoutRepository, context)
+                factory = EditorViewModel.Factory(
+                    noteId,
+                    noteRepository,
+                    workoutRepository,
+                    context
+                )
             )
 
             NoteEditor(
