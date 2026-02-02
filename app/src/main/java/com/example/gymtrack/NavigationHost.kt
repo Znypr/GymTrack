@@ -1,0 +1,100 @@
+package com.example.gymtrack
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import com.example.gymtrack.core.data.Settings
+import com.example.gymtrack.core.data.WorkoutRepository
+import com.example.gymtrack.core.data.repository.NoteRepository
+import com.example.gymtrack.feature.editor.EditorViewModel
+import com.example.gymtrack.feature.editor.NoteEditor
+import com.example.gymtrack.feature.home.HomeViewModel
+import com.example.gymtrack.feature.home.NotesScreen
+import com.example.gymtrack.feature.settings.SettingsScreen
+import com.example.gymtrack.feature.stats.StatsScreen
+import com.example.gymtrack.feature.stats.StatsViewModel
+
+@Composable
+fun NavigationHost(
+    navController: NavHostController,
+    settings: Settings,
+    onSettingsUpdate: (Settings) -> Unit,
+    noteRepository: NoteRepository,
+    workoutRepository: WorkoutRepository
+) {
+    NavHost(navController = navController, startDestination = "notes") {
+
+        // 1. HOME SCREEN
+        composable("notes") {
+            val context = LocalContext.current // [FIX] Get context for import
+            val homeViewModel: HomeViewModel = viewModel(
+                factory = HomeViewModel.Factory(noteRepository)
+            )
+            val notes by homeViewModel.notes.collectAsState()
+
+            NotesScreen(
+                notes = notes,
+                selectedNotes = emptySet(),
+                onSelect = { },
+                onEdit = { note ->
+                    navController.navigate("editor?noteId=${note.timestamp}")
+                },
+                onDelete = { selected -> homeViewModel.deleteNotes(selected) },
+                onExport = { /* Export logic */ },
+                onCreate = { navController.navigate("editor?noteId=-1") },
+                // [FIX] Call the new import function
+                onImport = { uri ->
+                    homeViewModel.importNoteFromUri(context, uri, settings)
+                },
+                onOpenSettings = { navController.navigate("settings") },
+                onOpenStats = { navController.navigate("stats") },
+                onSwipeRight = { /* Swipe logic */ },
+                settings = settings
+            )
+        }
+
+        // ... (Rest of your composables remain the same)
+        composable("editor?noteId={noteId}") { backStackEntry ->
+            val noteId = backStackEntry.arguments?.getString("noteId")?.toLongOrNull() ?: -1L
+            val context = LocalContext.current
+
+            val editorViewModel: EditorViewModel = viewModel(
+                factory = EditorViewModel.Factory(noteId, noteRepository, workoutRepository, context)
+            )
+
+            NoteEditor(
+                viewModel = editorViewModel,
+                settings = settings,
+                isLastNote = true,
+                onCancel = { navController.popBackStack() },
+                onSaveSuccess = { navController.popBackStack() }
+            )
+        }
+
+        composable("stats") {
+            val statsViewModel: StatsViewModel = viewModel(
+                factory = StatsViewModel.Factory(noteRepository)
+            )
+            val notes by noteRepository.getAllNotes().collectAsState(initial = emptyList())
+
+            StatsScreen(
+                notes = notes,
+                settings = settings,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable("settings") {
+            SettingsScreen(
+                settings = settings,
+                onUpdate = onSettingsUpdate,
+                onBack = { navController.popBackStack() }
+            )
+        }
+    }
+}

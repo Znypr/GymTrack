@@ -3,32 +3,27 @@ package com.example.gymtrack
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
-import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.example.gymtrack.data.NoteDatabase
-import com.example.gymtrack.data.Settings
-import com.example.gymtrack.data.SettingsStore
-import com.example.gymtrack.data.repository.NoteRepository
-import com.example.gymtrack.data.WorkoutRepository
-import com.example.gymtrack.presentation.home.HomeViewModel
-import com.example.gymtrack.ui.screens.NavigationHost
-import com.example.gymtrack.ui.theme.GymTrackTheme
+import com.example.gymtrack.core.data.NoteDatabase
+import com.example.gymtrack.core.data.Settings
+import com.example.gymtrack.core.data.SettingsStore
+import com.example.gymtrack.core.data.repository.NoteRepository
+import com.example.gymtrack.core.data.WorkoutRepository
+import com.example.gymtrack.core.ui.theme.GymTrackTheme
+import com.example.gymtrack.feature.editor.EditorViewModel
+import com.example.gymtrack.feature.home.HomeViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-
-// ... imports ...
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. Database & Repositories
+        // 1. Initialize Database & Repositories from CORE
         val db = NoteDatabase.getDatabase(applicationContext)
         val noteRepository = NoteRepository(db.noteDao())
         val workoutRepository = WorkoutRepository(db.noteDao(), db.exerciseDao(), db.setDao())
@@ -50,17 +45,26 @@ class MainActivity : ComponentActivity() {
                 SettingsStore.save(context, settingsState.value)
             }
 
+            // 2. ViewModels Factories
+            val homeFactory = HomeViewModel.Factory(noteRepository)
+            // Note: You need to update EditorViewModel to accept a Factory if you haven't already,
+            // or instantiate it manually in the graph if using simpler DI.
+            val editorFactory = EditorViewModel.Factory(
+                -1L, // Initial ID is handled inside NavigationHost usually
+                noteRepository,
+                workoutRepository,
+                applicationContext
+            )
+
             GymTrackTheme(darkTheme = settingsState.value.darkMode) {
-                // [FIX] Just create the controller
                 val navController = rememberNavController()
 
-                // [FIX] Pass fixed startDestination = "main"
                 NavigationHost(
                     navController = navController,
-                    settingsState = settingsState,
+                    settings = settingsState.value,
+                    onSettingsUpdate = { newSettings -> settingsState.value = newSettings },
                     noteRepository = noteRepository,
-                    workoutRepository = workoutRepository,
-                    startDestination = "main"
+                    workoutRepository = workoutRepository
                 )
             }
         }

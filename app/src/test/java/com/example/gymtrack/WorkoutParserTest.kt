@@ -1,6 +1,6 @@
 package com.example.gymtrack
 
-import com.example.gymtrack.util.WorkoutParser
+import com.example.gymtrack.core.util.WorkoutParser
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
