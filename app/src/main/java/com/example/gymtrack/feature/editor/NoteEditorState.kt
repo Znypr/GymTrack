@@ -33,7 +33,7 @@ class NoteEditorState(
     private val context: Context,
     private val scope: CoroutineScope,
     val listState: LazyListState,
-    note: NoteLine?,
+    private val note: NoteLine?,
     private val onSaveSuccess: () -> Unit
 ) {
     var nextId by mutableStateOf(0L)
@@ -175,6 +175,32 @@ class NoteEditorState(
         val validFlags = range.map { flags.getOrElse(it) { ExerciseFlag.BILATERAL } }
 
         val combined = combineTextAndTimes(plainContent, validTimestamps, validFlags)
+
+
+        val isNew = note == null
+        val isEmpty = combined.isBlank() &&
+                viewModel.currentTitle.isBlank() &&
+                viewModel.currentLearnings.isBlank()
+
+        if (isNew && isEmpty) {
+            // It's a ghost note. Do not save to DB.
+            if (exit) {
+                onSaveSuccess()
+            }
+            return
+        }
+
+        // --- [OPTIONAL] PREVENT SAVING UNCHANGED EXISTING NOTES ---
+        // If it's an existing note, and nothing changed, we can also skip the IO operation
+        if (!isNew &&
+            combined == note.text &&
+            viewModel.currentTitle == note.title &&
+            viewModel.currentLearnings == note.learnings &&
+            viewModel.currentCategory?.name == note.categoryName
+        ) {
+            if (exit) onSaveSuccess()
+            return
+        }
 
         viewModel.saveNote(combined, settings) {
             if (exit) {
