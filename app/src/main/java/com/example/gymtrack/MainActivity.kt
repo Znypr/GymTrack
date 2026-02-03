@@ -14,7 +14,6 @@ import com.example.gymtrack.core.data.SettingsStore
 import com.example.gymtrack.core.data.repository.NoteRepository
 import com.example.gymtrack.core.data.WorkoutRepository
 import com.example.gymtrack.core.ui.theme.GymTrackTheme
-import com.example.gymtrack.feature.editor.EditorViewModel
 import com.example.gymtrack.feature.home.HomeViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -23,7 +22,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. Initialize Database & Repositories from CORE
         val db = NoteDatabase.getDatabase(applicationContext)
         val noteRepository = NoteRepository(db.noteDao())
         val workoutRepository = WorkoutRepository(db.noteDao(), db.exerciseDao(), db.setDao())
@@ -32,29 +30,19 @@ class MainActivity : ComponentActivity() {
             val settingsState = remember { mutableStateOf(Settings()) }
             val context = LocalContext.current
 
-            // Load Settings
             LaunchedEffect(Unit) {
                 settingsState.value = SettingsStore.load(context)
                 withContext(Dispatchers.IO) {
-                    workoutRepository.checkAndMigrate()
+                    // [FIX] This re-reads ALL notes and rebuilds the charts.
+                    // This will restore your missing 100+ sets immediately.
+                    workoutRepository.forceUpdateStats()
+                    workoutRepository.cleanUpOrphans()
                 }
             }
 
-            // Save Settings
             LaunchedEffect(settingsState.value) {
                 SettingsStore.save(context, settingsState.value)
             }
-
-            // 2. ViewModels Factories
-            val homeFactory = HomeViewModel.Factory(noteRepository)
-            // Note: You need to update EditorViewModel to accept a Factory if you haven't already,
-            // or instantiate it manually in the graph if using simpler DI.
-            val editorFactory = EditorViewModel.Factory(
-                -1L, // Initial ID is handled inside NavigationHost usually
-                noteRepository,
-                workoutRepository,
-                applicationContext
-            )
 
             GymTrackTheme(darkTheme = settingsState.value.darkMode) {
                 val navController = rememberNavController()

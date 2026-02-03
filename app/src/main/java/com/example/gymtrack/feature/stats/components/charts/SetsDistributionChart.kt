@@ -6,10 +6,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -18,70 +20,58 @@ fun SetsDistributionChart(
     topExercises: List<Pair<String, Int>>,
     modifier: Modifier = Modifier
 ) {
-    if (topExercises.isEmpty()) return
+    if (topExercises.isEmpty()) {
+        Box(modifier.fillMaxWidth().height(200.dp))
+        return
+    }
 
-    // 1. Prepare Data
-    val data = topExercises // Already sorted by count in ViewModel
-
-    // 2. Setup Theme & Dimensions
     val theme = rememberChartTheme()
     val density = LocalDensity.current
-    val textPaint = makeTextPaint(theme.label, with(density) { 11.sp.toPx() })
+    val labelPaint = makeTextPaint(theme.label, with(density) { 11.sp.toPx() })
+    val countPaint = makeTextPaint(theme.label, with(density) { 10.sp.toPx() })
 
-    // 3. Determine Scale
-    val maxCount = data.maxOf { it.second }
-    val scaleY = buildScaleY(
-        values = data.map { it.second.toFloat() },
-        stepPicker = ::niceStepCount
-    )
+    // Scale based on max count
+    val maxCount = topExercises.maxOf { it.second }.toFloat()
 
     Column(modifier.fillMaxWidth()) {
-        Text("Top 5 Exercises (Sets)", style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(12.dp))
+        Text(
+            "Top Exercises (Sets)",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(Modifier.height(16.dp))
 
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(220.dp)
-        ) {
-            val layout = ChartLayout(leftPad = 56f, rightPad = 12f, topPad = 8f, bottomPad = 28f)
-            val chartW = layout.width(size.width)
-            val chartH = layout.height(size.height)
-            val x0 = layout.originX()
-            val y0 = layout.originY(size.height)
+        Canvas(modifier = Modifier.fillMaxWidth().height(200.dp)) {
+            val barHeight = 24.dp.toPx()
+            val gap = 12.dp.toPx()
+            val startY = 10f
+            val maxBarWidth = size.width - 40f // Leave space for count label
 
-            // Draw Axes
-            drawAxes(::drawLine, theme, layout, size.width, size.height)
+            topExercises.forEachIndexed { i, (name, count) ->
+                val y = startY + i * (barHeight + gap)
 
-            // Draw Y-Grid and Labels
-            drawYGridAndLabels(
-                drawContext.canvas.nativeCanvas, ::drawLine, scaleY, theme, layout,
-                size.width, size.height, textPaint,
-                yAxisTitle = "Sets"
-            )
+                // 1. Draw Exercise Name (Above Bar)
+                drawContext.canvas.nativeCanvas.drawText(name, 0f, y, labelPaint)
 
-            // Draw Bars
-            val n = data.size
-            val groupGap = chartW / (n * 2f).coerceAtLeast(1f)
-            val barW = groupGap.coerceAtMost(100f)
+                // 2. Draw Bar (Below Name)
+                val barY = y + 10f
+                val width = (count / maxCount) * maxBarWidth
 
-            data.forEachIndexed { idx, (name, count) ->
-                val slotWidth = chartW / n
-                val xCenter = x0 + (slotWidth * idx) + (slotWidth / 2)
-                val xLeft = xCenter - (barW / 2)
-                val barH = chartH * (count / scaleY.top)
-
-                // Draw Bar
-                drawRect(
-                    color = theme.secondary.copy(alpha = 0.7f), // Use secondary color to distinguish from other charts
-                    topLeft = Offset(xLeft, y0 - barH),
-                    size = Size(barW, barH)
+                drawRoundRect(
+                    color = theme.primary,
+                    topLeft = Offset(0f, barY),
+                    size = Size(width, barHeight),
+                    cornerRadius = CornerRadius(4f, 4f)
                 )
 
-                // Draw X-Label (Exercise Name)
-                // Truncate if too long
-                val label = if (name.length > 8) name.take(6) + ".." else name
-                drawXTickLabel(drawContext.canvas.nativeCanvas, label, xCenter, y0, textPaint)
+                // 3. Draw Count Label (Right of bar)
+                drawContext.canvas.nativeCanvas.drawText(
+                    count.toString(),
+                    width + 12f,
+                    barY + barHeight - 6f,
+                    countPaint
+                )
             }
         }
     }

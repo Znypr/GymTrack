@@ -7,35 +7,61 @@ import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.repository.NoteRepository
 import com.example.gymtrack.core.util.parseDurationSeconds
 import com.example.gymtrack.core.util.parseNoteText
-import com.example.gymtrack.core.util.WorkoutParser // Needed for SetsDistribution
+import com.example.gymtrack.core.util.WorkoutParser
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
 import java.util.Calendar
+import java.util.concurrent.TimeUnit
+
+enum class TimeRange(val label: String, val days: Int) {
+    LAST_WEEK("Last Week", 7),
+    LAST_MONTH("Last Month", 30),
+    LAST_3_MONTHS("Last 3 Months", 90), // [FIX] Added missing option
+    LAST_6_MONTHS("Last 6 Months", 180),
+    LAST_YEAR("Last Year", 365),
+    ALL_TIME("All Time", -1)
+}
 
 data class StatsState(
     val totalNotes: Int = 0,
-    val totalCategories: Int = 0,
+    val avgWorkoutsPerWeek: Float = 0f,
     val avgSets: Float = 0f,
     val categoryCounts: Map<String, Int> = emptyMap(),
     val averageDurations: Map<String, Float> = emptyMap(),
     val heatmapData: Array<IntArray> = Array(7) { IntArray(24) },
     val topExercises: List<Pair<String, Int>> = emptyList(),
+    val currentRange: TimeRange = TimeRange.ALL_TIME,
+    val filteredNotes: List<NoteLine> = emptyList()
 )
 
 class StatsViewModel(
     private val repository: NoteRepository
 ) : ViewModel() {
 
-    val uiState: StateFlow<StatsState> = repository.getAllNotes()
-        .map { notes -> calculateStats(notes) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsState())
+    private val _timeRange = MutableStateFlow(TimeRange.ALL_TIME)
 
-    private suspend fun calculateStats(notes: List<NoteLine>): StatsState = withContext(Dispatchers.Default) {
-        if (notes.isEmpty()) return@withContext StatsState()
+    val uiState: StateFlow<StatsState> = combine(
+        repository.getAllNotes(),
+        _timeRange
+    ) { notes, range ->
+        calculateStats(notes, range)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsState())
+
+    fun setTimeRange(range: TimeRange) {
+        _timeRange.value = range
+    }
+
+    private suspend fun calculateStats(allNotes: List<NoteLine>, range: TimeRange): StatsState = withContext(Dispatchers.Default) {
+        // [FIX] Strict math using TimeUnit.
+        // "Last Month" = Exact last 30 days relative to NOW.
+        val cutoff = if (range.days > 0) {
+            System.currentTimeMillis() - TimeUnit.DAYS.toMillis(range.days.toLong())
+        } else 0L
+
+        val notes = allNotes.filter { it.timestamp >= cutoff }
+
+        if (notes.isEmpty()) return@withContext StatsState(currentRange = range, filteredNotes = emptyList())
 
         val parser = WorkoutParser()
 
@@ -52,9 +78,24 @@ class StatsViewModel(
         }
         val avgSets = if (mainCount > 0) subCount.toFloat() / mainCount else 0f
 
-        // 2. Category & Duration Stats
+        // 2. Weekly Avg
+        val minTime = notes.minOf { it.timestamp }
+        val maxTime = notes.maxOf { it.timestamp }
+
+        // Calculate exact weeks in the selected range (or actual data span if All Time)
+        val durationWeeks = if (range == TimeRange.ALL_TIME) {
+            val diff = (maxTime - minTime).coerceAtLeast(1L)
+            diff.toFloat() / TimeUnit.DAYS.toMillis(7)
+        } else {
+            range.days / 7f
+        }
+
+        val avgWeekly = if (durationWeeks > 0) notes.size / durationWeeks else 0f
+
+        // 3. Category Counts & Durations
         val counts = notes.groupingBy { it.categoryName ?: "Other" }.eachCount()
-        val avgs = notes.groupBy { it.categoryName ?: "Other" }
+
+        val durationAvgs = notes.groupBy { it.categoryName ?: "Other" }
             .mapValues { entry ->
                 val durations = entry.value.mapNotNull { note ->
                     parseNoteText(note.text).second.mapNotNull {
@@ -64,16 +105,16 @@ class StatsViewModel(
                 if (durations.isEmpty()) 0f else durations.average().toFloat() / 60f
             }
 
-        // 3. Heatmap
+        // 4. Heatmap
         val heatmap = Array(7) { IntArray(24) }
         notes.forEach { n ->
             val c = Calendar.getInstance().apply { timeInMillis = n.timestamp }
-            val day = ((c.get(Calendar.DAY_OF_WEEK) + 5) % 7) // Mon=0
+            val day = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7
             val hour = c.get(Calendar.HOUR_OF_DAY)
             heatmap[day][hour]++
         }
 
-        // 4. Top Exercises
+        // 5. Top Exercises
         val exerciseCounts = notes.flatMap { note ->
             val sets = parser.parseWorkout(note.text)
             sets.map { it.exerciseName }
@@ -83,14 +124,17 @@ class StatsViewModel(
             .toList()
             .sortedByDescending { it.second }
             .take(5)
+
         StatsState(
             totalNotes = notes.size,
-            totalCategories = notes.mapNotNull { it.categoryName }.distinct().size,
+            avgWorkoutsPerWeek = avgWeekly,
             avgSets = avgSets,
             categoryCounts = counts,
-            averageDurations = avgs,
-            heatmapData = heatmap,       // Pass to state
-            topExercises = exerciseCounts, // Pass to state
+            averageDurations = durationAvgs,
+            heatmapData = heatmap,
+            topExercises = exerciseCounts,
+            currentRange = range,
+            filteredNotes = notes
         )
     }
 

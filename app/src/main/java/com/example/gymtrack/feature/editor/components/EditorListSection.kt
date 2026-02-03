@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -45,8 +47,10 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
 
     LazyColumn(
         state = state.listState,
-        modifier = modifier,
-        contentPadding = PaddingValues(bottom = 300.dp)
+        modifier = modifier
+            .fillMaxSize()
+            .imePadding(),
+        contentPadding = PaddingValues(bottom = 150.dp)
     ) {
         itemsIndexed(state.lines, key = { _, row -> row.id }) { index, row ->
             val fr = row.focusRequester
@@ -66,7 +70,8 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 0.dp),
+                    .padding(vertical = 0.dp)
+                    .bringIntoViewRequester(bringIntoViewRequester),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Flag / Tag Column
@@ -110,8 +115,13 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(fr)
-                            .bringIntoViewRequester(bringIntoViewRequester)
-                            .onFocusChanged { if (it.isFocused) coroutineScope.launch { bringIntoViewRequester.bringIntoView() } }
+                            .onFocusChanged {
+                                if (it.isFocused) {
+                                    coroutineScope.launch {
+                                        bringIntoViewRequester.bringIntoView()
+                                    }
+                                }
+                            }
                     )
                 }
 

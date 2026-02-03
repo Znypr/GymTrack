@@ -2,29 +2,12 @@ package com.example.gymtrack.feature.editor.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,12 +16,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.Settings
-import com.example.gymtrack.core.ui.theme.DefaultGradient
-import com.example.gymtrack.core.ui.theme.LegsGradient
-import com.example.gymtrack.core.ui.theme.PullGradient
-import com.example.gymtrack.core.ui.theme.PushGradient
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -51,83 +31,47 @@ fun EditorHeroHeader(
     onCategorySelect: (Category) -> Unit,
     topPadding: Dp
 ) {
-    val baseColor = when (selectedCategory?.name?.lowercase()) {
-        "push" -> PushGradient.first()
-        "pull" -> PullGradient.first()
-        "legs" -> LegsGradient.first()
-        else -> DefaultGradient.first()
-    }
+    // [FIX] Use the actual color from the selected category object
+    val baseColor = if (selectedCategory != null) Color(selectedCategory.color) else Color(0xFF666666)
 
     val backgroundColor = MaterialTheme.colorScheme.background
-    val startColor = baseColor.copy(alpha = 0.25f)
-
+    // Create gradient fading to background
     val blendGradient = remember(baseColor, backgroundColor) {
-        Brush.verticalGradient(
-            colors = listOf(startColor, backgroundColor)
-        )
+        Brush.verticalGradient(listOf(baseColor.copy(alpha = 0.25f), backgroundColor))
     }
 
     var menuExpanded by remember { mutableStateOf(false) }
-
-    // Date Formatters
-    val weekdayFormat = remember { SimpleDateFormat("EEEE", Locale.getDefault()) } // "Monday"
-    val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
-    val timeFormat = remember {
-        SimpleDateFormat(
-            if (settings.is24Hour) "HH:mm" else "hh:mm a",
-            Locale.getDefault()
-        )
-    }
-
-    val textColor = MaterialTheme.colorScheme.onSurface
-
     val date = Date(timestamp)
+    val weekdayFormat = remember { SimpleDateFormat("EEEE", Locale.getDefault()) }
+    val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
+    val timeFormat = remember { SimpleDateFormat(if (settings.is24Hour) "HH:mm" else "hh:mm a", Locale.getDefault()) }
+    val textColor = MaterialTheme.colorScheme.onSurface
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(backgroundColor) // Ensure solid base
-            .background(blendGradient)   // Apply the fading gradient
-            .padding(top = topPadding, start = 20.dp, end = 20.dp, bottom = 24.dp)
+            .background(backgroundColor)
+            .background(blendGradient)
+            .padding(top = topPadding, start = 16.dp, end = 16.dp, bottom = 16.dp)
     ) {
         Column {
-            // [CHANGE] New Layout: Weekday Big, Date & Time Small
-            Text(
-                text = weekdayFormat.format(date),
-                style = MaterialTheme.typography.displaySmall, // Much Bigger
-                fontWeight = FontWeight.ExtraBold,
-                color = textColor
-            )
-
-            Spacer(Modifier.height(4.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Time (Bold)
-                Text(
-                    text = timeFormat.format(date),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = textColor
-                )
-
-                Text(
-                    text = "  •  ",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = textColor.copy(alpha = 0.6f)
-                )
-
-                // Date
-                Text(
-                    text = dateFormat.format(date),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Normal,
-                    color = textColor.copy(alpha = 0.9f)
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Column {
+                    Text(weekdayFormat.format(date), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = textColor)
+                    Text(timeFormat.format(date), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = textColor)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(dateFormat.format(date), style = MaterialTheme.typography.titleMedium, color = textColor.copy(alpha = 0.8f))
+                    Spacer(Modifier.height(4.dp))
+                }
             }
+            Spacer(Modifier.height(12.dp))
 
-            Spacer(Modifier.height(20.dp))
-
-            // Category Pill (Unchanged)
+            // Category Selector
             Box {
                 Surface(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
@@ -136,22 +80,13 @@ fun EditorHeroHeader(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
-                        Box(
-                            Modifier
-                                .size(8.dp)
-                                .clip(RoundedCornerShape(50))
-                                .background(Color(selectedCategory?.color ?: 0xFFFFFFFF))
-                        )
+                        Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(baseColor))
                         Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = selectedCategory?.name ?: "Select Category",
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Text(selectedCategory?.name ?: "Select Category", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                         Spacer(Modifier.width(4.dp))
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color.White)
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
                     }
                 }
                 DropdownMenu(
@@ -171,4 +106,3 @@ fun EditorHeroHeader(
         }
     }
 }
-

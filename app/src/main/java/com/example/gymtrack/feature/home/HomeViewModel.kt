@@ -16,9 +16,12 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import com.example.gymtrack.core.data.WorkoutRepository
+import com.example.gymtrack.core.data.repository.toEntity
 
 class HomeViewModel(
-    private val repository: NoteRepository
+    private val repository: NoteRepository,
+    private val workoutRepository: WorkoutRepository
 ) : ViewModel() {
 
     val notes = repository.getAllNotes()
@@ -26,7 +29,13 @@ class HomeViewModel(
 
     fun deleteNotes(notes: Set<NoteLine>) {
         viewModelScope.launch {
+            // 1. Delete the Text Notes
             repository.deleteNotes(notes)
+
+            // 2. [FIX] Delete the associated Stats
+            notes.forEach { note ->
+                workoutRepository.deleteWorkout(note.timestamp)
+            }
         }
     }
 
@@ -52,9 +61,12 @@ class HomeViewModel(
                 // 2. Parse using your existing ImportUtils
                 val note = importNote(tempFile, settings)
 
-                // 3. Save to Database
                 if (note != null) {
+                    // 1. Save Text
                     repository.saveNote(note)
+                    // 2. [FIX] Generate Stats immediately
+                    // We map the parsed NoteEntity to sets so they show up in graphs
+                    workoutRepository.syncNoteToWorkout(note.toEntity())
                 }
 
                 // 4. Cleanup
@@ -65,10 +77,13 @@ class HomeViewModel(
         }
     }
 
-    class Factory(private val repository: NoteRepository) : ViewModelProvider.Factory {
+    class Factory(
+        private val repository: NoteRepository,
+        private val workoutRepository: WorkoutRepository
+    ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return HomeViewModel(repository) as T
+            return HomeViewModel(repository, workoutRepository) as T
         }
     }
 }

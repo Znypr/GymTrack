@@ -5,6 +5,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -13,38 +15,87 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
+import com.example.gymtrack.core.data.WorkoutRepository
+import com.example.gymtrack.feature.stats.components.charts.*
 
-// Reusing the styling logic
-private val CardDeepDark = Color(0xFF181818)
+private val CardDeepDark = Color(0xFF121212)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatsScreen(
-    notes: List<NoteLine>,
+    state: StatsState,
+    workoutRepository: WorkoutRepository,
     settings: Settings,
+    onTimeRangeSelected: (TimeRange) -> Unit,
     onBack: () -> Unit
 ) {
     val backgroundColor = MaterialTheme.colorScheme.background
     val textColor = MaterialTheme.colorScheme.onSurface
-
-    val totalWorkouts = notes.size
-    val totalSets = remember(notes) {
-        notes.sumOf { note -> note.text.lines().count { it.trim().matches(Regex("^\\d+x.*")) } }
-    }
-    val favCategory = remember(notes) {
-        notes.groupingBy { it.categoryName }.eachCount().maxByOrNull { it.value }?.key ?: "-"
-    }
+    var rangeMenuExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = backgroundColor,
         topBar = {
             TopAppBar(
-                title = { Text("Your Statistics", fontWeight = FontWeight.Bold, fontSize = 24.sp) },
+                title = { Text("Statistics", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = textColor)
+                    }
+                },
+                actions = {
+                    // [FIX] Wrap in Box to anchor the Dropdown correctly
+                    Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
+
+                        // [FIX] Use Surface(onClick = ...) instead of Row(Modifier.clickable)
+                        // This ensures the button captures clicks properly in the TopBar.
+                        Surface(
+                            onClick = { rangeMenuExpanded = true },
+                            shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.padding(end = 12.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarToday,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = textColor
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = state.currentRange.label,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = textColor
+                                )
+                                Spacer(Modifier.width(2.dp))
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    tint = textColor
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = rangeMenuExpanded,
+                            onDismissRequest = { rangeMenuExpanded = false }
+                        ) {
+                            TimeRange.values().forEach { range ->
+                                DropdownMenuItem(
+                                    text = { Text(range.label) },
+                                    onClick = {
+                                        onTimeRangeSelected(range)
+                                        rangeMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = backgroundColor, titleContentColor = textColor)
@@ -52,73 +103,76 @@ fun StatsScreen(
         }
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // Quick Stats
+            // 1. Quick Stats
             item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatBadge("Workouts", "$totalWorkouts", Modifier.weight(1f))
-                    StatBadge("Sets", "$totalSets", Modifier.weight(1f))
-                    StatBadge("Favorite", favCategory, Modifier.weight(1f))
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        StatBadge("Workouts", "${state.totalNotes}", Modifier.weight(1f))
+                        StatBadge("Weekly Avg", String.format("%.1f", state.avgWorkoutsPerWeek), Modifier.weight(1f))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        StatBadge("Avg Sets", String.format("%.1f", state.avgSets), Modifier.weight(1f))
+                        StatBadge("Favorite", state.categoryCounts.maxByOrNull { it.value }?.key ?: "-", Modifier.weight(1f))
+                    }
                 }
             }
 
-            // Exercise Progress
+            // 2. Exercise Progress
             item {
-                Text("Exercise Progression", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor)
-                Spacer(Modifier.height(12.dp))
+                ExerciseProgressCard(repository = workoutRepository,timeRange = state.currentRange)
+            }
+
+            // 3. Duration Trend
+            item {
+                AdaptiveCard(height = 280.dp) {
+                    Column(Modifier.padding(16.dp)) {
+                        WorkoutDurationTrendChart(notes = state.filteredNotes, showRollingAvg = true)
+                    }
+                }
+            }
+
+            // 7. Heatmap
+            item {
                 AdaptiveCard(height = 300.dp) {
-                    // TODO: Insert your ExerciseProgressChart(notes, settings) here
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Chart Placeholder", color = textColor.copy(alpha = 0.5f))
+                    Column(Modifier.padding(16.dp)) {
+                        TimeOfDayHeatmap(data = state.heatmapData)
                     }
                 }
             }
 
-            // Top Exercises
-            item {
-                Text("Top Exercises", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor)
-                Spacer(Modifier.height(12.dp))
-                AdaptiveCard(height = 250.dp) {
-                    // TODO: Insert your TopExercisesChart(notes) here
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Bar Chart Placeholder", color = textColor.copy(alpha = 0.5f))
-                    }
-                }
-            }
             item { Spacer(Modifier.height(32.dp)) }
         }
     }
+}
+
+// --- HELPERS ---
+
+@Composable
+fun AdaptiveCard(modifier: Modifier = Modifier, height: androidx.compose.ui.unit.Dp? = null, content: @Composable () -> Unit) {
+    var mod = modifier.fillMaxWidth()
+    if (height != null) mod = mod.height(height)
+    Card(
+        colors = CardDefaults.cardColors(containerColor = CardDeepDark),
+        shape = RoundedCornerShape(12.dp),
+        modifier = mod
+    ) { content() }
 }
 
 @Composable
 fun StatBadge(label: String, value: String, modifier: Modifier = Modifier) {
     AdaptiveCard(modifier = modifier) {
         Column(
-            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), maxLines = 1)
         }
-    }
-}
-
-@Composable
-fun AdaptiveCard(modifier: Modifier = Modifier, height: androidx.compose.ui.unit.Dp? = null, content: @Composable () -> Unit) {
-    val isDark = MaterialTheme.colorScheme.background.run { red < 0.5 && green < 0.5 && blue < 0.5 }
-    val cardColor = if (isDark) CardDeepDark else MaterialTheme.colorScheme.surface
-
-    var mod = modifier
-    if (height != null) mod = mod.height(height)
-
-    Card(
-        colors = CardDefaults.cardColors(containerColor = cardColor),
-        shape = RoundedCornerShape(12.dp),
-        modifier = mod,
-        elevation = CardDefaults.cardElevation(defaultElevation = if(isDark) 0.dp else 2.dp)
-    ) {
-        content()
     }
 }

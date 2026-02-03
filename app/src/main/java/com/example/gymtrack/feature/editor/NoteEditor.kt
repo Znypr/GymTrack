@@ -24,7 +24,6 @@ import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.feature.editor.components.EditorHeroHeader
 import com.example.gymtrack.feature.editor.components.EditorListSection
 import com.example.gymtrack.feature.editor.components.LearningsPopup
-import com.example.gymtrack.feature.editor.components.NoteTimer
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -40,6 +39,7 @@ fun NoteEditor(
     val note by viewModel.uiState.collectAsState()
     val isEditingExisting = viewModel.currentId != -1L
 
+    // Wait for data if editing an existing note
     if (isEditingExisting && note == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
@@ -47,8 +47,20 @@ fun NoteEditor(
         return
     }
 
-    val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
+    // [CRITICAL FIX]
+    // Key the state to 'viewModel' so it is created ONLY ONCE.
+    // Passing 'note' as a key caused the entire screen to reset on every Autosave.
     val state = rememberNoteEditorState(viewModel, settings, note, onSaveSuccess)
+
+    LaunchedEffect(Unit) {
+        if (state.lines.isNotEmpty()) {
+            val lastIdx = state.lines.lastIndex
+            state.listState.scrollToItem(lastIdx)
+            // Request focus so the keyboard opens and cursor is visible
+            state.lines[lastIdx].focusRequester.requestFocus()
+        }
+    }
+    val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
 
     // 2. Header State
     var selectedCategory by remember(note) {

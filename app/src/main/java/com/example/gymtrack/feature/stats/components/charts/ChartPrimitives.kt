@@ -1,148 +1,157 @@
 package com.example.gymtrack.feature.stats.components.charts
 
-import android.graphics.Canvas
 import android.graphics.Paint
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import kotlin.math.ceil
 
-/* ---- Layout + scaling ---- */
-data class ChartLayout(
-    val leftPad: Float = 56f,
-    val rightPad: Float = 12f,
-    val topPad: Float = 8f,
-    val bottomPad: Float = 34f,
-) {
-    fun width(totalW: Float) = totalW - leftPad - rightPad
-    fun height(totalH: Float) = totalH - topPad - bottomPad
-    fun originX() = leftPad
-    fun originY(totalH: Float) = topPad + height(totalH) // bottom-left of plot area
-}
+// --- THEME ---
+val SpotifyGreen = Color(0xFF1DB954)
 
-data class ScaleY(val top: Float, val step: Int) {
-    fun yToPx(v: Float, chartH: Float, topPad: Float): Float {
-        if (top <= 0f) return topPad + chartH
-        val t = (v / top).coerceIn(0f, 1f)
-        return topPad + chartH * (1f - t)
-    }
-}
-
-/* “Nice” steps for minutes and counts */
-fun niceStepMinutes(maxVal: Float): Int = when {
-    maxVal <= 20f  -> 5
-    maxVal <= 60f  -> 10
-    maxVal <= 120f -> 15
-    maxVal <= 240f -> 30
-    else           -> 60
-}
-fun niceStepCount(maxVal: Float): Int = when {
-    maxVal <= 5f   -> 1
-    maxVal <= 20f  -> 2
-    maxVal <= 50f  -> 5
-    else           -> 10
-}
-
-fun buildScaleY(values: List<Float>, minTop: Float = 1f, stepPicker: (Float)->Int = ::niceStepMinutes): ScaleY {
-    val yMax = (values.maxOrNull() ?: 0f).coerceAtLeast(minTop)
-    val step = stepPicker(yMax.toFloat())
-    val top = (ceil(yMax / step).toInt().coerceAtLeast(1)) * step.toFloat()
-    return ScaleY(top = top, step = step)
-}
-
-/* ---- Theme + drawing helpers ---- */
 data class ChartTheme(
     val label: Color,
     val grid: Color,
     val axis: Color,
     val primary: Color,
-    val secondary: Color,
+    val background: Color
 )
 
 @Composable
 fun rememberChartTheme(): ChartTheme {
-    val label = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
-    return ChartTheme(
-        label = label,
-        grid = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-        axis = label,
-        primary = MaterialTheme.colorScheme.primary,
-        secondary = MaterialTheme.colorScheme.secondary,
-    )
-}
+    val isDark = isSystemInDarkTheme()
+    val colorScheme = MaterialTheme.colorScheme
 
-fun makeTextPaint(color: Color, sizePx: Float) = Paint().apply {
-    this.color = android.graphics.Color.argb(
-        (color.alpha * 255).toInt(),
-        (color.red * 255).toInt(),
-        (color.green * 255).toInt(),
-        (color.blue * 255).toInt()
-    )
-    textSize = sizePx
-    isAntiAlias = true
-}
+    // Use deep dark background in dark mode, surface in light mode
+    val bg = if (isDark) Color(0xFF181818) else colorScheme.surface
 
-fun drawAxes(
-    drawLine: (Color, Offset, Offset, Float) -> Unit,
-    theme: ChartTheme,
-    layout: ChartLayout,
-    totalW: Float,
-    totalH: Float,
-) {
-    val x0 = layout.originX()
-    val yTop = totalH - layout.height(totalH) - layout.topPad
-    val y0 = layout.originY(totalH)
-    drawLine(theme.axis, Offset(x0, yTop), Offset(x0, y0), 2f)
-    drawLine(theme.axis, Offset(x0, y0), Offset(x0 + layout.width(totalW), y0), 2f)
-}
-
-fun drawYGridAndLabels(
-    native: Canvas,
-    drawLine: (Color, Offset, Offset, Float) -> Unit,
-    scaleY: ScaleY,
-    theme: ChartTheme,
-    layout: ChartLayout,
-    totalW: Float,
-    totalH: Float,
-    yPaint: Paint,
-    yAxisTitle: String = "Minutes",
-) {
-    val chartW = layout.width(totalW)
-    val chartH = layout.height(totalH)
-    val topPad = layout.topPad
-    val x0 = layout.originX()
-
-    for (v in 0..scaleY.top.toInt() step scaleY.step) {
-        val y = scaleY.yToPx(v.toFloat(), chartH, topPad)
-        drawLine(theme.grid, Offset(x0, y), Offset(x0 + chartW, y), 1f)
-        val txt = v.toString()
-        native.drawText(
-            txt,
-            x0 - 8f - yPaint.measureText(txt),
-            y + (yPaint.textSize / 2.8f),
-            yPaint
+    return remember(isDark, colorScheme) {
+        ChartTheme(
+            label = if (isDark) Color.White.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.6f),
+            grid = if (isDark) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.05f),
+            axis = Color.Transparent,
+            primary = SpotifyGreen,
+            background = bg
         )
     }
-    // Y-axis title
-    native.save()
-    native.rotate(-90f, 0f, 0f)
-    native.drawText(
-        yAxisTitle,
-        -(layout.topPad + chartH / 2f + yPaint.measureText(yAxisTitle) / 2f),
-        16f,
-        yPaint
-    )
-    native.restore()
 }
 
-fun drawXTickLabel(
-    native: Canvas,
-    label: String,
-    xCenter: Float,
-    yBase: Float,
-    paint: Paint
+// --- LAYOUT & SCALING ---
+
+data class ChartLayout(
+    val leftPad: Float = 60f,
+    val rightPad: Float = 16f,
+    val topPad: Float = 16f,
+    val bottomPad: Float = 32f
 ) {
-    val w = paint.measureText(label)
-    native.drawText(label, xCenter - w / 2f, yBase + paint.textSize + 6f, paint)
+    fun width(totalW: Float) = totalW - leftPad - rightPad
+    fun height(totalH: Float) = totalH
+    fun originX() = leftPad
+    fun originY(totalH: Float) = totalH - bottomPad
+}
+
+data class ScaleY(val min: Float, val max: Float, val range: Float, val top: Float) {
+    fun yToPx(value: Float, height: Float, topPad: Float): Float {
+        if (top == 0f) return height
+        val fraction = value / top
+        return height - (fraction * (height - topPad))
+    }
+}
+
+fun buildScaleY(values: List<Float>): ScaleY {
+    if (values.isEmpty()) return ScaleY(0f, 10f, 10f, 10f)
+    val maxVal = values.maxOrNull() ?: 0f
+    val top = if (maxVal == 0f) 10f else ceil(maxVal * 1.2f / 5f) * 5f
+    return ScaleY(0f, top, top, top)
+}
+
+fun makeTextPaint(color: Color, textSizePx: Float): Paint {
+    return Paint().apply {
+        this.color = color.toArgb()
+        this.textSize = textSizePx
+        this.isAntiAlias = true
+    }
+}
+
+// --- DRAWING PRIMITIVES (Fixed as DrawScope Extensions) ---
+
+// Fixes "drawAxes" or "drawYGridAndLabels" unresolved errors
+fun DrawScope.drawYGridAndLabels(
+    scale: ScaleY,
+    theme: ChartTheme,
+    layout: ChartLayout,
+    textPaint: Paint
+) {
+    val steps = 5
+    val stepVal = scale.top / steps
+    val xStart = layout.originX()
+    val xEnd = size.width - layout.rightPad
+    val yOrigin = layout.originY(size.height)
+
+    for (i in 0..steps) {
+        val value = stepVal * i
+        val y = scale.yToPx(value, yOrigin, layout.topPad)
+
+        // Draw Grid Line (Compose)
+        drawLine(
+            color = theme.grid,
+            start = Offset(xStart, y),
+            end = Offset(xEnd, y),
+            strokeWidth = 1f
+        )
+
+        // Draw Label (Native)
+        val label = if (value % 1.0f == 0f) value.toInt().toString() else String.format("%.1f", value)
+        val p = textPaint
+        val w = p.measureText(label)
+        // Draw text slightly to the left of the Y-axis
+        drawContext.canvas.nativeCanvas.drawText(label, xStart - w - 12f, y + (p.textSize / 3), p)
+    }
+}
+
+// Fixes "drawXTickLabel" unresolved error
+fun DrawScope.drawXTickLabel(
+    label: String,
+    x: Float,
+    yOrigin: Float,
+    textPaint: Paint
+) {
+    val p = textPaint
+    val w = p.measureText(label)
+    // Draw text centered at X, below Y-axis
+    drawContext.canvas.nativeCanvas.drawText(label, x - (w / 2), yOrigin + p.textSize + 12f, p)
+}
+
+// --- PATH HELPERS ---
+
+fun createSmoothPath(points: List<Pair<Float, Float>>): Path {
+    val path = Path()
+    if (points.isEmpty()) return path
+    path.moveTo(points.first().first, points.first().second)
+    for (i in 0 until points.size - 1) {
+        val p0 = points[i]
+        val p1 = points[i + 1]
+        val controlX1 = (p0.first + p1.first) / 2f
+        val controlY1 = p0.second
+        val controlX2 = (p0.first + p1.first) / 2f
+        val controlY2 = p1.second
+        path.cubicTo(controlX1, controlY1, controlX2, controlY2, p1.first, p1.second)
+    }
+    return path
+}
+
+fun createFillPath(linePath: Path, width: Float, height: Float): Path {
+    val fillPath = Path()
+    fillPath.addPath(linePath)
+    fillPath.lineTo(width, height)
+    fillPath.lineTo(0f, height)
+    fillPath.close()
+    return fillPath
 }

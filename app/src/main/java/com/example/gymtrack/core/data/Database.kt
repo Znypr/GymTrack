@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
-// --- ENTITIES ---
 @Entity(tableName = "notes")
 data class NoteEntity(
     @PrimaryKey val timestamp: Long,
@@ -44,21 +43,17 @@ data class ExerciseEntity(
 )
 data class SetEntity(
     @PrimaryKey(autoGenerate = true) val setId: Long = 0,
-    val workoutId: Long,
+    val workoutId: Long, // This acts as the timestamp
     val exerciseId: Long,
     val weight: Float,
     val reps: Int,
     val isUnilateral: Boolean,
     val modifier: String? = null,
     val brand: String? = null,
-
-    // NEW COLUMNS
-    val relativeTime: String? = null, // e.g. "0'05" (Time since last set)
-    val absoluteTime: String? = null  // e.g. "77'45" (Time since workout start)
+    val relativeTime: String? = null,
+    val absoluteTime: String? = null
 )
 
-
-// DTO for Graphing
 data class GraphPoint(val originTimestamp: Long, val avgVal: Float)
 
 // --- DAOS ---
@@ -77,7 +72,8 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE timestamp = :id LIMIT 1")
     suspend fun getById(id: Long): NoteEntity?
 
-    @Query("SELECT COUNT(*) FROM notes") suspend fun getCount(): Int
+    @Query("SELECT COUNT(*) FROM notes")
+    suspend fun getCount(): Int
 }
 
 @Dao
@@ -94,6 +90,7 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercises WHERE aliases LIKE '%' || :query || '%'")
     suspend fun findByAlias(query: String): List<ExerciseEntity>
 
+    // [OLD - Keeps ALL time count]
     @Query("""
         SELECT 
             T1.exerciseId, 
@@ -105,6 +102,20 @@ interface ExerciseDao {
         ORDER BY setTotalCount DESC, T1.name ASC
     """)
     fun getExercisesSortedByCount(): Flow<List<ExerciseWithCount>>
+
+    // [FIX - NEW QUERY] Filters by time range
+    @Query("""
+        SELECT 
+            T1.exerciseId, 
+            T1.name, 
+            COUNT(T2.exerciseId) AS setTotalCount
+        FROM exercises AS T1
+        JOIN sets AS T2 ON T1.exerciseId = T2.exerciseId
+        WHERE T2.workoutId >= :minTimestamp
+        GROUP BY T1.exerciseId, T1.name
+        ORDER BY setTotalCount DESC, T1.name ASC
+    """)
+    fun getExercisesWithCountAfter(minTimestamp: Long): Flow<List<ExerciseWithCount>>
 }
 
 @Dao
@@ -114,6 +125,9 @@ interface SetDao {
 
     @Query("DELETE FROM sets WHERE workoutId = :workoutId")
     suspend fun deleteSetsForWorkout(workoutId: Long)
+
+    @Query("DELETE FROM sets WHERE workoutId NOT IN (SELECT timestamp FROM notes)")
+    suspend fun deleteOrphanedSets()
 
     @Query("SELECT COUNT(*) FROM sets")
     suspend fun getCount(): Int
@@ -137,7 +151,6 @@ interface SetDao {
         }
     }
 }
-// --- DATABASE ---
 
 @Database(entities = [NoteEntity::class, ExerciseEntity::class, SetEntity::class], version = 8)
 abstract class NoteDatabase : RoomDatabase() {

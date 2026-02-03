@@ -37,8 +37,7 @@ fun NavigationHost(
         composable("notes") {
             val context = LocalContext.current // [FIX] Get context for import
             val homeViewModel: HomeViewModel = viewModel(
-                factory = HomeViewModel.Factory(noteRepository)
-            )
+                factory = HomeViewModel.Factory(noteRepository, workoutRepository)            )
             val notes by homeViewModel.notes.collectAsState()
 
             var selectedNotes by remember { mutableStateOf<Set<NoteLine>>(emptySet()) }
@@ -93,11 +92,13 @@ fun NavigationHost(
             val statsViewModel: StatsViewModel = viewModel(
                 factory = StatsViewModel.Factory(noteRepository)
             )
-            val notes by noteRepository.getAllNotes().collectAsState(initial = emptyList())
+            val state by statsViewModel.uiState.collectAsState()
 
             StatsScreen(
-                notes = notes,
+                state = state,
+                workoutRepository = workoutRepository,
                 settings = settings,
+                onTimeRangeSelected = { statsViewModel.setTimeRange(it) }, // [FIX]
                 onBack = { navController.popBackStack() }
             )
         }

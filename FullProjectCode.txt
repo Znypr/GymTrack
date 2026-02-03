@@ -77,7 +77,6 @@ import android.content.Context
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
-// --- ENTITIES ---
 @Entity(tableName = "notes")
 data class NoteEntity(
     @PrimaryKey val timestamp: Long,
@@ -117,21 +116,17 @@ data class ExerciseEntity(
 )
 data class SetEntity(
     @PrimaryKey(autoGenerate = true) val setId: Long = 0,
-    val workoutId: Long,
+    val workoutId: Long, // This acts as the timestamp
     val exerciseId: Long,
     val weight: Float,
     val reps: Int,
     val isUnilateral: Boolean,
     val modifier: String? = null,
     val brand: String? = null,
-
-    // NEW COLUMNS
-    val relativeTime: String? = null, // e.g. "0'05" (Time since last set)
-    val absoluteTime: String? = null  // e.g. "77'45" (Time since workout start)
+    val relativeTime: String? = null,
+    val absoluteTime: String? = null
 )
 
-
-// DTO for Graphing
 data class GraphPoint(val originTimestamp: Long, val avgVal: Float)
 
 // --- DAOS ---
@@ -150,7 +145,8 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE timestamp = :id LIMIT 1")
     suspend fun getById(id: Long): NoteEntity?
 
-    @Query("SELECT COUNT(*) FROM notes") suspend fun getCount(): Int
+    @Query("SELECT COUNT(*) FROM notes")
+    suspend fun getCount(): Int
 }
 
 @Dao
@@ -167,6 +163,7 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercises WHERE aliases LIKE '%' || :query || '%'")
     suspend fun findByAlias(query: String): List<ExerciseEntity>
 
+    // [OLD - Keeps ALL time count]
     @Query("""
         SELECT 
             T1.exerciseId, 
@@ -178,6 +175,20 @@ interface ExerciseDao {
         ORDER BY setTotalCount DESC, T1.name ASC
     """)
     fun getExercisesSortedByCount(): Flow<List<ExerciseWithCount>>
+
+    // [FIX - NEW QUERY] Filters by time range
+    @Query("""
+        SELECT 
+            T1.exerciseId, 
+            T1.name, 
+            COUNT(T2.exerciseId) AS setTotalCount
+        FROM exercises AS T1
+        JOIN sets AS T2 ON T1.exerciseId = T2.exerciseId
+        WHERE T2.workoutId >= :minTimestamp
+        GROUP BY T1.exerciseId, T1.name
+        ORDER BY setTotalCount DESC, T1.name ASC
+    """)
+    fun getExercisesWithCountAfter(minTimestamp: Long): Flow<List<ExerciseWithCount>>
 }
 
 @Dao
@@ -187,6 +198,9 @@ interface SetDao {
 
     @Query("DELETE FROM sets WHERE workoutId = :workoutId")
     suspend fun deleteSetsForWorkout(workoutId: Long)
+
+    @Query("DELETE FROM sets WHERE workoutId NOT IN (SELECT timestamp FROM notes)")
+    suspend fun deleteOrphanedSets()
 
     @Query("SELECT COUNT(*) FROM sets")
     suspend fun getCount(): Int
@@ -210,7 +224,6 @@ interface SetDao {
         }
     }
 }
-// --- DATABASE ---
 
 @Database(entities = [NoteEntity::class, ExerciseEntity::class, SetEntity::class], version = 8)
 abstract class NoteDatabase : RoomDatabase() {
@@ -400,7 +413,6 @@ FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\e
 
 package com.example.gymtrack.core.data
 
-import android.util.Log
 import com.example.gymtrack.core.util.ParsedSetDTO
 import com.example.gymtrack.core.util.WorkoutParser
 import kotlinx.coroutines.flow.Flow
@@ -413,33 +425,35 @@ class WorkoutRepository(
 ) {
     private val parser = WorkoutParser()
 
-    // --- READ FUNCTIONS FOR UI ---
     fun getAllExercises(): Flow<List<ExerciseEntity>> {
         return exerciseDao.getAllExercises()
     }
 
-    fun getExercisesSortedByCount(): Flow<List<ExerciseWithCount>> {
-        // You will need to inject/access the ExerciseDao here.
-        // Assuming your repository constructor provides access to exerciseDao:
-        return exerciseDao.getExercisesSortedByCount()
+    // Support both All-Time (0) and Time-Range filtering
+    fun getExercisesSortedByCount(minTimestamp: Long = 0): Flow<List<ExerciseWithCount>> {
+        return if (minTimestamp == 0L) {
+            exerciseDao.getExercisesSortedByCount()
+        } else {
+            exerciseDao.getExercisesWithCountAfter(minTimestamp)
+        }
     }
 
     fun getWeightHistory(exerciseId: Long): Flow<List<GraphPoint>> {
         return setDao.getAverageWeightHistory(exerciseId)
     }
 
-    // --- NEW WRITE FUNCTION FOR CSV/STATEFUL IMPORTS ---
+    suspend fun cleanUpOrphans() {
+        setDao.deleteOrphanedSets()
+    }
 
-    /**
-     * Converts a list of DTOs (from a CSV or other structured source) into
-     * SetEntities and resolves exercise IDs before inserting into the database.
-     */
+    suspend fun deleteWorkout(timestamp: Long) {
+        setDao.deleteSetsForWorkout(timestamp)
+    }
+
     suspend fun saveParsedSets(sets: List<ParsedSetDTO>, workoutId: Long) {
-
         val setEntities = sets.map { set ->
             val exerciseId = resolveExerciseId(set.exerciseName)
             SetEntity(
-                // setId must remain auto-generated (0L) for new inserts
                 workoutId = workoutId,
                 exerciseId = exerciseId,
                 weight = set.weight,
@@ -454,32 +468,26 @@ class WorkoutRepository(
         setDao.replaceSetsForWorkout(workoutId, setEntities)
     }
 
-    // --- WRITE / MIGRATION LOGIC (Main UI Entry Point) ---
-
-    // This function is fine for UI text input, as the parser handles the carry-over internally.
     suspend fun syncNoteToWorkout(note: NoteEntity) {
         val parsedSets = parser.parseWorkout(note.text)
-        saveParsedSets(parsedSets, note.timestamp) // Use the new helper
+        saveParsedSets(parsedSets, note.timestamp)
     }
 
+    // [FIX] New function to forcefully rebuild stats from Notes
+    suspend fun forceUpdateStats() {
+        val allNotes = noteDao.getAll().first()
+        allNotes.forEach { note ->
+            syncNoteToWorkout(note)
+        }
+    }
+
+    // Keeps old check for first-run migration
     suspend fun checkAndMigrate() {
         val noteCount = noteDao.getCount()
         val setCount = setDao.getCount()
-
         if (noteCount > 0 && setCount == 0) {
-            Log.d("GymTrack", "Migrating legacy notes...")
-            migrateAllLegacyNotes()
+            forceUpdateStats()
         }
-    }
-
-    suspend fun migrateAllLegacyNotes() {
-        val allNotes = noteDao.getAll().first()
-        var count = 0
-        allNotes.forEach { note ->
-            syncNoteToWorkout(note)
-            count++
-        }
-        Log.d("GymTrack", "Migration Complete. Processed $count notes.")
     }
 
     private suspend fun resolveExerciseId(rawName: String): Long {
@@ -2106,29 +2114,12 @@ package com.example.gymtrack.feature.editor.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -2137,12 +2128,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.Settings
-import com.example.gymtrack.core.ui.theme.DefaultGradient
-import com.example.gymtrack.core.ui.theme.LegsGradient
-import com.example.gymtrack.core.ui.theme.PullGradient
-import com.example.gymtrack.core.ui.theme.PushGradient
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -2155,83 +2143,47 @@ fun EditorHeroHeader(
     onCategorySelect: (Category) -> Unit,
     topPadding: Dp
 ) {
-    val baseColor = when (selectedCategory?.name?.lowercase()) {
-        "push" -> PushGradient.first()
-        "pull" -> PullGradient.first()
-        "legs" -> LegsGradient.first()
-        else -> DefaultGradient.first()
-    }
+    // [FIX] Use the actual color from the selected category object
+    val baseColor = if (selectedCategory != null) Color(selectedCategory.color) else Color(0xFF666666)
 
     val backgroundColor = MaterialTheme.colorScheme.background
-    val startColor = baseColor.copy(alpha = 0.25f)
-
+    // Create gradient fading to background
     val blendGradient = remember(baseColor, backgroundColor) {
-        Brush.verticalGradient(
-            colors = listOf(startColor, backgroundColor)
-        )
+        Brush.verticalGradient(listOf(baseColor.copy(alpha = 0.25f), backgroundColor))
     }
 
     var menuExpanded by remember { mutableStateOf(false) }
-
-    // Date Formatters
-    val weekdayFormat = remember { SimpleDateFormat("EEEE", Locale.getDefault()) } // "Monday"
-    val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
-    val timeFormat = remember {
-        SimpleDateFormat(
-            if (settings.is24Hour) "HH:mm" else "hh:mm a",
-            Locale.getDefault()
-        )
-    }
-
-    val textColor = MaterialTheme.colorScheme.onSurface
-
     val date = Date(timestamp)
+    val weekdayFormat = remember { SimpleDateFormat("EEEE", Locale.getDefault()) }
+    val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
+    val timeFormat = remember { SimpleDateFormat(if (settings.is24Hour) "HH:mm" else "hh:mm a", Locale.getDefault()) }
+    val textColor = MaterialTheme.colorScheme.onSurface
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(backgroundColor) // Ensure solid base
-            .background(blendGradient)   // Apply the fading gradient
-            .padding(top = topPadding, start = 20.dp, end = 20.dp, bottom = 24.dp)
+            .background(backgroundColor)
+            .background(blendGradient)
+            .padding(top = topPadding, start = 16.dp, end = 16.dp, bottom = 16.dp)
     ) {
         Column {
-            // [CHANGE] New Layout: Weekday Big, Date & Time Small
-            Text(
-                text = weekdayFormat.format(date),
-                style = MaterialTheme.typography.displaySmall, // Much Bigger
-                fontWeight = FontWeight.ExtraBold,
-                color = textColor
-            )
-
-            Spacer(Modifier.height(4.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Time (Bold)
-                Text(
-                    text = timeFormat.format(date),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = textColor
-                )
-
-                Text(
-                    text = "  â€¢  ",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = textColor.copy(alpha = 0.6f)
-                )
-
-                // Date
-                Text(
-                    text = dateFormat.format(date),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Normal,
-                    color = textColor.copy(alpha = 0.9f)
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Column {
+                    Text(weekdayFormat.format(date), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = textColor)
+                    Text(timeFormat.format(date), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = textColor)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(dateFormat.format(date), style = MaterialTheme.typography.titleMedium, color = textColor.copy(alpha = 0.8f))
+                    Spacer(Modifier.height(4.dp))
+                }
             }
+            Spacer(Modifier.height(12.dp))
 
-            Spacer(Modifier.height(20.dp))
-
-            // Category Pill (Unchanged)
+            // Category Selector
             Box {
                 Surface(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
@@ -2240,22 +2192,13 @@ fun EditorHeroHeader(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
-                        Box(
-                            Modifier
-                                .size(8.dp)
-                                .clip(RoundedCornerShape(50))
-                                .background(Color(selectedCategory?.color ?: 0xFFFFFFFF))
-                        )
+                        Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(baseColor))
                         Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = selectedCategory?.name ?: "Select Category",
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Text(selectedCategory?.name ?: "Select Category", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                         Spacer(Modifier.width(4.dp))
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color.White)
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
                     }
                 }
                 DropdownMenu(
@@ -2277,7 +2220,6 @@ fun EditorHeroHeader(
 }
 
 
-
 =========================================
 FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\example\gymtrack\feature\editor\components\EditorListSection.kt
 =========================================
@@ -2289,7 +2231,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -2329,8 +2273,10 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
 
     LazyColumn(
         state = state.listState,
-        modifier = modifier,
-        contentPadding = PaddingValues(bottom = 300.dp)
+        modifier = modifier
+            .fillMaxSize()
+            .imePadding(),
+        contentPadding = PaddingValues(bottom = 150.dp)
     ) {
         itemsIndexed(state.lines, key = { _, row -> row.id }) { index, row ->
             val fr = row.focusRequester
@@ -2350,7 +2296,8 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 0.dp),
+                    .padding(vertical = 0.dp)
+                    .bringIntoViewRequester(bringIntoViewRequester),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Flag / Tag Column
@@ -2394,8 +2341,13 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(fr)
-                            .bringIntoViewRequester(bringIntoViewRequester)
-                            .onFocusChanged { if (it.isFocused) coroutineScope.launch { bringIntoViewRequester.bringIntoView() } }
+                            .onFocusChanged {
+                                if (it.isFocused) {
+                                    coroutineScope.launch {
+                                        bringIntoViewRequester.bringIntoView()
+                                    }
+                                }
+                            }
                     )
                 }
 
@@ -3210,7 +3162,6 @@ import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.feature.editor.components.EditorHeroHeader
 import com.example.gymtrack.feature.editor.components.EditorListSection
 import com.example.gymtrack.feature.editor.components.LearningsPopup
-import com.example.gymtrack.feature.editor.components.NoteTimer
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -3235,6 +3186,12 @@ fun NoteEditor(
 
     val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
     val state = rememberNoteEditorState(viewModel, settings, note, onSaveSuccess)
+
+    LaunchedEffect(state.lines.size) {
+        if (state.lines.isNotEmpty()) {
+            state.listState.scrollToItem(state.lines.lastIndex)
+        }
+    }
 
     // 2. Header State
     var selectedCategory by remember(note) {
@@ -3367,13 +3324,14 @@ data class NoteRow(
     val flag: MutableState<ExerciseFlag> = mutableStateOf(ExerciseFlag.BILATERAL),
     val focusRequester: FocusRequester = FocusRequester()
 )
+
 class NoteEditorState(
     private val viewModel: EditorViewModel,
     private val settings: Settings,
     private val context: Context,
     private val scope: CoroutineScope,
     val listState: LazyListState,
-    note: NoteLine?,
+    initialNote: NoteLine?, // Renamed to initialNote to avoid confusion
     private val onSaveSuccess: () -> Unit
 ) {
     var nextId by mutableStateOf(0L)
@@ -3381,13 +3339,16 @@ class NoteEditorState(
     val timestamps = mutableStateListOf<String>()
     val flags = mutableStateListOf<ExerciseFlag>()
 
-    private var startTime: Long? = note?.timestamp
+    // Keep track of the latest saved version to prevent overwriting with old data
+    private var currentNoteVersion: NoteLine? = initialNote
+
+    private var startTime: Long? = initialNote?.timestamp
     private var lastEnter: Long = System.currentTimeMillis()
-    private val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
+    private val noteTimestamp = initialNote?.timestamp ?: System.currentTimeMillis()
     var saved by mutableStateOf(false)
 
     init {
-        val parsed = parseNoteText(note?.text ?: "")
+        val parsed = parseNoteText(initialNote?.text ?: "")
 
         if (parsed.first.isEmpty()) {
             addLine(NoteRow(nextId++, mutableStateOf(TextFieldValue(""))))
@@ -3395,7 +3356,7 @@ class NoteEditorState(
             flags.add(ExerciseFlag.BILATERAL)
         } else {
             parsed.first.forEachIndexed { idx, txt ->
-                // [FIX] If it's a main line (no indentation), remove the old relative time suffix
+                // [FIX] Clean regex to remove existing relative times to prevent duplication
                 val cleanTxt = if (txt.isNotBlank() && !txt.startsWith(" ")) {
                     txt.replace(Regex("""\s*\(\d+'\d{2}''\)$"""), "")
                 } else txt
@@ -3403,7 +3364,7 @@ class NoteEditorState(
                 addLine(
                     NoteRow(
                         nextId++,
-                        mutableStateOf(TextFieldValue(cleanTxt)), // Use cleanTxt here
+                        mutableStateOf(TextFieldValue(cleanTxt)),
                         mutableStateOf(parsed.third.getOrNull(idx) ?: ExerciseFlag.BILATERAL)
                     )
                 )
@@ -3412,16 +3373,14 @@ class NoteEditorState(
             flags.addAll(parsed.third)
         }
 
-
-
         cleanLists()
 
-        if (note != null) {
+        if (initialNote != null) {
             val list = parsed.second
             val lastIdx = list.indexOfLast { it.isNotBlank() }
             val lastSec = if (lastIdx >= 0) parseDurationSeconds(list[lastIdx]).toLong() else 0L
-            startTime = note.timestamp
-            lastEnter = note.timestamp + lastSec * 1000
+            startTime = initialNote.timestamp
+            lastEnter = initialNote.timestamp + lastSec * 1000
         } else {
             lastEnter = System.currentTimeMillis()
         }
@@ -3435,23 +3394,31 @@ class NoteEditorState(
         saved = false
         val row = lines[index]
 
+        // [FIX] Logic to handle "Enter" press
         if (newValue.text.endsWith("\n")) {
             val content = newValue.text.dropLast(1)
-            val now = System.currentTimeMillis()
 
+            // [FIX] Prevent double timestamps: Check if line already ends with (...)
+            // matches (m'ss'') pattern
+            val hasTimestamp = content.trim().matches(Regex(".*\\(\\d+'\\d{2}''\\)$"))
+
+            val now = System.currentTimeMillis()
             val diffSec = (now - lastEnter) / 1000
 
             if (content.isNotBlank()) lastEnter = now
 
             val rel = formatSecondsToMinutesSeconds(diffSec)
             val isMain = index == 0 || lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
-            if (startTime == null && content.isNotBlank() && isMain) startTime = now
 
+            if (startTime == null && content.isNotBlank() && isMain) startTime = now
             val effectiveStart = startTime ?: now
             val abs = formatElapsedMinutesSeconds(effectiveStart, now, settings)
 
+            // Only append relative time if it doesn't already have one and is a sub-entry
             val formatted = if (content.isNotBlank()) {
-                if (isMain) content else "     $content ($rel)"
+                if (isMain) content
+                else if (hasTimestamp) content // Keep existing
+                else "      $content ($rel)" // Append new
             } else ""
 
             row.text.value = TextFieldValue(formatted, TextRange(formatted.length))
@@ -3459,11 +3426,11 @@ class NoteEditorState(
             ensureListSize(index)
             if (content.isNotBlank()) timestamps[index] = abs
 
+            // Create new line
             val nextIdx = index + 1
             val newRow = NoteRow(nextId++, mutableStateOf(TextFieldValue("")), mutableStateOf(row.flag.value))
 
             lines.add(nextIdx, newRow)
-
             if (flags.size <= nextIdx) flags.add(row.flag.value) else flags.add(nextIdx, row.flag.value)
             if (timestamps.size <= nextIdx) timestamps.add("") else timestamps.add(nextIdx, "")
 
@@ -3471,6 +3438,10 @@ class NoteEditorState(
                 listState.animateScrollToItem(nextIdx)
                 newRow.focusRequester.requestFocus()
             }
+
+            // [CRITICAL FIX] AUTOSAVE on new line to prevent data loss if app dies
+            saveNote(isLastNote = false, exit = false)
+
         } else {
             row.text.value = newValue
         }
@@ -3483,26 +3454,23 @@ class NoteEditorState(
         ensureListSize(index)
         flags[index] = newFlag
         saved = false
+        // [Optional] Autosave on flag toggle too
+        saveNote(isLastNote = false, exit = false)
     }
 
     fun saveNote(isLastNote: Boolean, exit: Boolean) {
+        // [FIX] If we just saved and aren't exiting, skip to save resources
+        // BUT if it's an autosave (exit=false), we proceed.
         if (saved && !exit) return
 
         val lastContentIndex = lines.indexOfLast { it.text.value.text.isNotBlank() }
-
         val range = if (lastContentIndex >= 0) 0..lastContentIndex else IntRange.EMPTY
-
         val finalStartTime = startTime ?: noteTimestamp
 
         range.forEach { i ->
             val row = lines[i]
-
             if (row.text.value.text.isNotBlank() && timestamps.getOrElse(i) { "" }.isBlank()) {
-                val nowAbs = formatElapsedMinutesSeconds(
-                    finalStartTime,
-                    System.currentTimeMillis(),
-                    settings
-                )
+                val nowAbs = formatElapsedMinutesSeconds(finalStartTime, System.currentTimeMillis(), settings)
                 ensureListSize(i)
                 timestamps[i] = nowAbs
             }
@@ -3513,18 +3481,26 @@ class NoteEditorState(
         val plainContent = range.joinToString("\n") { lines[it].text.value.text }
         val validTimestamps = range.map { timestamps.getOrElse(it) { "" } }
         val validFlags = range.map { flags.getOrElse(it) { ExerciseFlag.BILATERAL } }
-
         val combined = combineTextAndTimes(plainContent, validTimestamps, validFlags)
 
+        val isNew = currentNoteVersion == null
+        val isEmpty = combined.isBlank() && viewModel.currentTitle.isBlank() && viewModel.currentLearnings.isBlank()
+
+        if (isNew && isEmpty) {
+            if (exit) onSaveSuccess()
+            return
+        }
+
+        // [FIX] Update ViewModel immediately so UI is robust
         viewModel.saveNote(combined, settings) {
             if (exit) {
                 onSaveSuccess()
             }
+            // Update internal version to match saved state
+            saved = true
         }
 
-        saved = true
-
-        if (isLastNote) {
+        if (isLastNote && exit) {
             context.stopService(Intent(context, NoteTimerService::class.java))
         }
     }
@@ -3537,12 +3513,10 @@ class NoteEditorState(
     private fun cleanLists() {
         while (timestamps.size < lines.size) timestamps.add("")
         while (timestamps.size > lines.size) timestamps.removeAt(timestamps.lastIndex)
-
         while (flags.size < lines.size) flags.add(ExerciseFlag.BILATERAL)
         while (flags.size > lines.size) flags.removeAt(flags.lastIndex)
     }
 }
-
 @Composable
 fun rememberNoteEditorState(
     viewModel: EditorViewModel,
@@ -3692,16 +3666,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
-import com.example.gymtrack.core.ui.theme.DefaultGradient
-import com.example.gymtrack.core.ui.theme.LegsGradient
-import com.example.gymtrack.core.ui.theme.PullGradient
-import com.example.gymtrack.core.ui.theme.PushGradient
 import com.example.gymtrack.core.util.formatTime
 import com.example.gymtrack.core.util.formatWeekRelativeTime
 import com.example.gymtrack.core.util.parseDurationSeconds
@@ -3716,24 +3687,28 @@ fun WorkoutAlbumCard(
     onLongClick: () -> Unit,
     settings: Settings
 ) {
-    val baseColor = when (note.categoryName?.lowercase()) {
-        "push" -> PushGradient.first()
-        "pull" -> PullGradient.first()
-        "legs" -> LegsGradient.first()
-        else -> DefaultGradient.first()
+    // [FIX] Dynamic Color Lookup
+    // Find the category in settings that matches the note's category name.
+    // If not found, default to Gray.
+    val categoryColor = remember(note.categoryName, settings.categories) {
+        val found = settings.categories.find { it.name == note.categoryName }
+        if (found != null) Color(found.color) else Color(0xFF666666) // Default Gray
     }
 
     val cardBaseColor = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.background
+    val textColor = MaterialTheme.colorScheme.onSurface
 
-    val fadeGradient = remember(baseColor, cardBaseColor) {
+    // Gradient using the dynamic color
+    val fadeGradient = remember(categoryColor, cardBaseColor) {
         Brush.verticalGradient(
             colors = listOf(
-                baseColor.copy(alpha = 0.50f),
+                categoryColor.copy(alpha = 0.50f),
                 cardBaseColor
             )
         )
     }
 
+    // ... (Rest of UI remains identical) ...
     val totalMinutes = remember(note.text) {
         val seconds = parseNoteText(note.text).second.mapNotNull {
             if (it.isBlank()) null else parseDurationSeconds(it)
@@ -3747,21 +3722,17 @@ fun WorkoutAlbumCard(
     }
     val displaySubtitle = if (note.title.isNotBlank()) formatWeekRelativeTime(note.timestamp, settings) else formatTime(note.timestamp, settings)
 
-    val textColor = MaterialTheme.colorScheme.onSurface
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(1.2f)
+            .aspectRatio(1.1f)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .then(if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = cardBaseColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(0.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-
-            // --- TOP: Gradient Art ---
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -3770,9 +3741,8 @@ fun WorkoutAlbumCard(
                     .background(fadeGradient)
                     .padding(12.dp)
             ) {
-                // Large Category Watermark
                 Text(
-                    text = (note.categoryName ?: "Work").take(4).uppercase(),
+                    text = (note.categoryName ?: "Work").take(6).uppercase(),
                     style = MaterialTheme.typography.displayLarge,
                     color = textColor.copy(alpha = 0.1f),
                     fontWeight = FontWeight.Black,
@@ -3781,53 +3751,23 @@ fun WorkoutAlbumCard(
                     modifier = Modifier.align(Alignment.BottomStart)
                 )
             }
-
-            // --- BOTTOM: Metadata Footer ---
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(cardBaseColor)
-                    .padding(horizontal = 12.dp, vertical = 12.dp)
+                    .padding(12.dp)
             ) {
-                // Title
-                Text(
-                    text = displayTitle,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = textColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
+                Text(displayTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(6.dp))
-
-                // Footer Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Date
-                    Text(
-                        text = displaySubtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = textColor.copy(alpha = 0.6f),
-                        maxLines = 1
-                    )
-
-                    // Duration Badge (Bottom Right)
+                    Text(displaySubtitle, style = MaterialTheme.typography.bodySmall, color = textColor.copy(alpha = 0.6f), maxLines = 1)
                     if (totalMinutes > 0) {
-                        Surface(
-                            color = textColor.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
-                            Text(
-                                text = "$totalMinutes min",
-                                color = textColor.copy(alpha = 0.9f),
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
+                        Surface(color = textColor.copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp)) {
+                            Text("${totalMinutes} min", color = textColor.copy(alpha = 0.9f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                         }
                     }
                 }
@@ -3859,9 +3799,12 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import com.example.gymtrack.core.data.WorkoutRepository
+import com.example.gymtrack.core.data.repository.toEntity
 
 class HomeViewModel(
-    private val repository: NoteRepository
+    private val repository: NoteRepository,
+    private val workoutRepository: WorkoutRepository
 ) : ViewModel() {
 
     val notes = repository.getAllNotes()
@@ -3869,7 +3812,13 @@ class HomeViewModel(
 
     fun deleteNotes(notes: Set<NoteLine>) {
         viewModelScope.launch {
+            // 1. Delete the Text Notes
             repository.deleteNotes(notes)
+
+            // 2. [FIX] Delete the associated Stats
+            notes.forEach { note ->
+                workoutRepository.deleteWorkout(note.timestamp)
+            }
         }
     }
 
@@ -3895,9 +3844,12 @@ class HomeViewModel(
                 // 2. Parse using your existing ImportUtils
                 val note = importNote(tempFile, settings)
 
-                // 3. Save to Database
                 if (note != null) {
+                    // 1. Save Text
                     repository.saveNote(note)
+                    // 2. [FIX] Generate Stats immediately
+                    // We map the parsed NoteEntity to sets so they show up in graphs
+                    workoutRepository.syncNoteToWorkout(note.toEntity())
                 }
 
                 // 4. Cleanup
@@ -3908,10 +3860,13 @@ class HomeViewModel(
         }
     }
 
-    class Factory(private val repository: NoteRepository) : ViewModelProvider.Factory {
+    class Factory(
+        private val repository: NoteRepository,
+        private val workoutRepository: WorkoutRepository
+    ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return HomeViewModel(repository) as T
+            return HomeViewModel(repository, workoutRepository) as T
         }
     }
 }
@@ -4169,19 +4124,20 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.Settings
 
-// Matches Home Screen Card Color
 private val CardDeepDark = Color(0xFF181818)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -4191,6 +4147,8 @@ fun SettingsScreen(
     onUpdate: (Settings) -> Unit,
     onBack: () -> Unit
 ) {
+    var editingCategory by remember { mutableStateOf<Category?>(null) }
+
     fun update(block: Settings.() -> Settings) {
         onUpdate(settings.block())
     }
@@ -4202,9 +4160,7 @@ fun SettingsScreen(
         containerColor = backgroundColor,
         topBar = {
             TopAppBar(
-                title = {
-                    Text("Settings", fontWeight = FontWeight.Bold, fontSize = 24.sp)
-                },
+                title = { Text("Settings", fontWeight = FontWeight.Bold, fontSize = 24.sp) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = textColor)
@@ -4228,38 +4184,9 @@ fun SettingsScreen(
             item {
                 SettingsSectionTitle("Preferences")
                 SettingsCard {
-                    SettingsSwitchRow(
-                        title = "Dark Mode",
-                        checked = settings.darkMode,
-                        onCheckedChange = { update { copy(darkMode = it) } }
-                    )
+                    SettingsSwitchRow("Dark Mode", settings.darkMode) { update { copy(darkMode = it) } }
                     Divider(color = textColor.copy(alpha = 0.1f))
-
-                    SettingsSwitchRow(
-                        title = "24-Hour Time Format",
-                        checked = settings.is24Hour,
-                        onCheckedChange = { update { copy(is24Hour = it) } }
-                    )
-                    Divider(color = textColor.copy(alpha = 0.1f))
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                val opts = listOf(1, 5, 10, 30, 60)
-                                val next = opts[(opts.indexOf(settings.roundingSeconds) + 1) % opts.size]
-                                update { copy(roundingSeconds = next) }
-                            }
-                            .padding(16.dp)
-                    ) {
-                        Text("Rounding Seconds", color = textColor, fontWeight = FontWeight.Medium)
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "${settings.roundingSeconds} seconds",
-                            color = textColor.copy(alpha = 0.6f),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
+                    SettingsSwitchRow("24-Hour Time", settings.is24Hour) { update { copy(is24Hour = it) } }
                 }
             }
 
@@ -4273,7 +4200,7 @@ fun SettingsScreen(
                     SettingsSectionTitle("Workout Categories")
                     IconButton(
                         onClick = {
-                            val newCat = Category("New", (0xFF000000..0xFFFFFFFF).random())
+                            val newCat = Category("New Category", randomColor())
                             update { copy(categories = categories + newCat) }
                         }
                     ) {
@@ -4285,21 +4212,90 @@ fun SettingsScreen(
             items(settings.categories) { cat ->
                 CategoryRow(
                     category = cat,
+                    textColor = textColor,
+                    onEdit = { editingCategory = cat },
                     onDelete = {
                         if (settings.categories.size > 1) {
                             update { copy(categories = categories - cat) }
                         }
-                    },
-                    textColor = textColor
+                    }
                 )
             }
 
             item { Spacer(Modifier.height(32.dp)) }
         }
+
+        if (editingCategory != null) {
+            EditCategoryDialog(
+                category = editingCategory!!,
+                onDismiss = { editingCategory = null },
+                onSave = { updatedCat ->
+                    // Replace the old category with the new one
+                    val newList = settings.categories.map {
+                        if (it == editingCategory) updatedCat else it
+                    }
+                    update { copy(categories = newList) }
+                    editingCategory = null
+                }
+            )
+        }
     }
 }
 
 // --- COMPONENTS ---
+
+@Composable
+fun EditCategoryDialog(
+    category: Category,
+    onDismiss: () -> Unit,
+    onSave: (Category) -> Unit
+) {
+    var name by remember { mutableStateOf(category.name) }
+    var color by remember { mutableStateOf(category.color) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Category") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Category Name") },
+                    singleLine = true
+                )
+                Spacer(Modifier.height(16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Show color preview
+                    Box(Modifier.size(40.dp).clip(CircleShape).background(Color(color)))
+                    Spacer(Modifier.width(16.dp))
+                    Button(onClick = { color = randomColor() }) {
+                        Icon(Icons.Default.Refresh, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("New Color")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(category.copy(name = name, color = color)) }) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+// [FIXED] Correctly returns a Long compatible with Compose Color(Long)
+fun randomColor(): Long {
+    val hue = (0..360).random().toFloat()
+    // 1. Generate HSV color
+    // 2. Convert to ARGB Int (which might be negative)
+    // 3. Convert to Long and Mask with 0xFFFFFFFF to make it a valid positive Unsigned Long
+    return Color.hsv(hue, 0.8f, 0.9f).toArgb().toLong() and 0xFFFFFFFF
+}
 
 @Composable
 fun SettingsSectionTitle(text: String) {
@@ -4314,53 +4310,44 @@ fun SettingsSectionTitle(text: String) {
 
 @Composable
 fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
-    // Logic: If background is dark, use DeepDark (181818). If light, use Surface (White).
     val isDark = MaterialTheme.colorScheme.background.run { red < 0.5 && green < 0.5 && blue < 0.5 }
     val cardColor = if (isDark) CardDeepDark else MaterialTheme.colorScheme.surface
-
     Card(
         colors = CardDefaults.cardColors(containerColor = cardColor),
         shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = if(isDark) 0.dp else 2.dp)
+        elevation = CardDefaults.cardElevation(if(isDark) 0.dp else 2.dp)
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            content()
-        }
+        Column(modifier = Modifier.fillMaxWidth()) { content() }
     }
 }
 
 @Composable
 fun SettingsSwitchRow(title: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
-            .padding(16.dp),
+        modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }.padding(16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(title, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = MaterialTheme.colorScheme.primary
-            )
-        )
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
 @Composable
-fun CategoryRow(category: Category, onDelete: () -> Unit, textColor: Color) {
+fun CategoryRow(
+    category: Category,
+    textColor: Color,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
     val isDark = MaterialTheme.colorScheme.background.run { red < 0.5 && green < 0.5 && blue < 0.5 }
     val cardColor = if (isDark) CardDeepDark else MaterialTheme.colorScheme.surface
 
     Card(
         colors = CardDefaults.cardColors(containerColor = cardColor),
         shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = if(isDark) 0.dp else 2.dp)
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onEdit() },
+        elevation = CardDefaults.cardElevation(if(isDark) 0.dp else 2.dp)
     ) {
         Row(
             modifier = Modifier.padding(16.dp).fillMaxWidth(),
@@ -4381,7 +4368,7 @@ fun CategoryRow(category: Category, onDelete: () -> Unit, textColor: Color) {
 
 
 =========================================
-FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\example\gymtrack\feature\stats\components\charts\AverageDurationChart.kt
+FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\example\gymtrack\feature\stats\components\charts\AverageCategoryDurationChart.kt
 =========================================
 
 package com.example.gymtrack.feature.stats.components.charts
@@ -4391,71 +4378,86 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.gymtrack.feature.stats.StatsState // Import your State
+import com.example.gymtrack.feature.stats.StatsState
 
 @Composable
-fun AverageDurationChart(
-    state: StatsState, // <-- CHANGED: Accepts StatsState instead of List<NoteLine>
+fun AverageCategoryDurationChart(
+    state: StatsState,
     modifier: Modifier = Modifier
 ) {
-    // 1. Use pre-calculated averages from ViewModel
-    val averages = state.averageDurations.toList().sortedBy { it.first }
-
-    if (averages.isEmpty()) return
-
-    val theme = rememberChartTheme()
-    val density = LocalDensity.current
-    val yPaint = makeTextPaint(theme.label, with(density) { 11.sp.toPx() })
-    val xPaint = makeTextPaint(theme.label, with(density) { 12.sp.toPx() })
-
-    val yValues = averages.map { it.second }
-    val scaleY = buildScaleY(yValues)
+    val data = state.averageDurations.toList()
+        .sortedByDescending { it.second }
+        .filter { it.second > 0 }
 
     Column(modifier.fillMaxWidth()) {
-        Text("Avg workout length by category", style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(12.dp))
+        Text(
+            "Avg Duration (min)",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(Modifier.height(16.dp))
 
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(220.dp)
-        ) {
-            val layout = ChartLayout(leftPad = 56f, rightPad = 12f, topPad = 8f, bottomPad = 28f)
+        if (data.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "No duration data available",
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            return
+        }
+
+        val theme = rememberChartTheme()
+        val density = LocalDensity.current
+        val textPaint = makeTextPaint(theme.label, with(density) { 10.sp.toPx() })
+        val scaleY = buildScaleY(data.map { it.second })
+
+        Canvas(modifier = Modifier.fillMaxWidth().height(200.dp)) {
+            val layout = ChartLayout()
             val chartW = layout.width(size.width)
             val chartH = layout.height(size.height)
             val x0 = layout.originX()
             val y0 = layout.originY(size.height)
 
-            drawAxes(::drawLine, theme, layout, size.width, size.height)
-            drawYGridAndLabels(
-                drawContext.canvas.nativeCanvas, ::drawLine, scaleY, theme, layout,
-                size.width, size.height, yPaint
-            )
+            // Draw Grid
+            drawYGridAndLabels(scaleY, theme, layout, textPaint)
 
-            val n = averages.size
-            val groupGap = chartW / (n * 2f)
-            val barW = groupGap
+            val n = data.size
+            val groupGap = chartW / (n * 2f).coerceAtLeast(1f)
+            val barW = groupGap.coerceAtMost(60f)
 
-            averages.forEachIndexed { idx, (cat, valueMin) ->
-                val xLeft = x0 + groupGap * (1 + idx * 2)
-                val barH = chartH * (valueMin / scaleY.top)
-                drawRect(
-                    color = Color.White.copy(alpha = 0.60f),
+            data.forEachIndexed { idx, (cat, avg) ->
+                val slotWidth = chartW / n
+                val xCenter = x0 + (slotWidth * idx) + (slotWidth / 2)
+                val xLeft = xCenter - (barW / 2)
+                val barH = chartH * (avg / scaleY.top)
+
+                // Rounded Green Bar
+                drawRoundRect(
+                    color = theme.primary.copy(alpha = 0.9f),
                     topLeft = Offset(xLeft, y0 - barH),
-                    size = Size(barW, barH)
+                    size = Size(barW, barH),
+                    cornerRadius = CornerRadius(6f, 6f)
                 )
 
-                // Truncate long category names
-                val label = if (cat.length > 5) cat.take(4) + ".." else cat
-                drawXTickLabel(drawContext.canvas.nativeCanvas, label, xLeft + barW / 2f, y0, xPaint)
+                val label = if (cat.length > 3) cat.take(3) else cat
+                drawXTickLabel(label, xCenter, y0, textPaint)
             }
         }
     }
@@ -4474,10 +4476,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.feature.stats.StatsState
@@ -4487,75 +4490,56 @@ fun CategoryChart(
     state: StatsState,
     modifier: Modifier = Modifier
 ) {
-    // 1. Prepare Data: Sort categories by count (highest first)
     val data = state.categoryCounts.toList()
         .sortedByDescending { it.second }
-        .filter { it.second > 0 } // Hide categories with 0 workouts
+        .filter { it.second > 0 }
 
-    if (data.isEmpty()) return
+    if (data.isEmpty()) {
+        Box(modifier.fillMaxWidth().height(200.dp))
+        return
+    }
 
-    // 2. Setup Theme & Dimensions
     val theme = rememberChartTheme()
     val density = LocalDensity.current
-    val textPaint = makeTextPaint(theme.label, with(density) { 11.sp.toPx() })
+    val textPaint = makeTextPaint(theme.label, with(density) { 10.sp.toPx() })
 
-    // 3. Determine Scale
-    val maxCount = data.maxOf { it.second }
-    val scaleY = buildScaleY(
-        values = data.map { it.second.toFloat() },
-        stepPicker = ::niceStepCount // Use integer steps for counts
-    )
+    val scaleY = buildScaleY(data.map { it.second.toFloat() })
 
     Column(modifier.fillMaxWidth()) {
-        Text("Workouts per Category", style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(12.dp))
+        Text("Workouts per Category", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        Spacer(Modifier.height(16.dp))
 
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(220.dp)
-        ) {
-            val layout = ChartLayout(leftPad = 56f, rightPad = 12f, topPad = 8f, bottomPad = 28f)
+        Canvas(modifier = Modifier.fillMaxWidth().height(200.dp)) {
+            val layout = ChartLayout()
             val chartW = layout.width(size.width)
             val chartH = layout.height(size.height)
             val x0 = layout.originX()
             val y0 = layout.originY(size.height)
 
-            // Draw Axes
-            drawAxes(::drawLine, theme, layout, size.width, size.height)
+            // Draw Grid & Labels (Now called directly on DrawScope)
+            drawYGridAndLabels(scaleY, theme, layout, textPaint)
 
-            // Draw Y-Grid and Labels
-            drawYGridAndLabels(
-                drawContext.canvas.nativeCanvas, ::drawLine, scaleY, theme, layout,
-                size.width, size.height, textPaint,
-                yAxisTitle = "Count"
-            )
-
-            // Draw Bars
             val n = data.size
-            // Dynamic bar width based on number of items
             val groupGap = chartW / (n * 2f).coerceAtLeast(1f)
-            val barW = groupGap.coerceAtMost(100f) // Cap max width
+            val barW = groupGap.coerceAtMost(80f)
 
             data.forEachIndexed { idx, (cat, count) ->
-                // Center the bar in its slot
                 val slotWidth = chartW / n
                 val xCenter = x0 + (slotWidth * idx) + (slotWidth / 2)
                 val xLeft = xCenter - (barW / 2)
-
                 val barH = chartH * (count / scaleY.top)
 
-                // Draw Bar
-                drawRect(
-                    color = theme.primary.copy(alpha = 0.7f),
+                // Draw Rounded Bar
+                drawRoundRect(
+                    color = theme.primary,
                     topLeft = Offset(xLeft, y0 - barH),
-                    size = Size(barW, barH)
+                    size = Size(barW, barH),
+                    cornerRadius = CornerRadius(8f, 8f)
                 )
 
-                // Draw X-Label (Category Name)
-                // We truncate long names to fit
-                val label = if (cat.length > 5) cat.take(4) + ".." else cat
-                drawXTickLabel(drawContext.canvas.nativeCanvas, label, xCenter, y0, textPaint)
+                // Draw X Label
+                val label = if (cat.length > 4) cat.take(3) + "." else cat
+                drawXTickLabel(label, xCenter, y0, textPaint)
             }
         }
     }
@@ -4568,277 +4552,160 @@ FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\e
 
 package com.example.gymtrack.feature.stats.components.charts
 
-import android.graphics.Canvas
 import android.graphics.Paint
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import kotlin.math.ceil
 
-/* ---- Layout + scaling ---- */
-data class ChartLayout(
-    val leftPad: Float = 56f,
-    val rightPad: Float = 12f,
-    val topPad: Float = 8f,
-    val bottomPad: Float = 34f,
-) {
-    fun width(totalW: Float) = totalW - leftPad - rightPad
-    fun height(totalH: Float) = totalH - topPad - bottomPad
-    fun originX() = leftPad
-    fun originY(totalH: Float) = topPad + height(totalH) // bottom-left of plot area
-}
+// --- THEME ---
+val SpotifyGreen = Color(0xFF1DB954)
 
-data class ScaleY(val top: Float, val step: Int) {
-    fun yToPx(v: Float, chartH: Float, topPad: Float): Float {
-        if (top <= 0f) return topPad + chartH
-        val t = (v / top).coerceIn(0f, 1f)
-        return topPad + chartH * (1f - t)
-    }
-}
-
-/* â€œNiceâ€ steps for minutes and counts */
-fun niceStepMinutes(maxVal: Float): Int = when {
-    maxVal <= 20f  -> 5
-    maxVal <= 60f  -> 10
-    maxVal <= 120f -> 15
-    maxVal <= 240f -> 30
-    else           -> 60
-}
-fun niceStepCount(maxVal: Float): Int = when {
-    maxVal <= 5f   -> 1
-    maxVal <= 20f  -> 2
-    maxVal <= 50f  -> 5
-    else           -> 10
-}
-
-fun buildScaleY(values: List<Float>, minTop: Float = 1f, stepPicker: (Float)->Int = ::niceStepMinutes): ScaleY {
-    val yMax = (values.maxOrNull() ?: 0f).coerceAtLeast(minTop)
-    val step = stepPicker(yMax.toFloat())
-    val top = (ceil(yMax / step).toInt().coerceAtLeast(1)) * step.toFloat()
-    return ScaleY(top = top, step = step)
-}
-
-/* ---- Theme + drawing helpers ---- */
 data class ChartTheme(
     val label: Color,
     val grid: Color,
     val axis: Color,
     val primary: Color,
-    val secondary: Color,
+    val background: Color
 )
 
 @Composable
 fun rememberChartTheme(): ChartTheme {
-    val label = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
-    return ChartTheme(
-        label = label,
-        grid = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-        axis = label,
-        primary = MaterialTheme.colorScheme.primary,
-        secondary = MaterialTheme.colorScheme.secondary,
-    )
-}
+    val isDark = isSystemInDarkTheme()
+    val colorScheme = MaterialTheme.colorScheme
 
-fun makeTextPaint(color: Color, sizePx: Float) = Paint().apply {
-    this.color = android.graphics.Color.argb(
-        (color.alpha * 255).toInt(),
-        (color.red * 255).toInt(),
-        (color.green * 255).toInt(),
-        (color.blue * 255).toInt()
-    )
-    textSize = sizePx
-    isAntiAlias = true
-}
+    // Use deep dark background in dark mode, surface in light mode
+    val bg = if (isDark) Color(0xFF181818) else colorScheme.surface
 
-fun drawAxes(
-    drawLine: (Color, Offset, Offset, Float) -> Unit,
-    theme: ChartTheme,
-    layout: ChartLayout,
-    totalW: Float,
-    totalH: Float,
-) {
-    val x0 = layout.originX()
-    val yTop = totalH - layout.height(totalH) - layout.topPad
-    val y0 = layout.originY(totalH)
-    drawLine(theme.axis, Offset(x0, yTop), Offset(x0, y0), 2f)
-    drawLine(theme.axis, Offset(x0, y0), Offset(x0 + layout.width(totalW), y0), 2f)
-}
-
-fun drawYGridAndLabels(
-    native: Canvas,
-    drawLine: (Color, Offset, Offset, Float) -> Unit,
-    scaleY: ScaleY,
-    theme: ChartTheme,
-    layout: ChartLayout,
-    totalW: Float,
-    totalH: Float,
-    yPaint: Paint,
-    yAxisTitle: String = "Minutes",
-) {
-    val chartW = layout.width(totalW)
-    val chartH = layout.height(totalH)
-    val topPad = layout.topPad
-    val x0 = layout.originX()
-
-    for (v in 0..scaleY.top.toInt() step scaleY.step) {
-        val y = scaleY.yToPx(v.toFloat(), chartH, topPad)
-        drawLine(theme.grid, Offset(x0, y), Offset(x0 + chartW, y), 1f)
-        val txt = v.toString()
-        native.drawText(
-            txt,
-            x0 - 8f - yPaint.measureText(txt),
-            y + (yPaint.textSize / 2.8f),
-            yPaint
+    return remember(isDark, colorScheme) {
+        ChartTheme(
+            label = if (isDark) Color.White.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.6f),
+            grid = if (isDark) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.05f),
+            axis = Color.Transparent,
+            primary = SpotifyGreen,
+            background = bg
         )
     }
-    // Y-axis title
-    native.save()
-    native.rotate(-90f, 0f, 0f)
-    native.drawText(
-        yAxisTitle,
-        -(layout.topPad + chartH / 2f + yPaint.measureText(yAxisTitle) / 2f),
-        16f,
-        yPaint
-    )
-    native.restore()
 }
 
-fun drawXTickLabel(
-    native: Canvas,
+// --- LAYOUT & SCALING ---
+
+data class ChartLayout(
+    val leftPad: Float = 60f,
+    val rightPad: Float = 16f,
+    val topPad: Float = 16f,
+    val bottomPad: Float = 32f
+) {
+    fun width(totalW: Float) = totalW - leftPad - rightPad
+    fun height(totalH: Float) = totalH
+    fun originX() = leftPad
+    fun originY(totalH: Float) = totalH - bottomPad
+}
+
+data class ScaleY(val min: Float, val max: Float, val range: Float, val top: Float) {
+    fun yToPx(value: Float, height: Float, topPad: Float): Float {
+        if (top == 0f) return height
+        val fraction = value / top
+        return height - (fraction * (height - topPad))
+    }
+}
+
+fun buildScaleY(values: List<Float>): ScaleY {
+    if (values.isEmpty()) return ScaleY(0f, 10f, 10f, 10f)
+    val maxVal = values.maxOrNull() ?: 0f
+    val top = if (maxVal == 0f) 10f else ceil(maxVal * 1.2f / 5f) * 5f
+    return ScaleY(0f, top, top, top)
+}
+
+fun makeTextPaint(color: Color, textSizePx: Float): Paint {
+    return Paint().apply {
+        this.color = color.toArgb()
+        this.textSize = textSizePx
+        this.isAntiAlias = true
+    }
+}
+
+// --- DRAWING PRIMITIVES (Fixed as DrawScope Extensions) ---
+
+// Fixes "drawAxes" or "drawYGridAndLabels" unresolved errors
+fun DrawScope.drawYGridAndLabels(
+    scale: ScaleY,
+    theme: ChartTheme,
+    layout: ChartLayout,
+    textPaint: Paint
+) {
+    val steps = 5
+    val stepVal = scale.top / steps
+    val xStart = layout.originX()
+    val xEnd = size.width - layout.rightPad
+    val yOrigin = layout.originY(size.height)
+
+    for (i in 0..steps) {
+        val value = stepVal * i
+        val y = scale.yToPx(value, yOrigin, layout.topPad)
+
+        // Draw Grid Line (Compose)
+        drawLine(
+            color = theme.grid,
+            start = Offset(xStart, y),
+            end = Offset(xEnd, y),
+            strokeWidth = 1f
+        )
+
+        // Draw Label (Native)
+        val label = if (value % 1.0f == 0f) value.toInt().toString() else String.format("%.1f", value)
+        val p = textPaint
+        val w = p.measureText(label)
+        // Draw text slightly to the left of the Y-axis
+        drawContext.canvas.nativeCanvas.drawText(label, xStart - w - 12f, y + (p.textSize / 3), p)
+    }
+}
+
+// Fixes "drawXTickLabel" unresolved error
+fun DrawScope.drawXTickLabel(
     label: String,
-    xCenter: Float,
-    yBase: Float,
-    paint: Paint
+    x: Float,
+    yOrigin: Float,
+    textPaint: Paint
 ) {
-    val w = paint.measureText(label)
-    native.drawText(label, xCenter - w / 2f, yBase + paint.textSize + 6f, paint)
+    val p = textPaint
+    val w = p.measureText(label)
+    // Draw text centered at X, below Y-axis
+    drawContext.canvas.nativeCanvas.drawText(label, x - (w / 2), yOrigin + p.textSize + 12f, p)
 }
 
+// --- PATH HELPERS ---
 
-=========================================
-FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\example\gymtrack\feature\stats\components\charts\DurationTrendChart.kt
-=========================================
-
-package com.example.gymtrack.feature.stats.components.charts
-
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.gymtrack.core.data.NoteLine
-import com.example.gymtrack.core.util.parseDurationSeconds
-import com.example.gymtrack.core.util.parseNoteText
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
-import kotlin.math.max
-
-@Composable
-fun DurationTrendChart(
-    notes: List<NoteLine>,
-    showRollingAvg: Boolean = true,
-    modifier: Modifier = Modifier
-) {
-    fun isoWeekStart(ts: Long): Long {
-        val c = Calendar.getInstance().apply {
-            timeInMillis = ts
-            firstDayOfWeek = Calendar.MONDAY
-            minimalDaysInFirstWeek = 4
-        }
-        val dow = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7
-        c.add(Calendar.DAY_OF_YEAR, -dow)
-        c.set(Calendar.HOUR_OF_DAY, 0); c.set(Calendar.MINUTE, 0); c.set(Calendar.SECOND, 0); c.set(Calendar.MILLISECOND, 0)
-        return c.timeInMillis
+fun createSmoothPath(points: List<Pair<Float, Float>>): Path {
+    val path = Path()
+    if (points.isEmpty()) return path
+    path.moveTo(points.first().first, points.first().second)
+    for (i in 0 until points.size - 1) {
+        val p0 = points[i]
+        val p1 = points[i + 1]
+        val controlX1 = (p0.first + p1.first) / 2f
+        val controlY1 = p0.second
+        val controlX2 = (p0.first + p1.first) / 2f
+        val controlY2 = p1.second
+        path.cubicTo(controlX1, controlY1, controlX2, controlY2, p1.first, p1.second)
     }
-    fun noteMin(n: NoteLine): Float? =
-        parseNoteText(n.text).second.mapNotNull {
-            if (it.isBlank()) null else parseDurationSeconds(it)
-        }.maxOrNull()?.div(60f)
+    return path
+}
 
-    val weekly = notes.groupBy { isoWeekStart(it.timestamp) }.toSortedMap().map { (t, list) ->
-        val mins = list.mapNotNull { noteMin(it) }
-        t to (if (mins.isEmpty()) 0f else mins.average().toFloat())
-    }
-    if (weekly.isEmpty()) return
-
-    val rolling = if (showRollingAvg) {
-        weekly.indices.map { i ->
-            val from = max(0, i - 3)
-            val slice = weekly.subList(from, i + 1).map { it.second }
-            weekly[i].first to (if (slice.isEmpty()) 0f else slice.average().toFloat())
-        }
-    } else emptyList()
-
-    val theme = rememberChartTheme()
-    val density = LocalDensity.current
-    val yPaint = makeTextPaint(theme.label, with(density) { 11.sp.toPx() })
-    val xPaint = makeTextPaint(theme.label, with(density) { 11.sp.toPx() })
-    val axisPaint = makeTextPaint(theme.label, with(density) { 12.sp.toPx() })
-
-    val allY = buildList {
-        addAll(weekly.map { it.second })
-        addAll(rolling.map { it.second })
-    }
-    val scaleY = buildScaleY(allY)
-
-    val df = SimpleDateFormat("dd MMM", Locale.getDefault())
-
-    Column(modifier.fillMaxWidth()) {
-        Text("Average workout duration (weekly)", style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(12.dp))
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(240.dp)
-        ) {
-            val layout = ChartLayout()
-            val chartW = layout.width(size.width)
-            val chartH = layout.height(size.height)
-            val x0 = layout.originX()
-            val y0 = layout.originY(size.height)
-
-            drawAxes(::drawLine, theme, layout, size.width, size.height)
-            drawYGridAndLabels(
-                drawContext.canvas.nativeCanvas, ::drawLine, scaleY, theme, layout,
-                size.width, size.height, yPaint
-            )
-
-            val n = weekly.size
-            val dx = if (n <= 1) chartW else chartW / (n - 1).toFloat()
-            fun xAt(i: Int) = x0 + dx * i
-            fun yAt(v: Float) = scaleY.yToPx(v, chartH, layout.topPad)
-
-            val lblEvery = max(1, n / 8)
-            weekly.forEachIndexed { i, (t, _) ->
-                if (i % lblEvery == 0 || i == n - 1) {
-                    drawXTickLabel(drawContext.canvas.nativeCanvas, df.format(t), xAt(i), y0, xPaint)
-                }
-            }
-
-            for (i in 1 until n) {
-                drawLine(theme.primary, Offset(xAt(i - 1), yAt(weekly[i - 1].second)), Offset(xAt(i), yAt(weekly[i].second)), 3f)
-            }
-            weekly.forEachIndexed { i, pair ->
-                drawCircle(theme.primary, radius = 4f, center = Offset(xAt(i), yAt(pair.second)))
-            }
-
-            if (showRollingAvg && rolling.isNotEmpty()) {
-                for (i in 1 until rolling.size) {
-                    drawLine(theme.secondary, Offset(xAt(i - 1), yAt(rolling[i - 1].second)), Offset(xAt(i), yAt(rolling[i].second)), 2f)
-                }
-            }
-
-            drawContext.canvas.nativeCanvas.drawText("Week start", x0 + 6f, y0 + axisPaint.textSize + 14f, axisPaint)
-        }
-    }
+fun createFillPath(linePath: Path, width: Float, height: Float): Path {
+    val fillPath = Path()
+    fillPath.addPath(linePath)
+    fillPath.lineTo(width, height)
+    fillPath.lineTo(0f, height)
+    fillPath.close()
+    return fillPath
 }
 
 
@@ -4848,7 +4715,6 @@ FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\e
 
 package com.example.gymtrack.feature.stats.components.charts
 
-import android.graphics.Paint
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -4856,276 +4722,162 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.gymtrack.core.data.ExerciseWithCount
 import com.example.gymtrack.core.data.GraphPoint
 import com.example.gymtrack.core.data.WorkoutRepository
-import com.example.gymtrack.core.data.ExerciseWithCount
+import com.example.gymtrack.feature.stats.TimeRange
+import kotlinx.coroutines.flow.flowOf
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.math.roundToInt
-import kotlinx.coroutines.flow.flowOf
-import kotlin.collections.List
-import kotlin.collections.forEachIndexed
-import kotlin.collections.isNotEmpty
-import kotlin.collections.map
-import kotlin.collections.maxOf
-import kotlin.collections.minOf
+import java.util.concurrent.TimeUnit
 
-// Data class to hold the slope and intercept of the line
-private data class RegressionLine(val slope: Float, val intercept: Float)
-
-// --- IQR HELPER FUNCTIONS ---
-
-// Helper function to calculate quartiles
-private fun calculateQuartiles(sortedValues: List<Float>): Triple<Float, Float, Float> {
-    if (sortedValues.isEmpty()) return Triple(0f, 0f, 0f)
-
-    val N = sortedValues.size
-    val Q2 = sortedValues[N / 2] // Median (Q2)
-
-    val lowerHalf = sortedValues.subList(0, N / 2)
-    val upperHalfStartIndex = if (N % 2 == 0) N / 2 else N / 2 + 1
-    val upperHalf = sortedValues.subList(upperHalfStartIndex, N)
-
-    val Q1 = lowerHalf.let { if (it.isEmpty()) 0f else it[it.size / 2] }
-    val Q3 = upperHalf.let { if (it.isEmpty()) 0f else it[it.size / 2] }
-
-    return Triple(Q1, Q2, Q3)
-}
-
-// Main function to identify outliers using IQR method
+// ... (calculateOutliers and ExerciseProgressChartGraph remain exactly the same as before) ...
+// [Use previous version of these functions]
 private fun calculateOutliers(data: List<GraphPoint>): List<GraphPoint> {
     if (data.size < 5) return emptyList()
-
-    // 1. Get and sort the average weight values
-    val sortedValues = data.map { it.avgVal }.sorted()
-
-    // 2. Calculate Q1, Q3, and IQR
-    val (Q1, _, Q3) = calculateQuartiles(sortedValues)
-    val IQR = Q3 - Q1
-
-    // 3. Define the bounds
-    // The multiplier 1.5 is the standard for detecting mild outliers
-    val lowerBound = Q1 - 1.5f * IQR
-    val upperBound = Q3 + 1.5f * IQR
-
-    // 4. Filter data points outside the bounds
-    return data.filter { it.avgVal < lowerBound || it.avgVal > upperBound }
+    val values = data.map { it.avgVal }.sorted()
+    val q1 = values[values.size / 4]
+    val q3 = values[values.size * 3 / 4]
+    val iqr = q3 - q1
+    val lower = q1 - 1.5f * iqr
+    val upper = q3 + 1.5f * iqr
+    return data.filter { it.avgVal < lower || it.avgVal > upper }
 }
 
-
-// --- LINEAR REGRESSION HELPER ---
-private fun calculateLinearRegression(data: List<GraphPoint>): RegressionLine? {
-    if (data.size < 2) return null
-
-    val N = data.size.toFloat()
-    val minTime = data.minOf { it.originTimestamp } // FIND MINIMUM
-
-    // NORMALIZE: Subtract minTime from every timestamp
-    val sumX = data.sumOf { (it.originTimestamp - minTime).toDouble() }
-    val sumY = data.sumOf { it.avgVal.toDouble() }
-    val sumX2 = data.sumOf {
-        val x = (it.originTimestamp - minTime).toDouble()
-        x * x
-    }
-    val sumXY = data.sumOf {
-        val x = (it.originTimestamp - minTime).toDouble()
-        x * it.avgVal.toDouble()
-    }
-
-    val m_numerator = (N * sumXY - sumX * sumY).toFloat()
-    val m_denominator = (N * sumX2 - sumX * sumX).toFloat()
-
-    if (m_denominator == 0f) {
-        return RegressionLine(0f, (sumY / N).toFloat())
-    }
-
-    val slope = m_numerator / m_denominator
-    // Intercept is now relative to 0 (which is minTime)
-    val intercept = ((sumY - slope * sumX) / N).toFloat()
-
-    // Adjust intercept back to absolute time for drawing logic compatibility?
-    // Actually, it's easier to keep the drawing logic aware of the shift.
-    // But to minimize changes to your drawing code, we can return the "Virtual" intercept:
-    // y = m(x - minX) + c  ->  y = mx - m*minX + c
-    val realIntercept = intercept - (slope * minTime)
-
-    return RegressionLine(slope, realIntercept)
-}
-
-// The internal drawing function (The actual line graph)
 @Composable
 private fun ExerciseProgressChartGraph(
     dataPoints: List<GraphPoint>,
-    anomalies: List<GraphPoint>, // Pass anomalies for visual distinction
-    modifier: Modifier = Modifier,
-    lineColor: Color = MaterialTheme.colorScheme.primary
+    anomalies: List<GraphPoint>,
+    modifier: Modifier = Modifier
 ) {
     if (dataPoints.isEmpty()) {
         Box(modifier.height(200.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Text("No data for this exercise yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("No data for this period", color = Color.Gray)
         }
         return
     }
 
-    val maxVal = dataPoints.maxOf { it.avgVal }
-    val minVal = dataPoints.minOf { it.avgVal } * 0.9f
-    val yRange = (maxVal - minVal).let { if (it == 0f) 1f else it }
+    val yValues = dataPoints.map { it.avgVal }
+    val scaleY = buildScaleY(yValues)
 
-    val maxTime = dataPoints.maxOf { it.originTimestamp }
     val minTime = dataPoints.minOf { it.originTimestamp }
-    val timeRange = (maxTime - minTime).let { if (it == 0L) 1L else it }
+    val maxTime = dataPoints.maxOf { it.originTimestamp }
+    val timeRange = (maxTime - minTime).coerceAtLeast(1L)
 
-    val dateFormatter = remember { SimpleDateFormat("MMM yy", Locale.getDefault()) }
-
-    val regressionLine = calculateLinearRegression(dataPoints)
+    val theme = rememberChartTheme()
+    val dateFormatter = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
+    val textPaint = makeTextPaint(theme.label, 30f)
 
     Column(modifier.fillMaxWidth()) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-                .padding(start = 40.dp, end = 16.dp, top = 16.dp, bottom = 8.dp)
-        ) {
-            val width = size.width
-            val height = size.height
+        Canvas(modifier = modifier) {
+            val layout = ChartLayout()
+            val chartW = layout.width(size.width)
+            val chartH = layout.height(size.height)
+            val x0 = layout.originX()
+            val y0 = layout.originY(size.height)
 
-            val labelCount = 4
-            for (i in 0..labelCount) {
-                val ratio = i / labelCount.toFloat()
-                val labelVal = minVal + yRange * ratio
-                val y = height * (1 - ratio)
+            drawYGridAndLabels(scaleY, theme, layout, textPaint)
 
-                // Draw horizontal grid line
-                drawLine(
-                    color = Color.Gray.copy(alpha = 0.3f),
-                    start = Offset(0f, y),
-                    end = Offset(width, y)
-                )
-
-                // Draw Y-Axis label
-                drawContext.canvas.nativeCanvas.apply {
-                    drawText(
-                        "${labelVal.roundToInt()}",
-                        0f,
-                        y - 10f,
-                        Paint().apply {
-                            color = android.graphics.Color.GRAY
-                            textSize = 30f
-                        }
-                    )
-                }
+            val points = dataPoints.map { point ->
+                val fractionX = (point.originTimestamp - minTime) / timeRange.toFloat()
+                val x = x0 + fractionX * chartW
+                val y = scaleY.yToPx(point.avgVal, y0, layout.topPad)
+                x to y
             }
 
-            // --- DRAW LINEAR REGRESSION TREND LINE ---
-            regressionLine?.let { line ->
-                val yStart = line.slope * minTime + line.intercept
-                val yStartNormalized = height - (((yStart - minVal) / yRange) * height)
-
-                val yEnd = line.slope * maxTime + line.intercept
-                val yEndNormalized = height - (((yEnd - minVal) / yRange) * height)
-
-                // Draw the line of best fit (dimmed)
-                drawLine(
-                    color = lineColor.copy(alpha = 0.3f), // Dim color
-                    start = Offset(0f, yStartNormalized),
-                    end = Offset(width, yEndNormalized),
-                    strokeWidth = 5f
-                )
-            }
-
-            // --- DRAW PRIMARY DATA LINE AND POINTS ---
-            val primaryPath = Path()
-            val anomalyTimestamps = anomalies.map { it.originTimestamp }.toSet()
-
-            dataPoints.forEachIndexed { index, point ->
-                val x = ((point.originTimestamp - minTime) / timeRange.toFloat()) * width
-                val y = height - (((point.avgVal - minVal) / yRange) * height)
-
-                if (index == 0) primaryPath.moveTo(x, y) else primaryPath.lineTo(x, y)
-
-                // Highlight Anomalies
-                val pointColor = if (point.originTimestamp in anomalyTimestamps) {
-                    Color.Red // Use Red for outliers
-                } else {
-                    lineColor
-                }
-
-                drawCircle(color = pointColor, radius = 6f, center = Offset(x, y))
-            }
+            val linePath = createSmoothPath(points)
+            val fillPath = createFillPath(linePath, size.width, y0)
 
             drawPath(
-                path = primaryPath,
-                color = lineColor,
-                style = Stroke(width = 5f)
+                path = fillPath,
+                brush = Brush.verticalGradient(
+                    colors = listOf(theme.primary.copy(alpha = 0.3f), Color.Transparent),
+                    startY = layout.topPad,
+                    endY = y0
+                )
             )
-        }
 
-        // Simple X-Axis Labels (Start/End)
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(dateFormatter.format(Date(minTime)), style = MaterialTheme.typography.bodySmall)
-            if (minTime != maxTime) {
-                Text(dateFormatter.format(Date(maxTime)), style = MaterialTheme.typography.bodySmall)
+            drawPath(
+                path = linePath,
+                color = theme.primary,
+                style = Stroke(width = 6f)
+            )
+
+            // Anomalies
+            val anomalySet = anomalies.map { it.originTimestamp }.toSet()
+            points.zip(dataPoints).forEach { (coord, raw) ->
+                if (raw.originTimestamp in anomalySet) {
+                    drawCircle(Color.Red, radius = 8f, center = Offset(coord.first, coord.second))
+                    drawCircle(Color.White, radius = 4f, center = Offset(coord.first, coord.second))
+                }
             }
+
+            drawXTickLabel(dateFormatter.format(Date(minTime)), x0, y0, textPaint)
+            drawXTickLabel(dateFormatter.format(Date(maxTime)), x0 + chartW, y0, textPaint)
         }
     }
 }
 
-
-// The new component responsible for the entire Card, Dropdown, and Data Fetching
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExerciseProgressCard(
     repository: WorkoutRepository?,
+    timeRange: TimeRange,
     modifier: Modifier = Modifier,
 ) {
-    val dateFormatter = remember { SimpleDateFormat("MM/dd/yyyy", Locale.getDefault()) }
+    // [FIX] Strict "Last X Days" math
+    val cutoffTimestamp = remember(timeRange) {
+        if (timeRange == TimeRange.ALL_TIME) {
+            0L
+        } else {
+            System.currentTimeMillis() - TimeUnit.DAYS.toMillis(timeRange.days.toLong())
+        }
+    }
 
-    // 1. FETCH SORTED DATA: Use getExercisesSortedByCount()
-    val allExercises by (repository?.getExercisesSortedByCount() ?: remember { flowOf(emptyList()) })
+    val allExercises by (repository?.getExercisesSortedByCount(cutoffTimestamp)
+        ?: remember { flowOf(emptyList()) })
         .collectAsState(initial = emptyList())
 
-    // 2. STATE: Use the new DTO ExerciseWithCount
     var selectedExercise by remember { mutableStateOf<ExerciseWithCount?>(null) }
     var expandedDropdown by remember { mutableStateOf(false) }
 
-    // 3. GRAPH DATA: Fetch history for the selected exercise
-    val graphData by remember(selectedExercise) {
+    LaunchedEffect(allExercises) {
+        val currentInList = allExercises.find { it.exerciseId == selectedExercise?.exerciseId }
+        if (currentInList != null) {
+            selectedExercise = currentInList
+        } else if (allExercises.isNotEmpty()) {
+            selectedExercise = allExercises.first()
+        } else {
+            selectedExercise = null
+        }
+    }
+
+    val fullGraphData by remember(selectedExercise) {
         selectedExercise?.let { repository?.getWeightHistory(it.exerciseId) }
             ?: flowOf(emptyList())
     }.collectAsState(initial = emptyList())
 
-    // 4. CALCULATE ANOMALIES
-    val anomalies = remember(graphData) {
-        calculateOutliers(graphData)
+    val filteredGraphData = remember(fullGraphData, cutoffTimestamp) {
+        if (cutoffTimestamp == 0L) fullGraphData
+        else fullGraphData.filter { it.originTimestamp >= cutoffTimestamp }
     }
 
-    // Auto-select first exercise if none selected
-    LaunchedEffect(allExercises) {
-        if (selectedExercise == null && allExercises.isNotEmpty()) {
-            selectedExercise = allExercises.first()
-        }
-    }
+    val anomalies = remember(filteredGraphData) { calculateOutliers(filteredGraphData) }
 
-    // --- CARD UI MOVED FROM StatsScreen ---
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
         modifier = modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(16.dp)) {
-            Text(
-                "Exercise Progress",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.height(8.dp))
+            Text("Exercise Progress", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
+            Spacer(Modifier.height(12.dp))
 
-            // Dropdown Selector
             ExposedDropdownMenuBox(
                 expanded = expandedDropdown,
                 onExpandedChange = { expandedDropdown = !expandedDropdown }
@@ -5133,21 +4885,22 @@ fun ExerciseProgressCard(
                 OutlinedTextField(
                     modifier = Modifier.menuAnchor().fillMaxWidth(),
                     readOnly = true,
-                    // Display name and count
-                    value = selectedExercise?.let { "${it.name} (${it.setTotalCount} sets)" } ?: "Select Exercise",
+                    value = selectedExercise?.let { "${it.name} (${it.setTotalCount} sets)" } ?: "No exercises found",
                     onValueChange = {},
-                    label = { Text("Exercise") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expandedDropdown) },
-                    colors = OutlinedTextFieldDefaults.colors()
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = SpotifyGreen,
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+                    )
                 )
                 DropdownMenu(
                     expanded = expandedDropdown,
                     onDismissRequest = { expandedDropdown = false }
                 ) {
-                    // The list is already sorted by the database query (by count DESC)
                     allExercises.forEach { exercise ->
                         DropdownMenuItem(
-                            // Display name and count
                             text = { Text("${exercise.name} (${exercise.setTotalCount} sets)") },
                             onClick = {
                                 selectedExercise = exercise
@@ -5158,32 +4911,23 @@ fun ExerciseProgressCard(
                 }
             }
 
-            // --- ANOMALY DISPLAY ---
             if (anomalies.isNotEmpty()) {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
                 Text(
-                    "âš ï¸ ${anomalies.size} Anomalies Detected!",
-                    color = Color.Red,
-                    style = MaterialTheme.typography.bodyMedium,
+                    "âš ï¸ ${anomalies.size} Anomalies Detected",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold
                 )
-                Spacer(Modifier.height(4.dp))
-
-                // Show the details of the first 3 anomalies
-                anomalies.take(3).forEach { anomaly ->
-                    val date = dateFormatter.format(Date(anomaly.originTimestamp))
-                    Text(
-                        "-> ${date}: ${anomaly.avgVal.roundToInt()} kg",
-                        color = Color.Red.copy(alpha = 0.8f),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
             }
 
             Spacer(Modifier.height(16.dp))
 
-            // The Graph (Calls the helper function defined above)
-            ExerciseProgressChartGraph(dataPoints = graphData, anomalies = anomalies)
+            ExerciseProgressChartGraph(
+                dataPoints = filteredGraphData,
+                anomalies = anomalies,
+                modifier = Modifier.fillMaxWidth().height(200.dp)
+            )
         }
     }
 }
@@ -5271,10 +5015,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -5283,70 +5029,58 @@ fun SetsDistributionChart(
     topExercises: List<Pair<String, Int>>,
     modifier: Modifier = Modifier
 ) {
-    if (topExercises.isEmpty()) return
+    if (topExercises.isEmpty()) {
+        Box(modifier.fillMaxWidth().height(200.dp))
+        return
+    }
 
-    // 1. Prepare Data
-    val data = topExercises // Already sorted by count in ViewModel
-
-    // 2. Setup Theme & Dimensions
     val theme = rememberChartTheme()
     val density = LocalDensity.current
-    val textPaint = makeTextPaint(theme.label, with(density) { 11.sp.toPx() })
+    val labelPaint = makeTextPaint(theme.label, with(density) { 11.sp.toPx() })
+    val countPaint = makeTextPaint(theme.label, with(density) { 10.sp.toPx() })
 
-    // 3. Determine Scale
-    val maxCount = data.maxOf { it.second }
-    val scaleY = buildScaleY(
-        values = data.map { it.second.toFloat() },
-        stepPicker = ::niceStepCount
-    )
+    // Scale based on max count
+    val maxCount = topExercises.maxOf { it.second }.toFloat()
 
     Column(modifier.fillMaxWidth()) {
-        Text("Top 5 Exercises (Sets)", style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(12.dp))
+        Text(
+            "Top Exercises (Sets)",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(Modifier.height(16.dp))
 
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(220.dp)
-        ) {
-            val layout = ChartLayout(leftPad = 56f, rightPad = 12f, topPad = 8f, bottomPad = 28f)
-            val chartW = layout.width(size.width)
-            val chartH = layout.height(size.height)
-            val x0 = layout.originX()
-            val y0 = layout.originY(size.height)
+        Canvas(modifier = Modifier.fillMaxWidth().height(200.dp)) {
+            val barHeight = 24.dp.toPx()
+            val gap = 12.dp.toPx()
+            val startY = 10f
+            val maxBarWidth = size.width - 40f // Leave space for count label
 
-            // Draw Axes
-            drawAxes(::drawLine, theme, layout, size.width, size.height)
+            topExercises.forEachIndexed { i, (name, count) ->
+                val y = startY + i * (barHeight + gap)
 
-            // Draw Y-Grid and Labels
-            drawYGridAndLabels(
-                drawContext.canvas.nativeCanvas, ::drawLine, scaleY, theme, layout,
-                size.width, size.height, textPaint,
-                yAxisTitle = "Sets"
-            )
+                // 1. Draw Exercise Name (Above Bar)
+                drawContext.canvas.nativeCanvas.drawText(name, 0f, y, labelPaint)
 
-            // Draw Bars
-            val n = data.size
-            val groupGap = chartW / (n * 2f).coerceAtLeast(1f)
-            val barW = groupGap.coerceAtMost(100f)
+                // 2. Draw Bar (Below Name)
+                val barY = y + 10f
+                val width = (count / maxCount) * maxBarWidth
 
-            data.forEachIndexed { idx, (name, count) ->
-                val slotWidth = chartW / n
-                val xCenter = x0 + (slotWidth * idx) + (slotWidth / 2)
-                val xLeft = xCenter - (barW / 2)
-                val barH = chartH * (count / scaleY.top)
-
-                // Draw Bar
-                drawRect(
-                    color = theme.secondary.copy(alpha = 0.7f), // Use secondary color to distinguish from other charts
-                    topLeft = Offset(xLeft, y0 - barH),
-                    size = Size(barW, barH)
+                drawRoundRect(
+                    color = theme.primary,
+                    topLeft = Offset(0f, barY),
+                    size = Size(width, barHeight),
+                    cornerRadius = CornerRadius(4f, 4f)
                 )
 
-                // Draw X-Label (Exercise Name)
-                // Truncate if too long
-                val label = if (name.length > 8) name.take(6) + ".." else name
-                drawXTickLabel(drawContext.canvas.nativeCanvas, label, xCenter, y0, textPaint)
+                // 3. Draw Count Label (Right of bar)
+                drawContext.canvas.nativeCanvas.drawText(
+                    count.toString(),
+                    width + 12f,
+                    barY + barHeight - 6f,
+                    countPaint
+                )
             }
         }
     }
@@ -5370,79 +5104,199 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.graphics.lerp
-
 
 @Composable
 fun TimeOfDayHeatmap(
     data: Array<IntArray>,
     modifier: Modifier = Modifier
 ) {
-    val counts = Array(7) { IntArray(24) }
-    val maxCount = data.maxOf { it.maxOrNull() ?: 0 }.coerceAtLeast(1)
-
     val theme = rememberChartTheme()
     val density = LocalDensity.current
-    val labelPaint = makeTextPaint(theme.label, with(density) { 11.sp.toPx() })
+    val labelPaint = makeTextPaint(theme.label, with(density) { 10.sp.toPx() })
+    val maxCount = data.maxOf { it.maxOrNull() ?: 0 }.coerceAtLeast(1)
 
-
-    // Read theme colors here (composable context) â€¦
-    val base = MaterialTheme.colorScheme.surfaceVariant
-    val accent = MaterialTheme.colorScheme.primary
-
-    // â€¦and use a NON-composable helper (or inline) inside Canvas
-    fun cellColor(v: Int, from: Color, to: Color): Color {
-        val t = (v.toFloat() / maxCount).coerceIn(0f, 1f)
-        return lerp(from, to, t)
+    fun getCellColor(value: Int): Color {
+        if (value == 0) return Color(0xFF1E1E1E) // Empty cell
+        val fraction = value.toFloat() / maxCount
+        val alpha = when {
+            fraction < 0.25f -> 0.2f
+            fraction < 0.5f -> 0.4f
+            fraction < 0.75f -> 0.7f
+            else -> 1.0f
+        }
+        return SpotifyGreen.copy(alpha = alpha)
     }
 
-    val dayNames = listOf("Mon","Tue","Wed","Thu","Fri","Sat","Sun")
+    val dayNames = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
     Column(modifier.fillMaxWidth()) {
-        Text("Training time heatmap", style = MaterialTheme.typography.titleLarge)
+        Text("Training Time", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
         Spacer(Modifier.height(12.dp))
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(260.dp)
-        ) {
-            val layout = ChartLayout(leftPad = 44f, rightPad = 12f, topPad = 12f, bottomPad = 24f)
+
+        Canvas(modifier = Modifier.fillMaxWidth().height(240.dp)) {
+            val layout = ChartLayout(leftPad = 60f, bottomPad = 40f)
             val chartW = layout.width(size.width)
             val chartH = layout.height(size.height)
             val x0 = layout.originX()
-            val yTop = size.height - chartH - layout.bottomPad
+            val y0 = layout.topPad
 
             val cellW = chartW / 24f
             val cellH = chartH / 7f
+            val spacing = 2f
 
+            // Cells
             for (d in 0 until 7) {
                 for (h in 0 until 24) {
+                    val count = data[d][h]
                     val x = x0 + h * cellW
-                    val y = yTop + d * cellH
+                    val y = y0 + d * cellH
+
                     drawRect(
-                        color = cellColor(counts[d][h], base, accent),
+                        color = getCellColor(count),
                         topLeft = Offset(x, y),
-                        size = Size(cellW - 1f, cellH - 1f)
+                        size = Size(cellW - spacing, cellH - spacing)
                     )
                 }
             }
 
-            // Hour labels
-            for (h in 0 until 24 step 2) {
-                val lbl = h.toString()
-                val cx = x0 + h * cellW + cellW / 2f
-                drawXTickLabel(drawContext.canvas.nativeCanvas, lbl, cx, yTop + chartH, labelPaint)
+            // Labels
+            for (d in 0 until 7) {
+                val y = y0 + d * cellH + cellH / 1.5f
+                drawContext.canvas.nativeCanvas.drawText(dayNames[d], 0f, y, labelPaint)
             }
 
-            // Day labels
-            for (d in 0 until 7) {
-                val lbl = dayNames[d]
-                val cy = yTop + d * cellH + cellH / 2f + labelPaint.textSize / 2.8f
-                drawContext.canvas.nativeCanvas.drawText(
-                    lbl, x0 - 8f - labelPaint.measureText(lbl), cy, labelPaint
+            for (h in 0..24 step 6) {
+                val x = x0 + h * cellW
+                // Using DrawScope extension manually here if needed, or raw text
+                drawContext.canvas.nativeCanvas.drawText("${h}h", x, y0 + chartH + 30f, labelPaint)
+            }
+        }
+    }
+}
+
+
+=========================================
+FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\example\gymtrack\feature\stats\components\charts\WorkoutDurationTrendChart.kt
+=========================================
+
+package com.example.gymtrack.feature.stats.components.charts
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.gymtrack.core.data.NoteLine
+import com.example.gymtrack.core.util.parseDurationSeconds
+import com.example.gymtrack.core.util.parseNoteText
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+
+@Composable
+fun WorkoutDurationTrendChart(
+    notes: List<NoteLine>,
+    showRollingAvg: Boolean = true,
+    modifier: Modifier = Modifier
+) {
+    fun isoWeekStart(ts: Long): Long {
+        val c = Calendar.getInstance().apply {
+            timeInMillis = ts
+            firstDayOfWeek = Calendar.MONDAY
+            minimalDaysInFirstWeek = 4
+        }
+        val dow = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7
+        c.add(Calendar.DAY_OF_YEAR, -dow)
+        c.set(Calendar.HOUR_OF_DAY, 0); c.set(Calendar.MINUTE, 0); c.set(Calendar.SECOND, 0); c.set(Calendar.MILLISECOND, 0)
+        return c.timeInMillis
+    }
+
+    fun noteMin(n: NoteLine): Float? =
+        parseNoteText(n.text).second
+            .mapNotNull { if (it.isBlank()) null else parseDurationSeconds(it) }
+            .maxOrNull()?.div(60f)
+
+    // Aggregate Data
+    val weekly = notes
+        .groupBy { isoWeekStart(it.timestamp) }
+        .toSortedMap()
+        .map { (t, list) ->
+            val mins = list.mapNotNull { noteMin(it) }
+            t to (if (mins.isEmpty()) 0f else mins.average().toFloat())
+        }
+
+    if (weekly.isEmpty()) {
+        Box(modifier.fillMaxWidth().height(200.dp)) {
+            Text("No data", color = Color.Gray)
+        }
+        return
+    }
+
+    val scaleY = buildScaleY(weekly.map { it.second })
+    val theme = rememberChartTheme()
+    val density = LocalDensity.current
+    val textPaint = makeTextPaint(theme.label, with(density) { 10.sp.toPx() })
+    val df = SimpleDateFormat("dd MMM", Locale.getDefault())
+
+    Column(modifier.fillMaxWidth()) {
+        Text("Workout Duration (Weekly)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        Spacer(Modifier.height(16.dp))
+
+        Canvas(modifier = Modifier.fillMaxWidth().height(200.dp)) {
+            val layout = ChartLayout()
+            val chartW = layout.width(size.width)
+            val chartH = layout.height(size.height)
+            val x0 = layout.originX()
+            val y0 = layout.originY(size.height)
+
+            // Draw Grid
+            drawYGridAndLabels(scaleY, theme, layout, textPaint)
+
+            val n = weekly.size
+            val dx = if (n <= 1) chartW else chartW / (n - 1).toFloat()
+
+            // Calculate Points
+            val points = weekly.mapIndexed { i, pair ->
+                val x = x0 + dx * i
+                val y = scaleY.yToPx(pair.second, y0, layout.topPad)
+                x to y
+            }
+
+            // Draw Fill (Gradient)
+            val linePath = createSmoothPath(points)
+            val fillPath = createFillPath(linePath, size.width, y0)
+
+            drawPath(
+                path = fillPath,
+                brush = Brush.verticalGradient(
+                    colors = listOf(theme.primary.copy(alpha = 0.3f), Color.Transparent),
+                    startY = layout.topPad,
+                    endY = y0
                 )
+            )
+
+            // Draw Line
+            drawPath(
+                path = linePath,
+                color = theme.primary,
+                style = Stroke(width = 6f)
+            )
+
+            // Draw X Labels (First and Last)
+            drawXTickLabel(df.format(weekly.first().first), x0, y0, textPaint)
+            if (n > 1) {
+                drawXTickLabel(df.format(weekly.last().first), x0 + chartW, y0, textPaint)
             }
         }
     }
@@ -5555,6 +5409,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -5563,38 +5419,87 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
+import com.example.gymtrack.core.data.WorkoutRepository
+import com.example.gymtrack.feature.stats.components.charts.*
 
-// Reusing the styling logic
-private val CardDeepDark = Color(0xFF181818)
+private val CardDeepDark = Color(0xFF121212)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatsScreen(
-    notes: List<NoteLine>,
+    state: StatsState,
+    workoutRepository: WorkoutRepository,
     settings: Settings,
+    onTimeRangeSelected: (TimeRange) -> Unit,
     onBack: () -> Unit
 ) {
     val backgroundColor = MaterialTheme.colorScheme.background
     val textColor = MaterialTheme.colorScheme.onSurface
-
-    val totalWorkouts = notes.size
-    val totalSets = remember(notes) {
-        notes.sumOf { note -> note.text.lines().count { it.trim().matches(Regex("^\\d+x.*")) } }
-    }
-    val favCategory = remember(notes) {
-        notes.groupingBy { it.categoryName }.eachCount().maxByOrNull { it.value }?.key ?: "-"
-    }
+    var rangeMenuExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = backgroundColor,
         topBar = {
             TopAppBar(
-                title = { Text("Your Statistics", fontWeight = FontWeight.Bold, fontSize = 24.sp) },
+                title = { Text("Statistics", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = textColor)
+                    }
+                },
+                actions = {
+                    // [FIX] Wrap in Box to anchor the Dropdown correctly
+                    Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
+
+                        // [FIX] Use Surface(onClick = ...) instead of Row(Modifier.clickable)
+                        // This ensures the button captures clicks properly in the TopBar.
+                        Surface(
+                            onClick = { rangeMenuExpanded = true },
+                            shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.padding(end = 12.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarToday,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = textColor
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = state.currentRange.label,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = textColor
+                                )
+                                Spacer(Modifier.width(2.dp))
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    tint = textColor
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = rangeMenuExpanded,
+                            onDismissRequest = { rangeMenuExpanded = false }
+                        ) {
+                            TimeRange.values().forEach { range ->
+                                DropdownMenuItem(
+                                    text = { Text(range.label) },
+                                    onClick = {
+                                        onTimeRangeSelected(range)
+                                        rangeMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = backgroundColor, titleContentColor = textColor)
@@ -5602,74 +5507,77 @@ fun StatsScreen(
         }
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // Quick Stats
+            // 1. Quick Stats
             item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatBadge("Workouts", "$totalWorkouts", Modifier.weight(1f))
-                    StatBadge("Sets", "$totalSets", Modifier.weight(1f))
-                    StatBadge("Favorite", favCategory, Modifier.weight(1f))
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        StatBadge("Workouts", "${state.totalNotes}", Modifier.weight(1f))
+                        StatBadge("Weekly Avg", String.format("%.1f", state.avgWorkoutsPerWeek), Modifier.weight(1f))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        StatBadge("Avg Sets", String.format("%.1f", state.avgSets), Modifier.weight(1f))
+                        StatBadge("Favorite", state.categoryCounts.maxByOrNull { it.value }?.key ?: "-", Modifier.weight(1f))
+                    }
                 }
             }
 
-            // Exercise Progress
+            // 2. Exercise Progress
             item {
-                Text("Exercise Progression", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor)
-                Spacer(Modifier.height(12.dp))
+                ExerciseProgressCard(repository = workoutRepository,timeRange = state.currentRange)
+            }
+
+            // 3. Duration Trend
+            item {
+                AdaptiveCard(height = 280.dp) {
+                    Column(Modifier.padding(16.dp)) {
+                        WorkoutDurationTrendChart(notes = state.filteredNotes, showRollingAvg = true)
+                    }
+                }
+            }
+
+            // 7. Heatmap
+            item {
                 AdaptiveCard(height = 300.dp) {
-                    // TODO: Insert your ExerciseProgressChart(notes, settings) here
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Chart Placeholder", color = textColor.copy(alpha = 0.5f))
+                    Column(Modifier.padding(16.dp)) {
+                        TimeOfDayHeatmap(data = state.heatmapData)
                     }
                 }
             }
 
-            // Top Exercises
-            item {
-                Text("Top Exercises", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor)
-                Spacer(Modifier.height(12.dp))
-                AdaptiveCard(height = 250.dp) {
-                    // TODO: Insert your TopExercisesChart(notes) here
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Bar Chart Placeholder", color = textColor.copy(alpha = 0.5f))
-                    }
-                }
-            }
             item { Spacer(Modifier.height(32.dp)) }
         }
     }
+}
+
+// --- HELPERS ---
+
+@Composable
+fun AdaptiveCard(modifier: Modifier = Modifier, height: androidx.compose.ui.unit.Dp? = null, content: @Composable () -> Unit) {
+    var mod = modifier.fillMaxWidth()
+    if (height != null) mod = mod.height(height)
+    Card(
+        colors = CardDefaults.cardColors(containerColor = CardDeepDark),
+        shape = RoundedCornerShape(12.dp),
+        modifier = mod
+    ) { content() }
 }
 
 @Composable
 fun StatBadge(label: String, value: String, modifier: Modifier = Modifier) {
     AdaptiveCard(modifier = modifier) {
         Column(
-            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), maxLines = 1)
         }
-    }
-}
-
-@Composable
-fun AdaptiveCard(modifier: Modifier = Modifier, height: androidx.compose.ui.unit.Dp? = null, content: @Composable () -> Unit) {
-    val isDark = MaterialTheme.colorScheme.background.run { red < 0.5 && green < 0.5 && blue < 0.5 }
-    val cardColor = if (isDark) CardDeepDark else MaterialTheme.colorScheme.surface
-
-    var mod = modifier
-    if (height != null) mod = mod.height(height)
-
-    Card(
-        colors = CardDefaults.cardColors(containerColor = cardColor),
-        shape = RoundedCornerShape(12.dp),
-        modifier = mod,
-        elevation = CardDefaults.cardElevation(defaultElevation = if(isDark) 0.dp else 2.dp)
-    ) {
-        content()
     }
 }
 
@@ -5687,35 +5595,61 @@ import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.repository.NoteRepository
 import com.example.gymtrack.core.util.parseDurationSeconds
 import com.example.gymtrack.core.util.parseNoteText
-import com.example.gymtrack.core.util.WorkoutParser // Needed for SetsDistribution
+import com.example.gymtrack.core.util.WorkoutParser
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
 import java.util.Calendar
+import java.util.concurrent.TimeUnit
+
+enum class TimeRange(val label: String, val days: Int) {
+    LAST_WEEK("Last Week", 7),
+    LAST_MONTH("Last Month", 30),
+    LAST_3_MONTHS("Last 3 Months", 90), // [FIX] Added missing option
+    LAST_6_MONTHS("Last 6 Months", 180),
+    LAST_YEAR("Last Year", 365),
+    ALL_TIME("All Time", -1)
+}
 
 data class StatsState(
     val totalNotes: Int = 0,
-    val totalCategories: Int = 0,
+    val avgWorkoutsPerWeek: Float = 0f,
     val avgSets: Float = 0f,
     val categoryCounts: Map<String, Int> = emptyMap(),
     val averageDurations: Map<String, Float> = emptyMap(),
     val heatmapData: Array<IntArray> = Array(7) { IntArray(24) },
     val topExercises: List<Pair<String, Int>> = emptyList(),
+    val currentRange: TimeRange = TimeRange.ALL_TIME,
+    val filteredNotes: List<NoteLine> = emptyList()
 )
 
 class StatsViewModel(
     private val repository: NoteRepository
 ) : ViewModel() {
 
-    val uiState: StateFlow<StatsState> = repository.getAllNotes()
-        .map { notes -> calculateStats(notes) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsState())
+    private val _timeRange = MutableStateFlow(TimeRange.ALL_TIME)
 
-    private suspend fun calculateStats(notes: List<NoteLine>): StatsState = withContext(Dispatchers.Default) {
-        if (notes.isEmpty()) return@withContext StatsState()
+    val uiState: StateFlow<StatsState> = combine(
+        repository.getAllNotes(),
+        _timeRange
+    ) { notes, range ->
+        calculateStats(notes, range)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsState())
+
+    fun setTimeRange(range: TimeRange) {
+        _timeRange.value = range
+    }
+
+    private suspend fun calculateStats(allNotes: List<NoteLine>, range: TimeRange): StatsState = withContext(Dispatchers.Default) {
+        // [FIX] Strict math using TimeUnit.
+        // "Last Month" = Exact last 30 days relative to NOW.
+        val cutoff = if (range.days > 0) {
+            System.currentTimeMillis() - TimeUnit.DAYS.toMillis(range.days.toLong())
+        } else 0L
+
+        val notes = allNotes.filter { it.timestamp >= cutoff }
+
+        if (notes.isEmpty()) return@withContext StatsState(currentRange = range, filteredNotes = emptyList())
 
         val parser = WorkoutParser()
 
@@ -5732,9 +5666,24 @@ class StatsViewModel(
         }
         val avgSets = if (mainCount > 0) subCount.toFloat() / mainCount else 0f
 
-        // 2. Category & Duration Stats
+        // 2. Weekly Avg
+        val minTime = notes.minOf { it.timestamp }
+        val maxTime = notes.maxOf { it.timestamp }
+
+        // Calculate exact weeks in the selected range (or actual data span if All Time)
+        val durationWeeks = if (range == TimeRange.ALL_TIME) {
+            val diff = (maxTime - minTime).coerceAtLeast(1L)
+            diff.toFloat() / TimeUnit.DAYS.toMillis(7)
+        } else {
+            range.days / 7f
+        }
+
+        val avgWeekly = if (durationWeeks > 0) notes.size / durationWeeks else 0f
+
+        // 3. Category Counts & Durations
         val counts = notes.groupingBy { it.categoryName ?: "Other" }.eachCount()
-        val avgs = notes.groupBy { it.categoryName ?: "Other" }
+
+        val durationAvgs = notes.groupBy { it.categoryName ?: "Other" }
             .mapValues { entry ->
                 val durations = entry.value.mapNotNull { note ->
                     parseNoteText(note.text).second.mapNotNull {
@@ -5744,16 +5693,16 @@ class StatsViewModel(
                 if (durations.isEmpty()) 0f else durations.average().toFloat() / 60f
             }
 
-        // 3. Heatmap
+        // 4. Heatmap
         val heatmap = Array(7) { IntArray(24) }
         notes.forEach { n ->
             val c = Calendar.getInstance().apply { timeInMillis = n.timestamp }
-            val day = ((c.get(Calendar.DAY_OF_WEEK) + 5) % 7) // Mon=0
+            val day = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7
             val hour = c.get(Calendar.HOUR_OF_DAY)
             heatmap[day][hour]++
         }
 
-        // 4. Top Exercises
+        // 5. Top Exercises
         val exerciseCounts = notes.flatMap { note ->
             val sets = parser.parseWorkout(note.text)
             sets.map { it.exerciseName }
@@ -5763,14 +5712,17 @@ class StatsViewModel(
             .toList()
             .sortedByDescending { it.second }
             .take(5)
+
         StatsState(
             totalNotes = notes.size,
-            totalCategories = notes.mapNotNull { it.categoryName }.distinct().size,
+            avgWorkoutsPerWeek = avgWeekly,
             avgSets = avgSets,
             categoryCounts = counts,
-            averageDurations = avgs,
-            heatmapData = heatmap,       // Pass to state
-            topExercises = exerciseCounts, // Pass to state
+            averageDurations = durationAvgs,
+            heatmapData = heatmap,
+            topExercises = exerciseCounts,
+            currentRange = range,
+            filteredNotes = notes
         )
     }
 
@@ -5803,7 +5755,6 @@ import com.example.gymtrack.core.data.SettingsStore
 import com.example.gymtrack.core.data.repository.NoteRepository
 import com.example.gymtrack.core.data.WorkoutRepository
 import com.example.gymtrack.core.ui.theme.GymTrackTheme
-import com.example.gymtrack.feature.editor.EditorViewModel
 import com.example.gymtrack.feature.home.HomeViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -5812,7 +5763,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. Initialize Database & Repositories from CORE
         val db = NoteDatabase.getDatabase(applicationContext)
         val noteRepository = NoteRepository(db.noteDao())
         val workoutRepository = WorkoutRepository(db.noteDao(), db.exerciseDao(), db.setDao())
@@ -5821,29 +5771,19 @@ class MainActivity : ComponentActivity() {
             val settingsState = remember { mutableStateOf(Settings()) }
             val context = LocalContext.current
 
-            // Load Settings
             LaunchedEffect(Unit) {
                 settingsState.value = SettingsStore.load(context)
                 withContext(Dispatchers.IO) {
-                    workoutRepository.checkAndMigrate()
+                    // [FIX] This re-reads ALL notes and rebuilds the charts.
+                    // This will restore your missing 100+ sets immediately.
+                    workoutRepository.forceUpdateStats()
+                    workoutRepository.cleanUpOrphans()
                 }
             }
 
-            // Save Settings
             LaunchedEffect(settingsState.value) {
                 SettingsStore.save(context, settingsState.value)
             }
-
-            // 2. ViewModels Factories
-            val homeFactory = HomeViewModel.Factory(noteRepository)
-            // Note: You need to update EditorViewModel to accept a Factory if you haven't already,
-            // or instantiate it manually in the graph if using simpler DI.
-            val editorFactory = EditorViewModel.Factory(
-                -1L, // Initial ID is handled inside NavigationHost usually
-                noteRepository,
-                workoutRepository,
-                applicationContext
-            )
 
             GymTrackTheme(darkTheme = settingsState.value.darkMode) {
                 val navController = rememberNavController()
@@ -5870,11 +5810,15 @@ package com.example.gymtrack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.data.WorkoutRepository
 import com.example.gymtrack.core.data.repository.NoteRepository
@@ -5900,18 +5844,21 @@ fun NavigationHost(
         composable("notes") {
             val context = LocalContext.current // [FIX] Get context for import
             val homeViewModel: HomeViewModel = viewModel(
-                factory = HomeViewModel.Factory(noteRepository)
-            )
+                factory = HomeViewModel.Factory(noteRepository, workoutRepository)            )
             val notes by homeViewModel.notes.collectAsState()
+
+            var selectedNotes by remember { mutableStateOf<Set<NoteLine>>(emptySet()) }
 
             NotesScreen(
                 notes = notes,
-                selectedNotes = emptySet(),
-                onSelect = { },
+                selectedNotes = selectedNotes,
+                onSelect = { selectedNotes = it },
                 onEdit = { note ->
                     navController.navigate("editor?noteId=${note.timestamp}")
                 },
-                onDelete = { selected -> homeViewModel.deleteNotes(selected) },
+                onDelete = { selected ->
+                    homeViewModel.deleteNotes(selected)
+                    selectedNotes = emptySet() },
                 onExport = { /* Export logic */ },
                 onCreate = { navController.navigate("editor?noteId=-1") },
                 // [FIX] Call the new import function
@@ -5931,7 +5878,12 @@ fun NavigationHost(
             val context = LocalContext.current
 
             val editorViewModel: EditorViewModel = viewModel(
-                factory = EditorViewModel.Factory(noteId, noteRepository, workoutRepository, context)
+                factory = EditorViewModel.Factory(
+                    noteId,
+                    noteRepository,
+                    workoutRepository,
+                    context
+                )
             )
 
             NoteEditor(
@@ -5947,11 +5899,13 @@ fun NavigationHost(
             val statsViewModel: StatsViewModel = viewModel(
                 factory = StatsViewModel.Factory(noteRepository)
             )
-            val notes by noteRepository.getAllNotes().collectAsState(initial = emptyList())
+            val state by statsViewModel.uiState.collectAsState()
 
             StatsScreen(
-                notes = notes,
+                state = state,
+                workoutRepository = workoutRepository,
                 settings = settings,
+                onTimeRangeSelected = { statsViewModel.setTimeRange(it) }, // [FIX]
                 onBack = { navController.popBackStack() }
             )
         }
