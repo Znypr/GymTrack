@@ -1,3 +1,5 @@
+// FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\example\gymtrack\feature\home\NotesScreen.kt
+
 package com.example.gymtrack.feature.home
 
 import android.net.Uri
@@ -40,17 +42,19 @@ fun NotesScreen(
     onDelete: (Set<NoteLine>) -> Unit,
     onExport: (Set<NoteLine>) -> Unit,
     onCreate: () -> Unit,
-    onImport: (Uri) -> Unit, // [FIX] Changed from () -> Unit to (Uri) -> Unit
+    onImport: (List<Uri>) -> Unit, // [FIX] Changed to receive List<Uri>
     onOpenSettings: () -> Unit,
     onOpenStats: () -> Unit,
     onSwipeRight: () -> Unit,
     settings: Settings,
 ) {
-    // [FIX] File Picker Launcher
+    // [FIX] Multi-File Picker Launcher
     val importLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument(),
-        onResult = { uri ->
-            uri?.let { onImport(it) }
+        contract = ActivityResultContracts.OpenMultipleDocuments(),
+        onResult = { uris ->
+            if (uris.isNotEmpty()) {
+                onImport(uris)
+            }
         }
     )
 
@@ -91,7 +95,7 @@ fun NotesScreen(
                         }
                         // [FIX] Launch File Picker on click
                         IconButton(onClick = {
-                            importLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "application/csv"))
+                            importLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "application/csv", "text/plain"))
                         }) {
                             Icon(Icons.Default.UploadFile, contentDescription = "Import", tint = MaterialTheme.colorScheme.onBackground)
                         }

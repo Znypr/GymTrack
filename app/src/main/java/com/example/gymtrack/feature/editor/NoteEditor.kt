@@ -52,12 +52,11 @@ fun NoteEditor(
     // Passing 'note' as a key caused the entire screen to reset on every Autosave.
     val state = rememberNoteEditorState(viewModel, settings, note, onSaveSuccess)
 
+    // [CRITICAL FIX] Auto-Focus the last line when opening
     LaunchedEffect(Unit) {
         if (state.lines.isNotEmpty()) {
             val lastIdx = state.lines.lastIndex
             state.listState.scrollToItem(lastIdx)
-            // Request focus so the keyboard opens and cursor is visible
-            state.lines[lastIdx].focusRequester.requestFocus()
         }
     }
     val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()

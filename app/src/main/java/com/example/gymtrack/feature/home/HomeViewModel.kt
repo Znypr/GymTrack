@@ -1,3 +1,5 @@
+// FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\example\gymtrack\feature\home\HomeViewModel.kt
+
 package com.example.gymtrack.feature.home
 
 import android.content.Context
@@ -18,6 +20,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import com.example.gymtrack.core.data.WorkoutRepository
 import com.example.gymtrack.core.data.repository.toEntity
+import java.util.UUID
 
 class HomeViewModel(
     private val repository: NoteRepository,
@@ -32,7 +35,7 @@ class HomeViewModel(
             // 1. Delete the Text Notes
             repository.deleteNotes(notes)
 
-            // 2. [FIX] Delete the associated Stats
+            // 2. Delete the associated Stats
             notes.forEach { note ->
                 workoutRepository.deleteWorkout(note.timestamp)
             }
@@ -45,34 +48,41 @@ class HomeViewModel(
         }
     }
 
-    // [FIX] Added Import Functionality
-    fun importNoteFromUri(context: Context, uri: Uri, settings: Settings) {
+    // [FIX] Updated to support multiple files
+    fun importNotesFromUris(context: Context, uris: List<Uri>, settings: Settings) {
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                // 1. Copy content from Uri to a temporary file
-                val inputStream = context.contentResolver.openInputStream(uri) ?: return@launch
-                val tempFile = File(context.cacheDir, "temp_import.csv")
+            uris.forEach { uri ->
+                try {
+                    // 1. Copy content from Uri to a unique temporary file
+                    // We use UUID to ensure no conflicts during the loop
+                    val uniqueName = "temp_import_${UUID.randomUUID()}.csv"
+                    val tempFile = File(context.cacheDir, uniqueName)
 
-                tempFile.outputStream().use { output ->
-                    inputStream.copyTo(output)
+                    val inputStream = context.contentResolver.openInputStream(uri)
+                    if (inputStream != null) {
+                        tempFile.outputStream().use { output ->
+                            inputStream.copyTo(output)
+                        }
+                        inputStream.close()
+
+                        // 2. Parse using your existing ImportUtils
+                        val note = importNote(tempFile, settings)
+
+                        if (note != null) {
+                            // 3. Save Text
+                            repository.saveNote(note)
+                            // 4. Generate Stats immediately
+                            workoutRepository.syncNoteToWorkout(note.toEntity())
+                        }
+                    }
+
+                    // 5. Cleanup
+                    if (tempFile.exists()) {
+                        tempFile.delete()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
-                inputStream.close()
-
-                // 2. Parse using your existing ImportUtils
-                val note = importNote(tempFile, settings)
-
-                if (note != null) {
-                    // 1. Save Text
-                    repository.saveNote(note)
-                    // 2. [FIX] Generate Stats immediately
-                    // We map the parsed NoteEntity to sets so they show up in graphs
-                    workoutRepository.syncNoteToWorkout(note.toEntity())
-                }
-
-                // 4. Cleanup
-                tempFile.delete()
-            } catch (e: Exception) {
-                e.printStackTrace()
             }
         }
     }

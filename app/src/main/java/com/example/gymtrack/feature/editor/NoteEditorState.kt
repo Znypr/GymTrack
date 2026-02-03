@@ -104,7 +104,7 @@ class NoteEditorState(
         if (newValue.text.endsWith("\n")) {
             val content = newValue.text.dropLast(1)
 
-            // [FIX] Prevent double timestamps: Check if line already ends with (...)
+
             // matches (m'ss'') pattern
             val hasTimestamp = content.trim().matches(Regex(".*\\(\\d+'\\d{2}''\\)$"))
 
@@ -169,6 +169,9 @@ class NoteEditorState(
     fun saveNote(isLastNote: Boolean, exit: Boolean) {
         if (saved && !exit) return
 
+        // [CRITICAL FIX]
+        // Old Logic: val lastContentIndex = lines.indexOfLast { it.text.value.text.isNotBlank() }
+        // New Logic: Save EVERYTHING. If the user hit enter, they want that empty line.
         val range = lines.indices
 
         val finalStartTime = startTime ?: noteTimestamp

@@ -1,3 +1,5 @@
+// FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\example\gymtrack\NavigationHost.kt
+
 package com.example.gymtrack
 
 import androidx.compose.runtime.Composable
@@ -35,9 +37,10 @@ fun NavigationHost(
 
         // 1. HOME SCREEN
         composable("notes") {
-            val context = LocalContext.current // [FIX] Get context for import
+            val context = LocalContext.current
             val homeViewModel: HomeViewModel = viewModel(
-                factory = HomeViewModel.Factory(noteRepository, workoutRepository)            )
+                factory = HomeViewModel.Factory(noteRepository, workoutRepository)
+            )
             val notes by homeViewModel.notes.collectAsState()
 
             var selectedNotes by remember { mutableStateOf<Set<NoteLine>>(emptySet()) }
@@ -54,9 +57,9 @@ fun NavigationHost(
                     selectedNotes = emptySet() },
                 onExport = { /* Export logic */ },
                 onCreate = { navController.navigate("editor?noteId=-1") },
-                // [FIX] Call the new import function
-                onImport = { uri ->
-                    homeViewModel.importNoteFromUri(context, uri, settings)
+                // [FIX] Updated for multiple files
+                onImport = { uris ->
+                    homeViewModel.importNotesFromUris(context, uris, settings)
                 },
                 onOpenSettings = { navController.navigate("settings") },
                 onOpenStats = { navController.navigate("stats") },
@@ -65,7 +68,7 @@ fun NavigationHost(
             )
         }
 
-        // ... (Rest of your composables remain the same)
+        // ... (Rest of the composables remain unchanged) ...
         composable("editor?noteId={noteId}") { backStackEntry ->
             val noteId = backStackEntry.arguments?.getString("noteId")?.toLongOrNull() ?: -1L
             val context = LocalContext.current
@@ -98,7 +101,7 @@ fun NavigationHost(
                 state = state,
                 workoutRepository = workoutRepository,
                 settings = settings,
-                onTimeRangeSelected = { statsViewModel.setTimeRange(it) }, // [FIX]
+                onTimeRangeSelected = { statsViewModel.setTimeRange(it) },
                 onBack = { navController.popBackStack() }
             )
         }

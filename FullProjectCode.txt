@@ -3177,6 +3177,7 @@ fun NoteEditor(
     val note by viewModel.uiState.collectAsState()
     val isEditingExisting = viewModel.currentId != -1L
 
+    // Wait for data if editing an existing note
     if (isEditingExisting && note == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
@@ -3184,14 +3185,21 @@ fun NoteEditor(
         return
     }
 
-    val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
+    // [CRITICAL FIX]
+    // Key the state to 'viewModel' so it is created ONLY ONCE.
+    // Passing 'note' as a key caused the entire screen to reset on every Autosave.
     val state = rememberNoteEditorState(viewModel, settings, note, onSaveSuccess)
 
-    LaunchedEffect(state.lines.size) {
+    // [CRITICAL FIX] Auto-Focus the last line when opening
+    LaunchedEffect(Unit) {
         if (state.lines.isNotEmpty()) {
-            state.listState.scrollToItem(state.lines.lastIndex)
+            val lastIdx = state.lines.lastIndex
+            state.listState.scrollToItem(lastIdx)
+            // Request focus so the keyboard opens and cursor is visible
+            state.lines[lastIdx].focusRequester.requestFocus()
         }
     }
+    val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
 
     // 2. Header State
     var selectedCategory by remember(note) {
@@ -3297,6 +3305,7 @@ FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\e
 
 package com.example.gymtrack.feature.editor
 
+import android.R.attr.delay
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.lazy.LazyListState
@@ -3316,7 +3325,9 @@ import com.example.gymtrack.core.util.parseDurationSeconds
 import com.example.gymtrack.core.util.parseNoteText
 import com.example.gymtrack.core.services.NoteTimerService
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.time.delay
 
 data class NoteRow(
     val id: Long,
@@ -3398,7 +3409,7 @@ class NoteEditorState(
         if (newValue.text.endsWith("\n")) {
             val content = newValue.text.dropLast(1)
 
-            // [FIX] Prevent double timestamps: Check if line already ends with (...)
+
             // matches (m'ss'') pattern
             val hasTimestamp = content.trim().matches(Regex(".*\\(\\d+'\\d{2}''\\)$"))
 
@@ -3435,6 +3446,8 @@ class NoteEditorState(
             if (timestamps.size <= nextIdx) timestamps.add("") else timestamps.add(nextIdx, "")
 
             scope.launch {
+                // [CRITICAL FIX] Small delay to allow Compose to render the new row before focusing
+                delay(50)
                 listState.animateScrollToItem(nextIdx)
                 newRow.focusRequester.requestFocus()
             }
@@ -3459,18 +3472,25 @@ class NoteEditorState(
     }
 
     fun saveNote(isLastNote: Boolean, exit: Boolean) {
-        // [FIX] If we just saved and aren't exiting, skip to save resources
-        // BUT if it's an autosave (exit=false), we proceed.
         if (saved && !exit) return
 
-        val lastContentIndex = lines.indexOfLast { it.text.value.text.isNotBlank() }
-        val range = if (lastContentIndex >= 0) 0..lastContentIndex else IntRange.EMPTY
+        // [CRITICAL FIX]
+        // Old Logic: val lastContentIndex = lines.indexOfLast { it.text.value.text.isNotBlank() }
+        // New Logic: Save EVERYTHING. If the user hit enter, they want that empty line.
+        val range = lines.indices
+
         val finalStartTime = startTime ?: noteTimestamp
 
         range.forEach { i ->
             val row = lines[i]
-            if (row.text.value.text.isNotBlank() && timestamps.getOrElse(i) { "" }.isBlank()) {
-                val nowAbs = formatElapsedMinutesSeconds(finalStartTime, System.currentTimeMillis(), settings)
+            if (row.text.value.text.isNotBlank() &&
+                timestamps.getOrElse(i) { "" }.isBlank()) {
+
+                val nowAbs = formatElapsedMinutesSeconds(
+                    finalStartTime,
+                    System.currentTimeMillis(),
+                    settings
+                )
                 ensureListSize(i)
                 timestamps[i] = nowAbs
             }
@@ -3484,19 +3504,19 @@ class NoteEditorState(
         val combined = combineTextAndTimes(plainContent, validTimestamps, validFlags)
 
         val isNew = currentNoteVersion == null
-        val isEmpty = combined.isBlank() && viewModel.currentTitle.isBlank() && viewModel.currentLearnings.isBlank()
+        val isEmpty = combined.isBlank() &&
+                viewModel.currentTitle.isBlank() &&
+                viewModel.currentLearnings.isBlank()
 
         if (isNew && isEmpty) {
             if (exit) onSaveSuccess()
             return
         }
 
-        // [FIX] Update ViewModel immediately so UI is robust
         viewModel.saveNote(combined, settings) {
             if (exit) {
                 onSaveSuccess()
             }
-            // Update internal version to match saved state
             saved = true
         }
 
@@ -3528,7 +3548,7 @@ fun rememberNoteEditorState(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
-    return remember(note) {
+    return remember(viewModel) {
         NoteEditorState(viewModel, settings, context, scope, listState, note, onSaveSuccess)
     }
 }
@@ -3781,6 +3801,8 @@ fun WorkoutAlbumCard(
 FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\example\gymtrack\feature\home\HomeViewModel.kt
 =========================================
 
+// FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\example\gymtrack\feature\home\HomeViewModel.kt
+
 package com.example.gymtrack.feature.home
 
 import android.content.Context
@@ -3801,6 +3823,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import com.example.gymtrack.core.data.WorkoutRepository
 import com.example.gymtrack.core.data.repository.toEntity
+import java.util.UUID
 
 class HomeViewModel(
     private val repository: NoteRepository,
@@ -3815,7 +3838,7 @@ class HomeViewModel(
             // 1. Delete the Text Notes
             repository.deleteNotes(notes)
 
-            // 2. [FIX] Delete the associated Stats
+            // 2. Delete the associated Stats
             notes.forEach { note ->
                 workoutRepository.deleteWorkout(note.timestamp)
             }
@@ -3828,34 +3851,41 @@ class HomeViewModel(
         }
     }
 
-    // [FIX] Added Import Functionality
-    fun importNoteFromUri(context: Context, uri: Uri, settings: Settings) {
+    // [FIX] Updated to support multiple files
+    fun importNotesFromUris(context: Context, uris: List<Uri>, settings: Settings) {
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                // 1. Copy content from Uri to a temporary file
-                val inputStream = context.contentResolver.openInputStream(uri) ?: return@launch
-                val tempFile = File(context.cacheDir, "temp_import.csv")
+            uris.forEach { uri ->
+                try {
+                    // 1. Copy content from Uri to a unique temporary file
+                    // We use UUID to ensure no conflicts during the loop
+                    val uniqueName = "temp_import_${UUID.randomUUID()}.csv"
+                    val tempFile = File(context.cacheDir, uniqueName)
 
-                tempFile.outputStream().use { output ->
-                    inputStream.copyTo(output)
+                    val inputStream = context.contentResolver.openInputStream(uri)
+                    if (inputStream != null) {
+                        tempFile.outputStream().use { output ->
+                            inputStream.copyTo(output)
+                        }
+                        inputStream.close()
+
+                        // 2. Parse using your existing ImportUtils
+                        val note = importNote(tempFile, settings)
+
+                        if (note != null) {
+                            // 3. Save Text
+                            repository.saveNote(note)
+                            // 4. Generate Stats immediately
+                            workoutRepository.syncNoteToWorkout(note.toEntity())
+                        }
+                    }
+
+                    // 5. Cleanup
+                    if (tempFile.exists()) {
+                        tempFile.delete()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
-                inputStream.close()
-
-                // 2. Parse using your existing ImportUtils
-                val note = importNote(tempFile, settings)
-
-                if (note != null) {
-                    // 1. Save Text
-                    repository.saveNote(note)
-                    // 2. [FIX] Generate Stats immediately
-                    // We map the parsed NoteEntity to sets so they show up in graphs
-                    workoutRepository.syncNoteToWorkout(note.toEntity())
-                }
-
-                // 4. Cleanup
-                tempFile.delete()
-            } catch (e: Exception) {
-                e.printStackTrace()
             }
         }
     }
@@ -3875,6 +3905,8 @@ class HomeViewModel(
 =========================================
 FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\example\gymtrack\feature\home\NotesScreen.kt
 =========================================
+
+// FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\example\gymtrack\feature\home\NotesScreen.kt
 
 package com.example.gymtrack.feature.home
 
@@ -3918,17 +3950,19 @@ fun NotesScreen(
     onDelete: (Set<NoteLine>) -> Unit,
     onExport: (Set<NoteLine>) -> Unit,
     onCreate: () -> Unit,
-    onImport: (Uri) -> Unit, // [FIX] Changed from () -> Unit to (Uri) -> Unit
+    onImport: (List<Uri>) -> Unit, // [FIX] Changed to receive List<Uri>
     onOpenSettings: () -> Unit,
     onOpenStats: () -> Unit,
     onSwipeRight: () -> Unit,
     settings: Settings,
 ) {
-    // [FIX] File Picker Launcher
+    // [FIX] Multi-File Picker Launcher
     val importLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument(),
-        onResult = { uri ->
-            uri?.let { onImport(it) }
+        contract = ActivityResultContracts.OpenMultipleDocuments(),
+        onResult = { uris ->
+            if (uris.isNotEmpty()) {
+                onImport(uris)
+            }
         }
     )
 
@@ -3969,7 +4003,7 @@ fun NotesScreen(
                         }
                         // [FIX] Launch File Picker on click
                         IconButton(onClick = {
-                            importLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "application/csv"))
+                            importLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "application/csv", "text/plain"))
                         }) {
                             Icon(Icons.Default.UploadFile, contentDescription = "Import", tint = MaterialTheme.colorScheme.onBackground)
                         }
@@ -5805,6 +5839,8 @@ class MainActivity : ComponentActivity() {
 FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\example\gymtrack\NavigationHost.kt
 =========================================
 
+// FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\example\gymtrack\NavigationHost.kt
+
 package com.example.gymtrack
 
 import androidx.compose.runtime.Composable
@@ -5842,9 +5878,10 @@ fun NavigationHost(
 
         // 1. HOME SCREEN
         composable("notes") {
-            val context = LocalContext.current // [FIX] Get context for import
+            val context = LocalContext.current
             val homeViewModel: HomeViewModel = viewModel(
-                factory = HomeViewModel.Factory(noteRepository, workoutRepository)            )
+                factory = HomeViewModel.Factory(noteRepository, workoutRepository)
+            )
             val notes by homeViewModel.notes.collectAsState()
 
             var selectedNotes by remember { mutableStateOf<Set<NoteLine>>(emptySet()) }
@@ -5861,9 +5898,9 @@ fun NavigationHost(
                     selectedNotes = emptySet() },
                 onExport = { /* Export logic */ },
                 onCreate = { navController.navigate("editor?noteId=-1") },
-                // [FIX] Call the new import function
-                onImport = { uri ->
-                    homeViewModel.importNoteFromUri(context, uri, settings)
+                // [FIX] Updated for multiple files
+                onImport = { uris ->
+                    homeViewModel.importNotesFromUris(context, uris, settings)
                 },
                 onOpenSettings = { navController.navigate("settings") },
                 onOpenStats = { navController.navigate("stats") },
@@ -5872,7 +5909,7 @@ fun NavigationHost(
             )
         }
 
-        // ... (Rest of your composables remain the same)
+        // ... (Rest of the composables remain unchanged) ...
         composable("editor?noteId={noteId}") { backStackEntry ->
             val noteId = backStackEntry.arguments?.getString("noteId")?.toLongOrNull() ?: -1L
             val context = LocalContext.current
@@ -5905,7 +5942,7 @@ fun NavigationHost(
                 state = state,
                 workoutRepository = workoutRepository,
                 settings = settings,
-                onTimeRangeSelected = { statsViewModel.setTimeRange(it) }, // [FIX]
+                onTimeRangeSelected = { statsViewModel.setTimeRange(it) },
                 onBack = { navController.popBackStack() }
             )
         }
