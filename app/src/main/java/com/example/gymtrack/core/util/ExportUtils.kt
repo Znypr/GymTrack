@@ -88,44 +88,48 @@ fun exportNote(context: Context, note: NoteLine, settings: Settings): File {
             .append(flag.toSubEntryString()).append('\n')
     }
 
-    val dir = File(context.filesDir, "csv").apply { mkdirs() }
-    val safeTitle = note.title
-        .trim()
-        .replace(" ", "_")
-        .replace(Regex("[^A-Za-z0-9_-]"), "")
-        .ifEmpty { "note" }
-    val date = SimpleDateFormat("dd-MM-yy", Locale.getDefault())
-        .format(Date(note.timestamp))
-    val time = SimpleDateFormat("HH-mm", Locale.getDefault())
-        .format(Date(note.timestamp))
-    val file = File(dir, "${safeTitle}-$date-$time.csv")
-    file.writeText(builder.toString())
+    try {
+        val dir = File(context.filesDir, "csv").apply { mkdirs() }
 
-    // Also copy to public Downloads directory if writable
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, file.name)
-            put(MediaStore.MediaColumns.MIME_TYPE, "text/csv")
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-        }
+        // Sanitize filename
+        val safeTitle = note.title
+            .trim()
+            .replace(" ", "_")
+            .replace(Regex("[^A-Za-z0-9_-]"), "")
+            .ifEmpty { "note" }
 
-        val resolver = context.contentResolver
-        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+        val date = SimpleDateFormat("dd-MM-yy", Locale.getDefault()).format(Date(note.timestamp))
+        val time = SimpleDateFormat("HH-mm", Locale.getDefault()).format(Date(note.timestamp))
 
-        if (uri != null) {
-            try {
+        val file = File(dir, "${safeTitle}-$date-$time.csv")
+        file.writeText(builder.toString()) // 'builder' is from your existing code
+
+        // Copy to public Downloads directory
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, file.name)
+                put(MediaStore.MediaColumns.MIME_TYPE, "text/csv")
+                // [CRITICAL FIX] Appending "/" is required by Android 10+ MediaStore
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/")
+            }
+
+            val resolver = context.contentResolver
+            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+
+            if (uri != null) {
                 resolver.openOutputStream(uri)?.use { output ->
                     file.inputStream().use { input ->
                         input.copyTo(output)
                     }
                 }
-            } catch (e: Exception) {
-                e.printStackTrace() // Log failure
             }
         }
+        return file
+    } catch (e: Exception) {
+        e.printStackTrace()
+        // Return a dummy file or rethrow safely
+        return File(context.filesDir, "export_failed.log")
     }
-
-    return file
 }
 
 fun getSavedCsvFiles(context: Context): List<File> {

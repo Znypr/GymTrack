@@ -141,10 +141,16 @@ class NoteEditorState(
             if (timestamps.size <= nextIdx) timestamps.add("") else timestamps.add(nextIdx, "")
 
             scope.launch {
-                // [CRITICAL FIX] Small delay to allow Compose to render the new row before focusing
-                delay(50)
-                listState.animateScrollToItem(nextIdx)
-                newRow.focusRequester.requestFocus()
+                // [FIX] Increased delay slightly and switched to scrollToItem for stability.
+                // Animations can cause crashes when inserting items at the bottom of a long list
+                // while the keyboard is active.
+                delay(100)
+
+                // Safety check: ensure the index still exists
+                if (nextIdx < lines.size) {
+                    listState.scrollToItem(nextIdx)
+                    newRow.focusRequester.requestFocus()
+                }
             }
 
             // [CRITICAL FIX] AUTOSAVE on new line to prevent data loss if app dies

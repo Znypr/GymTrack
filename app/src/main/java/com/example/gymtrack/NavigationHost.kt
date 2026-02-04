@@ -2,11 +2,13 @@
 
 package com.example.gymtrack
 
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -24,6 +26,7 @@ import com.example.gymtrack.feature.home.NotesScreen
 import com.example.gymtrack.feature.settings.SettingsScreen
 import com.example.gymtrack.feature.stats.StatsScreen
 import com.example.gymtrack.feature.stats.StatsViewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun NavigationHost(
@@ -38,6 +41,7 @@ fun NavigationHost(
         // 1. HOME SCREEN
         composable("notes") {
             val context = LocalContext.current
+            val scope = rememberCoroutineScope()
             val homeViewModel: HomeViewModel = viewModel(
                 factory = HomeViewModel.Factory(noteRepository, workoutRepository)
             )
@@ -55,7 +59,22 @@ fun NavigationHost(
                 onDelete = { selected ->
                     homeViewModel.deleteNotes(selected)
                     selectedNotes = emptySet() },
-                onExport = { /* Export logic */ },
+                onExport = { selected ->
+                    if (selected.isNotEmpty()) {
+                        scope.launch {
+                            try {
+                                homeViewModel.exportNotes(context, selected, settings)
+                                Toast.makeText(context, "Exported ${selected.size} notes to Downloads", Toast.LENGTH_SHORT).show()
+                                selectedNotes = emptySet()
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                Toast.makeText(context, "Export failed: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    } else {
+                        Toast.makeText(context, "No notes selected", Toast.LENGTH_SHORT).show()
+                    }
+                },
                 onCreate = { navController.navigate("editor?noteId=-1") },
                 // [FIX] Updated for multiple files
                 onImport = { uris ->
