@@ -202,7 +202,11 @@ class NoteEditorState(
             return
         }
 
-        viewModel.saveNote(combined, settings) {
+        viewModel.saveNote(
+            finalText = combined,
+            settings = settings,
+            newNoteTimestamp = noteTimestamp,
+        ) {
             if (exit) onSaveSuccess()
             saved = true
         }
