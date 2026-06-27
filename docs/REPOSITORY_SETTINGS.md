@@ -26,10 +26,12 @@ Create a branch protection rule or ruleset for `master`:
 - restrict direct pushes;
 - include administrators where practical.
 
-Initial required check:
+Initial required checks:
 
 ```text
-Android CI / build-and-test
+Android CI / testDebugUnitTest
+Android CI / lintDebug
+Android CI / assembleDebug
 ```
 
 For a solo-maintained project, formal approval can initially remain optional. The pull-request checklist and required checks still apply. Require at least one approval when another maintainer joins.
