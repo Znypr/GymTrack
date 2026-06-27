@@ -1,0 +1,34 @@
+[
+  {"name":"type:bug","color":"d73a4a","description":"Incorrect behavior, crash, or data-integrity defect"},
+  {"name":"type:feature","color":"0e8a16","description":"User-facing capability"},
+  {"name":"type:refactor","color":"5319e7","description":"Internal design change without intended user-facing behavior change"},
+  {"name":"type:chore","color":"c5def5","description":"Maintenance, dependency, tooling, or repository task"},
+  {"name":"type:docs","color":"0075ca","description":"Documentation-only work"},
+  {"name":"type:spike","color":"d4c5f9","description":"Time-boxed research or decision work"},
+
+  {"name":"priority:p0","color":"b60205","description":"Data loss, crash, invalid release, or broken delivery pipeline"},
+  {"name":"priority:p1","color":"d93f0b","description":"Core reliability, architecture blocker, or incorrect result"},
+  {"name":"priority:p2","color":"fbca04","description":"Meaningful but non-blocking improvement"},
+  {"name":"priority:p3","color":"fef2c0","description":"Optional improvement or experiment"},
+
+  {"name":"area:editor","color":"1d76db","description":"Workout editor and active logging"},
+  {"name":"area:workouts","color":"1d76db","description":"Workout history and workout management"},
+  {"name":"area:data","color":"1d76db","description":"Database, repositories, mappings, and migrations"},
+  {"name":"area:parser","color":"1d76db","description":"Workout text parsing and normalization"},
+  {"name":"area:stats","color":"1d76db","description":"Statistics, calculations, and charts"},
+  {"name":"area:timer","color":"1d76db","description":"Workout or rest timer behavior"},
+  {"name":"area:import-export","color":"1d76db","description":"Import, export, backup, and restore"},
+  {"name":"area:settings","color":"1d76db","description":"User settings and categories"},
+  {"name":"area:build","color":"1d76db","description":"Build, CI, packaging, and release"},
+  {"name":"area:governance","color":"1d76db","description":"Issues, pull requests, documentation, and project management"},
+
+  {"name":"status:needs-triage","color":"ededed","description":"Requires classification and prioritization"},
+  {"name":"status:ready","color":"0e8a16","description":"Meets Definition of Ready and may enter implementation"},
+  {"name":"status:blocked","color":"b60205","description":"Cannot progress because of a dependency or decision"},
+  {"name":"status:needs-decision","color":"d4c5f9","description":"Requires a product or architecture decision"},
+
+  {"name":"risk:data-migration","color":"e99695","description":"May change or migrate persisted user data"},
+  {"name":"risk:breaking-change","color":"e99695","description":"May break compatibility or existing behavior"},
+  {"name":"risk:performance","color":"e99695","description":"Requires performance measurement or has performance risk"},
+  {"name":"risk:privacy","color":"e99695","description":"Touches private data or privacy behavior"}
+]
