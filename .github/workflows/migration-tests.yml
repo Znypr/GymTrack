@@ -40,12 +40,20 @@ jobs:
           api-level: 29
           arch: x86_64
           disable-animations: true
-          script: ./gradlew connectedDebugAndroidTest --console=plain
-      - name: Upload reports
+          script: |
+            set +e
+            ./gradlew connectedDebugAndroidTest --console=plain > migration-gradle.log 2>&1
+            status=$?
+            if [ "$status" -ne 0 ]; then tail -n 160 migration-gradle.log; fi
+            exit "$status"
+      - name: Upload diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: migration-test-reports
-          path: app/build/reports/androidTests/connected/
+          name: migration-test-diagnostics
+          path: |
+            migration-gradle.log
+            app/build/reports/androidTests/connected/
+            app/build/outputs/androidTest-results/connected/
           if-no-files-found: ignore
           retention-days: 7
