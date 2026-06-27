@@ -55,9 +55,7 @@ fun NoteEditor(
         }
     }
 
-    val noteTimestamp = remember(note?.timestamp) {
-        note?.timestamp ?: System.currentTimeMillis()
-    }
+    val noteTimestamp = state.noteTimestamp
 
     var selectedCategory by remember(note) {
         mutableStateOf(settings.categories.find { it.name == note?.categoryName } ?: Category("Push", 0xFFFF3B30))
