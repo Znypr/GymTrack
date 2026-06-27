@@ -31,7 +31,7 @@ jobs:
       - run: chmod +x gradlew
       - name: Enable KVM
         run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Run connected tests
@@ -40,19 +40,13 @@ jobs:
           api-level: 29
           arch: x86_64
           disable-animations: true
-          script: |
-            set +e
-            ./gradlew connectedDebugAndroidTest --console=plain > migration-gradle.log 2>&1
-            status=$?
-            if [ "$status" -ne 0 ]; then tail -n 160 migration-gradle.log; fi
-            exit "$status"
-      - name: Upload diagnostics
+          script: ./gradlew connectedDebugAndroidTest --console=plain
+      - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: migration-test-diagnostics
+          name: migration-test-reports
           path: |
-            migration-gradle.log
             app/build/reports/androidTests/connected/
             app/build/outputs/androidTest-results/connected/
           if-no-files-found: ignore
