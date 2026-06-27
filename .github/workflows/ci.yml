@@ -44,4 +44,12 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run ${{ matrix.task }}
-        run: ./gradlew ${{ matrix.task }}
+        shell: bash
+        run: |
+          set +e
+          ./gradlew "${{ matrix.task }}" --console=plain > gradle-output.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            tail -n 120 gradle-output.log
+          fi
+          exit "$status"
