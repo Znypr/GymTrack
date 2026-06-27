@@ -14,10 +14,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-test:
-    name: build-and-test
+  validate:
+    name: ${{ matrix.task }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        task:
+          - testDebugUnitTest
+          - lintDebug
+          - assembleDebug
 
     steps:
       - name: Check out repository
@@ -35,11 +43,5 @@ jobs:
       - name: Make wrapper executable
         run: chmod +x gradlew
 
-      - name: Run unit tests
-        run: ./gradlew testDebugUnitTest
-
-      - name: Run lint
-        run: ./gradlew lintDebug
-
-      - name: Assemble debug build
-        run: ./gradlew assembleDebug
+      - name: Run ${{ matrix.task }}
+        run: ./gradlew ${{ matrix.task }}
