@@ -1,0 +1,63 @@
+name: Android CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: ${{ matrix.task }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        task:
+          - testDebugUnitTest
+          - lintDebug
+          - assembleDebug
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make wrapper executable
+        run: chmod +x gradlew
+
+      - name: Run ${{ matrix.task }}
+        shell: bash
+        run: |
+          set +e
+          ./gradlew "${{ matrix.task }}" --console=plain > gradle-output.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            tail -n 120 gradle-output.log
+          fi
+          exit "$status"
+
+      - name: Upload Gradle diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-${{ matrix.task }}
+          path: gradle-output.log
+          retention-days: 7

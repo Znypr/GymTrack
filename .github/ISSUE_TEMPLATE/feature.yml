@@ -1,0 +1,113 @@
+name: Feature request
+description: Propose a user-facing capability that supports the GymTrack charter
+title: "feat: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Start with the user problem and desired outcome. A proposed screen or button is not sufficient by itself.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Editor
+        - Workout history
+        - Data or database
+        - Parser
+        - Statistics
+        - Timer
+        - Import or export
+        - Settings
+        - Build or release
+        - New area
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem
+      description: Who experiences the problem, in what situation, and why does it matter?
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe the result without prescribing unnecessary implementation details.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: charter
+    attributes:
+      label: Primary charter outcome
+      options:
+        - Faster logging
+        - Safer data
+        - Clearer workout history
+        - Better-supported training decisions
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      placeholder: |
+        Included:
+        - ...
+
+        Not included:
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] Given ..., when ..., then ...
+        - [ ] Error and empty states are defined.
+    validations:
+      required: true
+
+  - type: textarea
+    id: ux
+    attributes:
+      label: Interaction or UX notes
+      description: Include workflow, accessibility, and active-workout constraints.
+
+  - type: textarea
+    id: data
+    attributes:
+      label: Data and compatibility impact
+      description: Describe storage, migration, import/export, backup, or privacy implications.
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation plan
+      description: How will this be tested and how will success be measured?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Simpler alternatives considered
+      description: What smaller or lower-complexity solution could address the same problem?
+
+  - type: checkboxes
+    id: declaration
+    attributes:
+      label: Submission checks
+      options:
+        - label: I checked the project charter and roadmap.
+          required: true
+        - label: I searched existing issues for duplicates.
+          required: true

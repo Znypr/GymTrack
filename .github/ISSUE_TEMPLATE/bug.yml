@@ -1,0 +1,118 @@
+name: Bug report
+description: Report reproducible incorrect behavior, a crash, or a data-integrity problem
+title: "bug: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the observed behavior and its impact. Do not include private workout exports or credentials.
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - P0 — data loss, crash, or unusable build
+        - P1 — core workflow is unreliable or incorrect
+        - P2 — meaningful but non-blocking defect
+        - P3 — minor defect
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Editor
+        - Workout history
+        - Data or database
+        - Parser
+        - Statistics
+        - Timer
+        - Import or export
+        - Settings
+        - Build or release
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Open ...
+        2. Enter ...
+        3. Tap ...
+        4. Observe ...
+    validations:
+      required: true
+
+  - type: input
+    id: app-version
+    attributes:
+      label: GymTrack version or commit
+      placeholder: "1.8 or commit SHA"
+    validations:
+      required: true
+
+  - type: input
+    id: android-version
+    attributes:
+      label: Device and Android version
+      placeholder: "Pixel 8 emulator, Android 15"
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs, screenshots, or video
+      description: Remove private user data before attaching evidence.
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] The reproduction no longer fails.
+        - [ ] A regression test covers the scenario.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: risk
+    attributes:
+      label: Risk indicators
+      options:
+        - label: The problem can lose or corrupt workout data.
+        - label: The problem affects database upgrades.
+        - label: The problem blocks creating or saving a workout.
+        - label: The problem affects import or restore.
+
+  - type: checkboxes
+    id: declaration
+    attributes:
+      label: Submission checks
+      options:
+        - label: I searched existing issues for duplicates.
+          required: true
+        - label: I removed private data from attachments.
+          required: true

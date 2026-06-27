@@ -1,0 +1,126 @@
+name: Technical task or refactor
+description: Propose architecture, reliability, maintenance, build, or cleanup work
+title: "refactor: "
+body:
+  - type: dropdown
+    id: type
+    attributes:
+      label: Work type
+      options:
+        - Refactor
+        - Build or CI
+        - Data migration
+        - Performance
+        - Dependency cleanup
+        - Documentation
+        - Maintenance
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Editor
+        - Workout history
+        - Data or database
+        - Parser
+        - Statistics
+        - Timer
+        - Import or export
+        - Settings
+        - Build or release
+        - Repository governance
+        - Cross-cutting
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Current technical problem
+      description: Describe the concrete limitation, defect risk, duplication, or maintenance cost.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Reference affected files, measurements, failures, or repeated maintenance problems.
+    validations:
+      required: true
+
+  - type: textarea
+    id: target
+    attributes:
+      label: Target state
+      description: Describe the intended architecture or observable result.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and non-scope
+      placeholder: |
+        Included:
+        - ...
+
+        Not included:
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] ...
+        - [ ] Existing behavior remains covered.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: risks
+    attributes:
+      label: Risk areas
+      options:
+        - label: Database schema or migration
+        - label: Import/export compatibility
+        - label: User-data integrity
+        - label: Performance
+        - label: Release or build behavior
+        - label: Breaking API or package change
+
+  - type: textarea
+    id: migration
+    attributes:
+      label: Migration and rollback plan
+      description: Required for data, compatibility, or major architecture changes.
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Verification plan
+      description: List automated checks, regression tests, measurements, and manual validation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: documentation
+    attributes:
+      label: Documentation impact
+      description: Identify README, architecture, ADR, testing, or roadmap updates.
+
+  - type: checkboxes
+    id: declaration
+    attributes:
+      label: Submission checks
+      options:
+        - label: The task is small enough for one reviewable pull request or is explicitly split.
+          required: true
+        - label: I searched existing issues for duplicates.
+          required: true

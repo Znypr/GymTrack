@@ -1,0 +1,79 @@
+name: Research spike
+description: Time-box investigation needed before a product or architecture decision
+title: "spike: "
+body:
+  - type: textarea
+    id: decision
+    attributes:
+      label: Decision to be made
+      description: What concrete decision should this investigation enable?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why is the decision needed now?
+    validations:
+      required: true
+
+  - type: textarea
+    id: questions
+    attributes:
+      label: Questions to answer
+      placeholder: |
+        - What options are viable?
+        - What are the migration risks?
+        - What is the simplest acceptable approach?
+    validations:
+      required: true
+
+  - type: textarea
+    id: options
+    attributes:
+      label: Known options
+      description: List alternatives that should be evaluated.
+
+  - type: dropdown
+    id: timebox
+    attributes:
+      label: Time box
+      options:
+        - 2 hours
+        - Half day
+        - 1 day
+        - 2 days
+        - 3 days
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Expected output
+      placeholder: |
+        - Recommendation
+        - Evidence or prototype
+        - ADR draft
+        - Follow-up implementation issues
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: Include compatibility, offline-first, performance, data-safety, or schedule constraints.
+
+  - type: checkboxes
+    id: completion
+    attributes:
+      label: Completion criteria
+      options:
+        - label: Findings are documented.
+          required: true
+        - label: A recommendation or explicit no-decision result is produced.
+          required: true
+        - label: Follow-up implementation work is filed separately.
+          required: true
