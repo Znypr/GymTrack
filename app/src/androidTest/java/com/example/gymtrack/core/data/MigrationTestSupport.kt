@@ -38,6 +38,15 @@ internal fun Context.deleteMigrationTestDatabase() {
     deleteDatabase(MIGRATION_TEST_DATABASE)
 }
 
+internal fun NoteDatabase.schemaObjectExists(type: String, name: String): Boolean {
+    return openHelper.writableDatabase.query(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = ? AND name = ?",
+        arrayOf(type, name),
+    ).use { cursor ->
+        cursor.moveToFirst() && cursor.getInt(0) == 1
+    }
+}
+
 internal const val VERSION_4_NOTES_SCHEMA = """
     CREATE TABLE notes (
         timestamp INTEGER NOT NULL,
