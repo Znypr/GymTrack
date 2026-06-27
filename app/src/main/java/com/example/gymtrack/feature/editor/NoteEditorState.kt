@@ -52,7 +52,7 @@ class NoteEditorState(
     private var currentNoteVersion: NoteLine? = initialNote
     private var startTime: Long? = initialNote?.timestamp
     private var lastEnter: Long = System.currentTimeMillis()
-    private val noteTimestamp = initialNote?.timestamp ?: System.currentTimeMillis()
+    val noteTimestamp: Long = initialNote?.timestamp ?: System.currentTimeMillis()
     var saved by mutableStateOf(false)
 
     init {
@@ -197,6 +197,7 @@ class NoteEditorState(
             viewModel.currentLearnings.isBlank()
 
         if (isNew && isEmpty) {
+            if (isLastNote && exit) stopTimer()
             if (exit) onSaveSuccess()
             return
         }
@@ -206,10 +207,12 @@ class NoteEditorState(
             saved = true
         }
 
-        if (isLastNote && exit) {
-            scope.launch {
-                NoteTimerStore.stop(context, noteTimestamp)
-            }
+        if (isLastNote && exit) stopTimer()
+    }
+
+    private fun stopTimer() {
+        scope.launch {
+            NoteTimerStore.stop(context, noteTimestamp)
         }
     }
 
