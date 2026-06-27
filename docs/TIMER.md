@@ -1,53 +1,34 @@
 # Workout timer
 
-GymTrack does not require a continuously running Android service to keep workout time accurate.
+GymTrack derives workout duration from persisted timestamps instead of a continuously running Android service.
 
-## State model
+## Persisted state
 
-The active timer stores four values in Preferences DataStore:
+Preferences DataStore stores the active workout timestamp, accumulated seconds, running interval start, and paused/running state. Elapsed time is calculated when displayed, so no database, notification, or background-service update is required each second.
 
-- active workout note timestamp;
-- elapsed seconds accumulated before the current running interval;
-- wall-clock start time of the current running interval;
-- whether the timer is running.
+## Lifecycle
 
-Elapsed time is calculated when the UI needs it:
+- A new workout starts automatically.
+- The newest saved workout restores an existing timer. Without persisted state, it waits for Play.
+- Older workout edits do not display a timer.
+- Backgrounding and process recreation preserve running or paused state.
+- Resume retains accumulated time.
+- Normal editor exit clears timer state before navigation.
+- After a restart, state is available when GymTrack is opened again.
 
-```text
-accumulated seconds + max(0, current time - running interval start)
-```
+## Android behavior
 
-No database write, notification update, or background loop runs every second.
-
-## Lifecycle behavior
-
-- Opening the latest workout starts a timer when no timer exists for that workout.
-- Backgrounding the app does not stop or reset the timer.
-- Process recreation restores the persisted state and derives the current elapsed time.
-- A paused timer remains paused after recreation.
-- Resuming starts a new running interval while preserving accumulated time.
-- Leaving the active workout through the editor's normal exit path clears its timer.
-- After a device restart, the timer is restored when GymTrack is opened again. No boot receiver is used.
-
-## Android service and notification behavior
-
-The timer uses no foreground service. The manifest therefore declares neither `shortService` nor foreground-service or notification permissions for the timer.
-
-This avoids Android foreground-service timeouts and does not show a persistent notification. Lock-screen controls and persistent notifications are outside the current scope.
+The manifest declares no timer service, foreground-service permission, or notification permission. Persistent notification controls are outside this change.
 
 ## Validation
 
-Automated tests cover:
+Automated tests cover long duration, pause/resume, workout switching, and backward clock movement.
 
-- elapsed time beyond three minutes;
-- pause and resume accumulation;
-- switching to another workout;
-- protection against negative elapsed time after a backward clock adjustment.
+Manual validation on Android 14 or newer:
 
-Manual Android 14+ validation should cover:
-
-1. Run the timer for more than three minutes.
+1. Run a new workout timer beyond three minutes.
 2. Background and reopen the app.
-3. Force-stop the process, reopen the latest workout, and verify elapsed time.
-4. Pause, recreate the process, and confirm the timer remains paused.
-5. Resume and verify accumulated time is retained.
+3. Close the app process, reopen the newest workout, and verify elapsed time.
+4. Repeat while paused, then resume.
+5. Confirm older workouts have no timer.
+6. Exit the active workout and confirm reopening does not auto-start.
