@@ -1,5 +1,6 @@
 package com.example.gymtrack.feature.editor
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -7,28 +8,27 @@ import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.NoteEntity
 import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
-import com.example.gymtrack.core.data.repository.NoteRepository
 import com.example.gymtrack.core.data.WorkoutRepository
+import com.example.gymtrack.core.data.repository.NoteRepository
 import com.example.gymtrack.core.util.exportNote
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import android.content.Context
-import kotlinx.coroutines.NonCancellable
 
 class EditorViewModel(
     private val initialId: Long,
     private val noteRepo: NoteRepository,
     private val workoutRepo: WorkoutRepository,
-    private val context: Context
+    private val context: Context,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<NoteLine?>(null)
     val uiState = _uiState.asStateFlow()
 
-    var currentId: Long = initialId // This can now change from -1 to a real timestamp
+    var currentId: Long = initialId
 
     var currentTitle = ""
     var currentCategory: Category? = null
@@ -41,28 +41,37 @@ class EditorViewModel(
                 initialize(note)
             }
         } else {
-            initialize(null) // New note
+            initialize(null)
         }
     }
 
-
-    // Initialize the editor with data (Called once when UI loads)
     fun initialize(note: NoteLine?) {
         if (note != null) {
             currentTitle = note.title
-            currentCategory = Category(note.categoryName ?: "Uncategorized", note.categoryColor ?: 0xFF808080)
+            currentCategory = Category(
+                note.categoryName ?: "Uncategorized",
+                note.categoryColor ?: 0xFF808080,
+            )
             currentLearnings = note.learnings
             _uiState.value = note
         } else {
-            // Defaults for new note
-            currentCategory = Category("Push", 0xFFFF3B30) // Default
+            currentCategory = Category("Push", 0xFFFF3B30)
         }
     }
 
-    fun saveNote(finalText: String, settings: Settings, onComplete: () -> Unit) {
+    fun saveNote(
+        finalText: String,
+        settings: Settings,
+        newNoteTimestamp: Long? = null,
+        onComplete: () -> Unit,
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
             withContext(NonCancellable) {
-                val timestamp = if (currentId != -1L) currentId else System.currentTimeMillis()
+                val timestamp = if (currentId != -1L) {
+                    currentId
+                } else {
+                    newNoteTimestamp ?: System.currentTimeMillis()
+                }
                 currentId = timestamp
 
                 val updatedNote = NoteLine(
@@ -71,16 +80,20 @@ class EditorViewModel(
                     timestamp = timestamp,
                     categoryName = currentCategory?.name,
                     categoryColor = currentCategory?.color,
-                    learnings = currentLearnings
+                    learnings = currentLearnings,
                 )
 
                 noteRepo.saveNote(updatedNote)
-
-                // CRITICAL: Update the internal state so the ViewModel knows it's saved
                 _uiState.value = updatedNote
 
-                val entity = NoteEntity(timestamp, updatedNote.title, updatedNote.text,
-                    updatedNote.categoryName, updatedNote.categoryColor, updatedNote.learnings)
+                val entity = NoteEntity(
+                    timestamp,
+                    updatedNote.title,
+                    updatedNote.text,
+                    updatedNote.categoryName,
+                    updatedNote.categoryColor,
+                    updatedNote.learnings,
+                )
                 workoutRepo.syncNoteToWorkout(entity)
                 exportNote(context, updatedNote, settings)
             }
@@ -90,12 +103,11 @@ class EditorViewModel(
         }
     }
 
-    // Factory
     class Factory(
         private val noteId: Long,
         private val noteRepo: NoteRepository,
         private val workoutRepo: WorkoutRepository,
-        private val context: Context
+        private val context: Context,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
