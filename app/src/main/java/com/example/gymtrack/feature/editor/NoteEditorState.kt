@@ -197,8 +197,7 @@ class NoteEditorState(
             viewModel.currentLearnings.isBlank()
 
         if (isNew && isEmpty) {
-            if (isLastNote && exit) stopTimer()
-            if (exit) onSaveSuccess()
+            if (exit) finishExit(isLastNote)
             return
         }
 
@@ -207,16 +206,20 @@ class NoteEditorState(
             settings = settings,
             newNoteTimestamp = noteTimestamp,
         ) {
-            if (exit) onSaveSuccess()
             saved = true
+            if (exit) finishExit(isLastNote)
         }
-
-        if (isLastNote && exit) stopTimer()
     }
 
-    private fun stopTimer() {
+    private fun finishExit(isLastNote: Boolean) {
+        if (!isLastNote) {
+            onSaveSuccess()
+            return
+        }
+
         scope.launch {
             NoteTimerStore.stop(context, noteTimestamp)
+            onSaveSuccess()
         }
     }
 
