@@ -38,6 +38,7 @@ fun NoteEditor(
 ) {
     val note by viewModel.uiState.collectAsState()
     val isEditingExisting = viewModel.currentId != -1L
+    val startTimerOnOpen = remember(viewModel) { viewModel.currentId == -1L }
 
     if (isEditingExisting && note == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -128,6 +129,7 @@ fun NoteEditor(
                 if (isLastNote) {
                     NoteTimer(
                         noteTimestamp = noteTimestamp,
+                        startOnOpen = startTimerOnOpen,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 8.dp),
