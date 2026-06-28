@@ -47,6 +47,18 @@ No workflow label means Backlog unless a linked pull request moves the issue to 
 9. PR merged with `Closes #N`: the issue closes and is Done.
 10. PR closed without merge: return the issue to Ready, Backlog, Blocked, or Needs decision based on the reason.
 
+## Dependency rules
+
+Use `status:blocked` only when work cannot correctly begin. The issue body or latest status comment must name the dependency.
+
+Current architecture dependencies:
+
+- #123 is blocked by #119 and #120.
+- #125 is blocked by #120 and #123.
+- #126 is blocked by #120 and #123.
+
+Once all named dependencies are merged or resolved, remove `status:blocked` and return the issue to Backlog or Ready.
+
 ## Current-board queries
 
 Use GitHub issue searches for the label-defined columns:
