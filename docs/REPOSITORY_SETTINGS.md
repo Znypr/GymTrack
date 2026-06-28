@@ -81,3 +81,7 @@ GitHub Issues are the live work-status source. Pull requests provide implementat
 - Ready-for-review represents In review.
 - Green checks with remaining runtime confirmation represent Validation.
 - Squash merge with `Closes #N` closes the issue and represents Done.
+
+## Operating requirement
+
+A ticket must not exist in both a GitHub Project column and the label-driven board. Existing Project views may be deleted or ignored; they are not authoritative.
