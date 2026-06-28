@@ -1,7 +1,7 @@
 # GymTrack Project Charter
 
 **Status:** Proposed living standard  
-**Last updated:** 27 June 2026
+**Last updated:** 28 June 2026
 
 ## Vision
 
@@ -232,7 +232,8 @@ The goal is not to maximize time spent in the application. A workout logger that
 ## Governance
 
 - This charter defines stable direction.
-- GitHub Issues and the project board define live work status.
+- GitHub Issues, labels, linked pull requests, and CI define live work status.
+- `docs/TICKET_BOARD.md` defines deterministic ticket-board columns.
 - Pull requests define implementation and validation evidence.
 - Architecture Decision Records define consequential technical decisions.
 - Changes that conflict with this charter must explicitly propose a charter revision.
