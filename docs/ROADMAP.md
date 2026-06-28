@@ -1,11 +1,11 @@
 # GymTrack Roadmap
 
-**Last updated:** 27 June 2026  
+**Last updated:** 28 June 2026  
 **Planning assumption:** One primary developer working part-time. Dates are targets, not commitments.
 
 ## How to read this roadmap
 
-This document defines sequencing and outcomes. GitHub Issues and the GymTrack project board are the live source of truth for ticket status.
+This document defines sequencing and outcomes. GitHub Issues, existing labels, linked pull requests, and CI are the live source of truth for ticket status. See [`docs/TICKET_BOARD.md`](TICKET_BOARD.md) for deterministic board-column rules.
 
 Priorities:
 
@@ -23,7 +23,7 @@ Deliverables:
 - project charter;
 - current and target architecture documentation;
 - issue forms and pull-request template;
-- GitHub labels and project-board design;
+- GitHub labels and label-driven ticket-board rules;
 - Android CI;
 - issue-to-branch-to-draft-PR automation;
 - contribution and testing documentation;
@@ -138,7 +138,7 @@ GymTrack is safe to distribute to beta testers without exposing their data to de
 5. Remove debug signing from release builds.
 6. Decide and document the canonical workout source of truth.
 7. Close or supersede stale pull requests.
-8. Configure issue forms, pull-request template, labels, project board, and branch protection.
+8. Configure issue forms, pull-request template, labels, label-driven ticket board, and branch protection.
 
 ### P1
 
