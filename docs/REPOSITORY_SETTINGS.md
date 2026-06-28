@@ -34,6 +34,8 @@ Android CI / lintDebug
 Android CI / assembleDebug
 ```
 
+Add focused required checks when their workflow becomes stable, such as Room migration tests.
+
 For a solo-maintained project, formal approval can initially remain optional. The pull-request checklist and required checks still apply. Require at least one approval when another maintainer joins.
 
 ## Labels
@@ -45,46 +47,41 @@ Label groups:
 - `type:*` — nature of the work;
 - `priority:*` — urgency and impact;
 - `area:*` — affected product or technical area;
-- `status:*` — triage and readiness states;
-- `risk:*` — migration, compatibility, or performance risk.
+- `status:*` — triage, readiness, blockers, and required decisions;
+- `risk:*` — migration, compatibility, performance, or privacy risk.
 
-## GitHub Project
+Every triaged issue should have one type, one priority, one or more areas, and relevant risks. Workflow status labels are mutually exclusive.
 
-Create one project named **GymTrack Development**.
+## Ticket board
 
-Recommended fields:
+Do not create or maintain a GitHub Project as a second status system.
 
-| Field | Values |
-|---|---|
-| Status | Inbox, Backlog, Ready, In Progress, In Review, Validation, Done |
-| Priority | P0, P1, P2, P3 |
-| Type | Bug, Feature, Refactor, Chore, Documentation, Research |
-| Area | Editor, Workouts, Data, Parser, Stats, Timer, Import/Export, Settings, Build |
-| Size | XS, S, M, L, XL |
-| Target | Stabilization, Architecture, Beta, v1.0, Later |
-| Risk | Low, Medium, High |
-| Release | Optional milestone/version |
+The live ticket board is derived from:
 
-Recommended views:
+- existing `status:*` labels;
+- linked pull-request draft or ready state;
+- required CI checks;
+- manual validation requirements;
+- issue closure after merge.
 
-1. **Current** — Ready through Validation;
-2. **Roadmap** — grouped by Target;
-3. **Bugs** — Type = Bug;
-4. **Architecture** — refactors and Data/Parser/Build work;
-5. **Backlog** — unscheduled items;
-6. **Recently completed** — Done in the last 30 days.
+The complete column rules and queries are documented in [`docs/TICKET_BOARD.md`](TICKET_BOARD.md).
 
-GitHub Issues and this project are the live work-status source. Do not duplicate ticket status manually in roadmap documents.
+GitHub Issues are the live work-status source. Pull requests provide implementation and validation evidence. Roadmap documents define sequence and intent but do not duplicate ticket state.
 
 ## Issue workflow
 
-- New issues begin in Inbox or Backlog.
-- Triage adds priority, type, area, size, target, and risk.
+- New issues receive `status:needs-triage`.
+- Triage assigns type, priority, area, and relevant risks.
+- A triaged issue with no workflow status is Backlog.
+- `status:needs-decision` identifies unresolved product or architecture decisions.
+- `status:blocked` identifies an explicit dependency that prevents progress.
 - `status:ready` is applied only after Definition of Ready is satisfied.
-- Applying `status:ready` triggers branch and draft-pull-request creation.
-- Pull-request creation represents In Progress.
-- Ready-for-review represents In Review.
-- Passing checks plus manual validation represents Validation.
-- Squash merge closes the issue and represents Done.
+- Applying `status:ready` may trigger branch and draft-pull-request creation.
+- Once a draft pull request exists, remove `status:ready`; the issue is In progress.
+- Ready-for-review represents In review.
+- Green checks with remaining runtime confirmation represent Validation.
+- Squash merge with `Closes #N` closes the issue and represents Done.
 
-Project automation can be added after the project exists.
+## Operating requirement
+
+A ticket must not exist in both a GitHub Project column and the label-driven board. Existing Project views may be deleted or ignored; they are not authoritative.

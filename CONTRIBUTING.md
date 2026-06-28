@@ -9,22 +9,28 @@ GymTrack uses issues, short-lived branches, pull requests, automated checks, and
 | Product direction | `docs/PROJECT_CHARTER.md` |
 | Current and target architecture | `docs/ARCHITECTURE.md` |
 | Sequencing and priorities | `docs/ROADMAP.md` |
-| Live work status | GitHub Issues and project board |
+| Live work status | GitHub Issues, labels, linked pull requests, and CI |
+| Ticket-board rules | `docs/TICKET_BOARD.md` |
 | Implementation and validation | Pull requests |
 | Consequential technical decisions | ADRs under `docs/decisions/` |
+
+A GitHub Project is not required. Do not maintain a second manual status system.
 
 ## Standard workflow
 
 1. Create or triage an issue.
 2. Define scope, non-scope, acceptance criteria, risks, and validation.
 3. Add `status:ready` only when the issue satisfies the Definition of Ready.
-4. The automation creates a branch and draft pull request.
-5. Implement only the linked issue's scope.
-6. Add or update tests and documentation.
-7. Complete the pull-request checklist.
-8. Mark the pull request ready after required checks pass.
-9. Validate manually on an emulator or device when behavior changes.
-10. Squash merge and delete the branch.
+4. The automation creates a branch and draft pull request, or the branch and PR are created manually if automation is unavailable.
+5. Remove `status:ready` once a draft pull request exists; PR state now determines the board column.
+6. Implement only the linked issue's scope.
+7. Add or update tests and documentation.
+8. Complete the pull-request checklist.
+9. Mark the pull request ready after required checks pass.
+10. Validate manually on an emulator or device when behavior changes.
+11. Squash merge and delete the branch.
+
+See [`docs/TICKET_BOARD.md`](docs/TICKET_BOARD.md) for the exact Inbox, Backlog, Ready, In progress, In review, Validation, Blocked, and Done rules.
 
 ## Definition of Ready
 
