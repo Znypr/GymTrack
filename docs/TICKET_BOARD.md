@@ -59,6 +59,18 @@ Current architecture dependencies:
 
 Once all named dependencies are merged or resolved, remove `status:blocked` and return the issue to Backlog or Ready.
 
+## Normalization policy
+
+When this board is introduced or audited:
+
+1. assign one type and one priority to every open issue;
+2. assign at least one area;
+3. add risks only when they affect validation or rollback;
+4. remove `status:ready` from issues that already have an open PR;
+5. add `status:needs-decision` to unresolved decision tickets;
+6. add `status:blocked` only with named dependencies;
+7. leave ordinary unscheduled work without a workflow label so it resolves to Backlog.
+
 ## Current-board queries
 
 Use GitHub issue searches for the label-defined columns:
