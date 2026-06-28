@@ -40,7 +40,7 @@ Read the [project charter](docs/PROJECT_CHARTER.md) for goals, principles, ambit
 - [Repository settings](docs/REPOSITORY_SETTINGS.md)
 - [Contribution workflow](CONTRIBUTING.md)
 
-GitHub Issues, existing labels, linked pull requests, and CI checks are the live source of truth for current work. No separate GitHub Project board is required.
+GitHub Issues, existing labels, linked pull requests, and CI checks are the live source of truth for current work. No separate GitHub Project board is required or maintained.
 
 ## Technology
 
