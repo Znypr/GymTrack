@@ -35,11 +35,12 @@ Read the [project charter](docs/PROJECT_CHARTER.md) for goals, principles, ambit
 - [Project charter](docs/PROJECT_CHARTER.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Roadmap](docs/ROADMAP.md)
+- [Ticket board](docs/TICKET_BOARD.md)
 - [Testing strategy](docs/TESTING.md)
 - [Repository settings](docs/REPOSITORY_SETTINGS.md)
 - [Contribution workflow](CONTRIBUTING.md)
 
-GitHub Issues and the project board are the live source of truth for current work. Pull requests contain implementation and validation evidence.
+GitHub Issues, existing labels, linked pull requests, and CI checks are the live source of truth for current work. No separate GitHub Project board is required.
 
 ## Technology
 
@@ -83,7 +84,7 @@ The same checks run in GitHub Actions for pull requests targeting `master`.
 
 ## Contributing
 
-Start with an issue. An issue that satisfies the Definition of Ready receives `status:ready`, which creates a dedicated branch and draft pull request. See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete workflow.
+Start with an issue. An issue that satisfies the Definition of Ready receives `status:ready`, which creates or authorizes a dedicated branch and draft pull request. Once implementation starts, pull-request state replaces `status:ready` as the live board state. See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete workflow.
 
 ## Architecture direction
 
