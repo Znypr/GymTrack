@@ -89,5 +89,6 @@ object DatabaseMigrations {
         MIGRATION_2_3,
         MIGRATION_3_4,
         MIGRATION_4_8,
+        CanonicalDatabaseMigration.MIGRATION_8_9,
     )
 }
