@@ -1,7 +1,19 @@
 package com.example.gymtrack.core.data
 
 import android.content.Context
-import androidx.room.*
+import androidx.room.Dao
+import androidx.room.Database
+import androidx.room.Delete
+import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.PrimaryKey
+import androidx.room.Query
+import androidx.room.Room
+import androidx.room.RoomDatabase
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "notes")
@@ -17,7 +29,7 @@ data class NoteEntity(
 data class ExerciseWithCount(
     val exerciseId: Long,
     val name: String,
-    val setTotalCount: Int
+    val setTotalCount: Int,
 )
 
 @Entity(tableName = "exercises")
@@ -26,7 +38,7 @@ data class ExerciseEntity(
     val name: String,
     val parentId: Long? = null,
     val muscleGroup: String?,
-    val aliases: String
+    val aliases: String,
 )
 
 @Entity(
@@ -36,14 +48,14 @@ data class ExerciseEntity(
             entity = ExerciseEntity::class,
             parentColumns = ["exerciseId"],
             childColumns = ["exerciseId"],
-            onDelete = ForeignKey.CASCADE
-        )
+            onDelete = ForeignKey.CASCADE,
+        ),
     ],
-    indices = [Index(value = ["exerciseId"]), Index(value = ["workoutId"])]
+    indices = [Index(value = ["exerciseId"]), Index(value = ["workoutId"])],
 )
 data class SetEntity(
     @PrimaryKey(autoGenerate = true) val setId: Long = 0,
-    val workoutId: Long, // This acts as the timestamp
+    val workoutId: Long,
     val exerciseId: Long,
     val weight: Float,
     val reps: Int,
@@ -51,12 +63,10 @@ data class SetEntity(
     val modifier: String? = null,
     val brand: String? = null,
     val relativeTime: String? = null,
-    val absoluteTime: String? = null
+    val absoluteTime: String? = null,
 )
 
 data class GraphPoint(val originTimestamp: Long, val avgVal: Float)
-
-// --- DAOS ---
 
 @Dao
 interface NoteDao {
@@ -90,31 +100,33 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercises WHERE aliases LIKE '%' || :query || '%'")
     suspend fun findByAlias(query: String): List<ExerciseEntity>
 
-    // [OLD - Keeps ALL time count]
-    @Query("""
-        SELECT 
-            T1.exerciseId, 
-            T1.name, 
+    @Query(
+        """
+        SELECT
+            T1.exerciseId,
+            T1.name,
             COUNT(T2.exerciseId) AS setTotalCount
         FROM exercises AS T1
         LEFT JOIN sets AS T2 ON T1.exerciseId = T2.exerciseId
         GROUP BY T1.exerciseId, T1.name
         ORDER BY setTotalCount DESC, T1.name ASC
-    """)
+        """,
+    )
     fun getExercisesSortedByCount(): Flow<List<ExerciseWithCount>>
 
-    // [FIX - NEW QUERY] Filters by time range
-    @Query("""
-        SELECT 
-            T1.exerciseId, 
-            T1.name, 
+    @Query(
+        """
+        SELECT
+            T1.exerciseId,
+            T1.name,
             COUNT(T2.exerciseId) AS setTotalCount
         FROM exercises AS T1
         JOIN sets AS T2 ON T1.exerciseId = T2.exerciseId
         WHERE T2.workoutId >= :minTimestamp
         GROUP BY T1.exerciseId, T1.name
         ORDER BY setTotalCount DESC, T1.name ASC
-    """)
+        """,
+    )
     fun getExercisesWithCountAfter(minTimestamp: Long): Flow<List<ExerciseWithCount>>
 }
 
@@ -132,15 +144,17 @@ interface SetDao {
     @Query("SELECT COUNT(*) FROM sets")
     suspend fun getCount(): Int
 
-    @Query("""
-        SELECT 
-            workoutId AS originTimestamp, 
-            CAST(SUM(weight * reps) AS REAL) / SUM(reps) AS avgVal 
-        FROM sets 
-        WHERE exerciseId = :exerciseId 
-        GROUP BY workoutId 
+    @Query(
+        """
+        SELECT
+            workoutId AS originTimestamp,
+            CAST(SUM(weight * reps) AS REAL) / SUM(reps) AS avgVal
+        FROM sets
+        WHERE exerciseId = :exerciseId
+        GROUP BY workoutId
         ORDER BY workoutId ASC
-    """)
+        """,
+    )
     fun getAverageWeightHistory(exerciseId: Long): Flow<List<GraphPoint>>
 
     @Transaction
@@ -152,7 +166,10 @@ interface SetDao {
     }
 }
 
-@Database(entities = [NoteEntity::class, ExerciseEntity::class, SetEntity::class], version = 8)
+@Database(
+    entities = [NoteEntity::class, ExerciseEntity::class, SetEntity::class],
+    version = 8,
+)
 abstract class NoteDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun exerciseDao(): ExerciseDao
@@ -161,11 +178,17 @@ abstract class NoteDatabase : RoomDatabase() {
     companion object {
         @Volatile
         private var INSTANCE: NoteDatabase? = null
+
         fun getDatabase(context: Context): NoteDatabase {
             return INSTANCE ?: synchronized(this) {
-                Room.databaseBuilder(context.applicationContext, NoteDatabase::class.java, "note_database")
-                    .fallbackToDestructiveMigration()
-                    .build().also { INSTANCE = it }
+                Room.databaseBuilder(
+                    context.applicationContext,
+                    NoteDatabase::class.java,
+                    "note_database",
+                )
+                    .addMigrations(*DatabaseMigrations.ALL)
+                    .build()
+                    .also { INSTANCE = it }
             }
         }
     }
