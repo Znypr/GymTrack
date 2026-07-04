@@ -3,6 +3,10 @@ package com.example.gymtrack.core.data
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
+/**
+ * Contains only migrations backed by verified historical schemas.
+ * Unsupported versions must fail without deleting or replacing user data.
+ */
 object DatabaseMigrations {
     val MIGRATION_1_2 = object : Migration(1, 2) {
         override fun migrate(database: SupportSQLiteDatabase) {
