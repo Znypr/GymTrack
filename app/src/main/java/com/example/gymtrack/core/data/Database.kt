@@ -201,7 +201,7 @@ abstract class NoteDatabase : RoomDatabase() {
                     NoteDatabase::class.java,
                     "note_database",
                 )
-                    .addMigrations(*DatabaseMigrations.ALL)
+                    .addMigrations(*ALL_DATABASE_MIGRATIONS)
                     .build()
                     .also { INSTANCE = it }
             }
