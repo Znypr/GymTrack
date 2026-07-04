@@ -28,7 +28,7 @@ internal fun Context.openMigratedDatabase(): NoteDatabase {
         NoteDatabase::class.java,
         MIGRATION_TEST_DATABASE,
     )
-        .addMigrations(*DatabaseMigrations.ALL)
+        .addMigrations(*ALL_DATABASE_MIGRATIONS)
         .allowMainThreadQueries()
         .build()
         .also { it.openHelper.writableDatabase }

@@ -167,13 +167,28 @@ interface SetDao {
 }
 
 @Database(
-    entities = [NoteEntity::class, ExerciseEntity::class, SetEntity::class],
-    version = 8,
+    entities = [
+        NoteEntity::class,
+        ExerciseEntity::class,
+        SetEntity::class,
+        CanonicalCategoryEntity::class,
+        CanonicalExerciseEntity::class,
+        CanonicalExerciseAliasEntity::class,
+        CanonicalWorkoutEntity::class,
+        CanonicalWorkoutExerciseEntity::class,
+        CanonicalWorkoutSetEntity::class,
+    ],
+    version = 9,
 )
 abstract class NoteDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun exerciseDao(): ExerciseDao
     abstract fun setDao(): SetDao
+    abstract fun canonicalCategoryDao(): CanonicalCategoryDao
+    abstract fun canonicalExerciseDao(): CanonicalExerciseDao
+    abstract fun canonicalWorkoutDao(): CanonicalWorkoutDao
+    abstract fun canonicalWorkoutExerciseDao(): CanonicalWorkoutExerciseDao
+    abstract fun canonicalWorkoutSetDao(): CanonicalWorkoutSetDao
 
     companion object {
         @Volatile
@@ -186,7 +201,7 @@ abstract class NoteDatabase : RoomDatabase() {
                     NoteDatabase::class.java,
                     "note_database",
                 )
-                    .addMigrations(*DatabaseMigrations.ALL)
+                    .addMigrations(*ALL_DATABASE_MIGRATIONS)
                     .build()
                     .also { INSTANCE = it }
             }
