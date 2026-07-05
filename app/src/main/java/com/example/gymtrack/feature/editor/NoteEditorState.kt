@@ -204,7 +204,7 @@ class NoteEditorState(
             viewModel.currentLearnings.isBlank()
 
         if (isNew && isEmpty) {
-            if (exit) finishExit(isLastNote, finishWorkout)
+            if (exit) finishExit(isLastNote, finishWorkout = true)
             return
         }
 
