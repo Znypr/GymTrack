@@ -12,8 +12,10 @@ object BackupValidator {
         checkUnique("canonical workout exercise IDs", payload.canonicalWorkoutExercises.map { it.id })
         checkUnique("canonical workout set IDs", payload.canonicalWorkoutSets.map { it.id })
 
+        val legacyNotes = payload.legacyNotes.mapTo(hashSetOf()) { it.timestamp }
         val legacyExercises = payload.legacyExercises.mapTo(hashSetOf()) { it.exerciseId }
         payload.legacySets.forEach { value ->
+            ensure(value.workoutId in legacyNotes, "Legacy set ${value.setId} references a missing workout")
             ensure(value.exerciseId in legacyExercises, "Legacy set ${value.setId} references a missing exercise")
         }
 
