@@ -1,55 +1,64 @@
 # Contributing to GymTrack
 
-GymTrack uses issues, short-lived branches, pull requests, automated checks, and documented decisions. Direct feature work on `master` is not part of the normal workflow.
+GymTrack uses GitHub Issues, short-lived branches, pull requests, automated checks, and documented architecture decisions. Direct feature work on `master` is not part of the normal workflow.
 
 ## Sources of truth
 
 | Information | Source |
 |---|---|
-| Product direction | `docs/PROJECT_CHARTER.md` |
-| Current and target architecture | `docs/ARCHITECTURE.md` |
-| Sequencing and priorities | `docs/ROADMAP.md` |
-| Live work status | GitHub Issues, labels, linked pull requests, and CI |
-| Ticket-board rules | `docs/TICKET_BOARD.md` |
-| Implementation and validation | Pull requests |
+| Product direction and non-goals | `docs/PROJECT_CHARTER.md` |
+| Long-term sequence and outcomes | `docs/ROADMAP.md` |
+| Current architecture and boundaries | `docs/ARCHITECTURE.md` |
+| Work scope, priority, dependencies, acceptance criteria | GitHub Issue |
+| Visual planning and filtering | GitHub Project view |
+| Implementation, review, checks, validation | Pull request |
 | Consequential technical decisions | ADRs under `docs/decisions/` |
 
-A GitHub Project is not required. Do not maintain a second manual status system.
+The Project view displays Issues. It must not contain separate duplicate cards or become a second manually maintained source of truth.
 
 ## Standard workflow
 
-1. Create or triage an issue.
-2. Define scope, non-scope, acceptance criteria, risks, and validation.
-3. Add `status:ready` only when the issue satisfies the Definition of Ready.
-4. The automation creates a branch and draft pull request, or the branch and PR are created manually if automation is unavailable.
-5. Remove `status:ready` once a draft pull request exists; PR state now determines the board column.
-6. Implement only the linked issue's scope.
-7. Add or update tests and documentation.
-8. Complete the pull-request checklist.
-9. Mark the pull request ready after required checks pass.
-10. Validate manually on an emulator or device when behavior changes.
-11. Squash merge and delete the branch.
+1. Create or triage one GitHub Issue.
+2. Define the problem, intended outcome, scope, non-scope, acceptance criteria, parent issue, blockers, risks, and validation plan.
+3. Apply one type, one priority, one or more areas, and relevant risk labels.
+4. Use `status:needs-decision` or `status:blocked` when the issue cannot begin.
+5. Apply `status:ready` only after the Definition of Ready is satisfied.
+6. Create a dedicated branch and draft pull request from the latest protected `master`.
+7. Remove `status:ready` after implementation starts; the pull request now provides progress and review state.
+8. Implement only the linked issue scope.
+9. Add or update tests and durable documentation.
+10. Mark the pull request ready after implementation and required checks are complete.
+11. Record emulator or device validation for runtime behavior changes.
+12. Squash merge with `Closes #N` and delete the branch.
 
-See [`docs/TICKET_BOARD.md`](docs/TICKET_BOARD.md) for the exact Inbox, Backlog, Ready, In progress, In review, Validation, Blocked, and Done rules.
+Automation should add Issues to the Project and update its visual status. Manual board movement is fallback behavior only.
+
+See [`docs/TICKET_BOARD.md`](docs/TICKET_BOARD.md) for issue, Project, parent-child, and dependency rules.
 
 ## Definition of Ready
 
 An issue is ready when:
 
-- the problem is understandable;
-- the user or technical outcome is stated;
-- scope and non-scope are explicit;
+- the problem and outcome are understandable;
+- included and excluded scope are explicit;
 - acceptance criteria are testable;
-- dependencies are known;
-- priority and affected area are assigned;
-- data, migration, compatibility, and performance risks are identified;
-- the issue is small enough for one pull request or has been split.
+- the parent issue and blockers are linked or explicitly absent;
+- priority, type, area, and relevant risks are assigned;
+- migration, compatibility, performance, privacy, and release effects are considered;
+- the validation plan is credible;
+- the issue fits one reviewable pull request or is split into child issues.
 
-Do not apply `status:ready` to an idea that still requires product or architecture decisions. Use a research spike first.
+Do not apply `status:ready` to work that still needs a product or architecture decision.
+
+## Parent and child issues
+
+Use a parent issue for a multi-PR outcome. The parent contains the shared result and a task list of child issues. Each child owns one reviewable scope and links back to the parent.
+
+Use `Blocked by #N` in the issue body for active dependencies. Remove completed blockers from the active dependency section rather than copying dependency history into roadmap or status documents.
 
 ## Branch naming
 
-The issue automation uses:
+Use the issue number and a short slug:
 
 ```text
 feat/123-workout-template
@@ -60,25 +69,22 @@ chore/181-clean-dependencies
 spike/190-timer-restoration-options
 ```
 
-Branches are created from the latest protected `master`.
-
 ## Pull-request rules
 
 - One principal issue per pull request.
 - Keep the pull request in draft while implementation is incomplete.
 - Avoid unrelated cleanup.
-- Keep migrations and behavioral changes reviewable.
-- Explain why the approach was chosen, not only what changed.
-- Link the issue using `Closes #<number>`.
+- Explain why the approach was chosen.
+- Link the issue using `Closes #N`.
 - Include screenshots or video for visible UI changes.
 - Record emulator or device validation for runtime changes.
 - Do not merge when required checks did not run.
 - Prefer squash merge.
 - Delete merged branches.
 
-## Required checks
+## Required validation
 
-The initial required commands are:
+Baseline commands:
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -86,35 +92,25 @@ The initial required commands are:
 ./gradlew assembleDebug
 ```
 
-Additional checks are required when relevant:
+Additional validation depends on the change, including Room migration tests, parser regression tests, import/export round trips, Compose tests, managed-device tests, or release builds.
 
-- Room migration tests;
-- parser regression tests;
-- import/export round-trip tests;
-- Compose UI tests;
-- managed-device smoke tests;
-- release build validation.
-
-A note saying that tests could not run is not validation. Resolve the environment problem before merge.
+See [`docs/TESTING.md`](docs/TESTING.md) for the detailed validation strategy. A note that tests could not run is not validation.
 
 ## Definition of Done
 
 A change is done only when:
 
-- acceptance criteria are complete;
-- required CI checks pass;
-- relevant behavior is tested;
-- database changes include explicit migrations and migration tests;
-- manual validation is recorded where relevant;
-- visible UI changes include evidence;
-- error, loading, and empty states are handled;
-- accessibility impact is considered;
-- documentation is updated;
-- no new high-severity lint issue is introduced;
+- issue acceptance criteria are complete;
+- required checks pass;
+- relevant automated and manual validation is recorded;
+- migrations and compatibility are handled safely;
+- error, loading, empty, and accessibility states are considered where relevant;
+- durable architecture, ADR, contract, or user documentation is updated when behavior or boundaries change;
 - temporary code and debug output are removed;
-- the pull request is linked to the issue;
-- known limitations are documented or tracked;
-- the issue closes on merge.
+- known limitations are tracked in Issues;
+- the linked issue closes on merge.
+
+Routine ticket movement does not require roadmap or architecture edits.
 
 ## Commit messages
 
@@ -122,68 +118,33 @@ Use Conventional Commit-style messages:
 
 ```text
 feat(editor): add typed set rows
-fix(database): preserve workouts during v8-to-v9 migration
+fix(database): preserve workouts during migration
 refactor(parser): return immutable domain results
-test(import): cover quoted multiline learnings
+test(import): cover multiline fields
 docs(architecture): document canonical workout model
-chore(build): remove duplicate Compose dependencies
+chore(build): remove duplicate dependencies
 ```
 
-Avoid messages such as `update`, `fixed bugs`, or `icons`.
-
-## Testing expectations
-
-### Pure logic
-
-Parsing, calculations, mappings, validation, and date logic should be pure Kotlin where possible and covered by unit tests.
-
-### Database
-
-Every schema change requires:
-
-- an explicit Room migration;
-- a migration test from every supported prior version;
-- representative data assertions;
-- confirmation that data is not dropped or silently changed.
-
-### UI
-
-Use Compose tests for critical interactions, state restoration, and regression-prone behavior. Visual evidence supplements tests; it does not replace them.
-
-### Import and export
-
-Test:
-
-- round trips;
-- quoted commas and multiline fields;
-- legacy formats;
-- duplicates;
-- malformed files;
-- partial failure reporting;
-- version compatibility.
+Avoid vague messages such as `update`, `fixed bugs`, or `icons`.
 
 ## Architecture changes
 
-Create an Architecture Decision Record when a change:
+Create an ADR when a change:
 
 - changes the canonical data model;
-- changes persistence or backup strategy;
+- changes persistence, backup, or restore strategy;
 - changes import/export compatibility;
 - introduces or removes a major dependency;
 - changes Gradle-module boundaries;
 - creates a long-term platform constraint.
 
-An ADR must describe context, options, decision, consequences, and status.
-
 ## Scope discipline
 
 When unrelated problems are found:
 
-1. record them as a new issue;
-2. link the issue from the pull request when useful;
-3. do not expand the current pull request unless the new work is required for correctness.
-
-This keeps review, testing, rollback, and history understandable.
+1. create or update the relevant Issue;
+2. link it from the pull request when useful;
+3. do not expand the current pull request unless required for correctness.
 
 ## Security and privacy
 

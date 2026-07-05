@@ -1,13 +1,12 @@
-# Repository Settings
+# Repository settings
 
-Some GitHub controls cannot be enforced through tracked source alone. Apply these settings after the governance pull request is merged.
+Some GitHub controls cannot be enforced through tracked source alone. Apply and review these settings in the repository UI.
 
 ## Merge settings
 
-Recommended repository settings:
+Recommended settings:
 
 - enable squash merging;
-- keep rebase merging optional;
 - disable merge commits unless a specific history need exists;
 - automatically delete head branches after merge;
 - allow pull-request branches to be updated from the UI;
@@ -15,18 +14,17 @@ Recommended repository settings:
 
 ## Protect `master`
 
-Create a branch protection rule or ruleset for `master`:
+Create a branch protection rule or ruleset that:
 
-- require a pull request before merging;
-- require status checks to pass;
-- require the branch to be current before merging;
-- require all conversations to be resolved;
-- block force pushes;
-- block branch deletion;
-- restrict direct pushes;
-- include administrators where practical.
+- requires a pull request before merging;
+- requires status checks to pass;
+- requires the branch to be current before merging;
+- requires conversations to be resolved;
+- blocks force pushes and branch deletion;
+- restricts direct pushes;
+- includes administrators where practical.
 
-Initial required checks:
+Required checks:
 
 ```text
 Android CI / testDebugUnitTest
@@ -34,13 +32,13 @@ Android CI / lintDebug
 Android CI / assembleDebug
 ```
 
-Add focused required checks when their workflow becomes stable, such as Room migration tests.
+Add focused required checks when their workflows are stable, such as Room migration or managed-device tests.
 
-For a solo-maintained project, formal approval can initially remain optional. The pull-request checklist and required checks still apply. Require at least one approval when another maintainer joins.
+For a solo-maintained project, formal approval can initially remain optional. Require review approval when another maintainer joins.
 
 ## Labels
 
-The tracked `.github/labels.json` file is the declarative catalogue. Run the **Sync repository labels** workflow after merge and whenever the catalogue changes.
+`.github/labels.json` is the declarative label catalogue. Run the **Sync repository labels** workflow whenever it changes.
 
 Label groups:
 
@@ -48,40 +46,52 @@ Label groups:
 - `priority:*` — urgency and impact;
 - `area:*` — affected product or technical area;
 - `status:*` — triage, readiness, blockers, and required decisions;
-- `risk:*` — migration, compatibility, performance, or privacy risk.
+- `risk:*` — migration, compatibility, performance, privacy, or release risk.
 
 Every triaged issue should have one type, one priority, one or more areas, and relevant risks. Workflow status labels are mutually exclusive.
 
-## Ticket board
+## GitHub Project
 
-Do not create or maintain a GitHub Project as a second status system.
+The Project is a visual planning surface over GitHub Issues.
 
-The live ticket board is derived from:
+Configuration rules:
 
-- existing `status:*` labels;
-- linked pull-request draft or ready state;
-- required CI checks;
-- manual validation requirements;
-- issue closure after merge.
+- add the actual Issue, not a duplicate draft item;
+- keep one Project item per Issue;
+- use a board grouped by Status for active work;
+- use table views for backlog, priority, and area filters;
+- display issue labels instead of duplicating type, priority, and area into separate fields unless a field has a demonstrated Project-specific purpose;
+- automate issue addition and Status synchronization where possible;
+- treat manual movement as fallback behavior only.
 
-The complete column rules and queries are documented in [`docs/TICKET_BOARD.md`](TICKET_BOARD.md).
+The Project does not replace the Issue body. Scope, acceptance criteria, blockers, and validation remain in the Issue.
 
-GitHub Issues are the live work-status source. Pull requests provide implementation and validation evidence. Roadmap documents define sequence and intent but do not duplicate ticket state.
-
-## Issue workflow
+## Issue and pull-request workflow
 
 - New issues receive `status:needs-triage`.
-- Triage assigns type, priority, area, and relevant risks.
-- A triaged issue with no workflow status is Backlog.
-- `status:needs-decision` identifies unresolved product or architecture decisions.
-- `status:blocked` identifies an explicit dependency that prevents progress.
-- `status:ready` is applied only after Definition of Ready is satisfied.
-- Applying `status:ready` may trigger branch and draft-pull-request creation.
-- Once a draft pull request exists, remove `status:ready`; the issue is In progress.
-- Ready-for-review represents In review.
-- Green checks with remaining runtime confirmation represent Validation.
-- Squash merge with `Closes #N` closes the issue and represents Done.
+- Triage assigns type, priority, areas, risks, parent, and blockers.
+- A triaged issue without a workflow label is backlog.
+- `status:needs-decision` marks unresolved decisions.
+- `status:blocked` requires an explicit `Blocked by #N` relationship.
+- `status:ready` is applied only after Definition of Ready.
+- A draft pull request represents implementation in progress.
+- A ready pull request represents review.
+- Green checks with remaining runtime confirmation represent validation.
+- Squash merge with `Closes #N` closes the Issue.
+
+See [`docs/TICKET_BOARD.md`](TICKET_BOARD.md) for the canonical tracking rules.
+
+## Work-item automation
+
+The workflow that creates branches and draft pull requests needs:
+
+- Contents: write;
+- Issues: write;
+- Pull requests: write;
+- repository permission allowing GitHub Actions to create pull requests, or a configured `WORK_ITEM_TOKEN`.
+
+See [`docs/WORK_ITEM_AUTOMATION.md`](WORK_ITEM_AUTOMATION.md) for setup and recovery.
 
 ## Operating requirement
 
-A ticket must not exist in both a GitHub Project column and the label-driven board. Existing Project views may be deleted or ignored; they are not authoritative.
+Do not maintain current queues in Markdown files. GitHub Issues contain the work, the Project displays it, and pull requests contain implementation and validation evidence.
