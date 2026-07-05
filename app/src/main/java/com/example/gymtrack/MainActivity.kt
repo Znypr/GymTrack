@@ -16,7 +16,6 @@ import com.example.gymtrack.core.data.WorkoutRepository
 import com.example.gymtrack.core.data.repository.NoteRepository
 import com.example.gymtrack.core.data.transition.CanonicalImportRunner
 import com.example.gymtrack.core.ui.theme.GymTrackTheme
-import com.example.gymtrack.feature.home.HomeViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -26,7 +25,7 @@ class MainActivity : ComponentActivity() {
 
         val db = NoteDatabase.getDatabase(applicationContext)
         val noteRepository = NoteRepository(db.noteDao())
-        val workoutRepository = WorkoutRepository(db.noteDao(), db.exerciseDao(), db.setDao())
+        val workoutRepository = WorkoutRepository(db)
         val canonicalImportRunner = CanonicalImportRunner(db)
 
         setContent {

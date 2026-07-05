@@ -3,14 +3,7 @@ package com.example.gymtrack.feature.editor
 import android.content.Context
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextRange
@@ -52,106 +45,91 @@ class NoteEditorState(
     val timestamps = mutableStateListOf<String>()
     val flags = mutableStateListOf<ExerciseFlag>()
 
-    private var currentNoteVersion: NoteLine? = initialNote
     private var startTime: Long? = initialNote?.timestamp
     private var lastEnter: Long = System.currentTimeMillis()
     val noteTimestamp: Long = initialNote?.timestamp ?: System.currentTimeMillis()
+    private var editRevision = 0L
+    private var finishing = false
+
     var saved by mutableStateOf(false)
+        private set
 
     init {
         val parsed = parseNoteText(initialNote?.text ?: "")
-
         if (parsed.first.isEmpty()) {
             addLine(NoteRow(nextId++, mutableStateOf(TextFieldValue(""))))
             timestamps.add("")
             flags.add(ExerciseFlag.BILATERAL)
         } else {
-            parsed.first.forEachIndexed { idx, txt ->
-                val cleanTxt = if (txt.isNotBlank() && !txt.startsWith(" ")) {
-                    txt.replace(Regex("""\s*\(\d+'\d{2}''\)$"""), "")
-                } else {
-                    txt
-                }
-
+            parsed.first.forEachIndexed { index, text ->
+                val cleanText = if (text.isNotBlank() && !text.startsWith(" ")) {
+                    text.replace(Regex("""\s*\(\d+'\d{2}''\)$"""), "")
+                } else text
                 addLine(
                     NoteRow(
                         id = nextId++,
-                        text = mutableStateOf(TextFieldValue(cleanTxt)),
-                        flag = mutableStateOf(parsed.third.getOrNull(idx) ?: ExerciseFlag.BILATERAL),
+                        text = mutableStateOf(TextFieldValue(cleanText)),
+                        flag = mutableStateOf(parsed.third.getOrNull(index) ?: ExerciseFlag.BILATERAL),
                     ),
                 )
             }
             timestamps.addAll(parsed.second)
             flags.addAll(parsed.third)
         }
-
         cleanLists()
-
         if (initialNote != null) {
-            val list = parsed.second
-            val lastIdx = list.indexOfLast { it.isNotBlank() }
-            val lastSec = if (lastIdx >= 0) parseDurationSeconds(list[lastIdx]).toLong() else 0L
+            val lastIndex = parsed.second.indexOfLast(String::isNotBlank)
+            val lastSeconds = if (lastIndex >= 0) parseDurationSeconds(parsed.second[lastIndex]).toLong() else 0L
             startTime = initialNote.timestamp
-            lastEnter = initialNote.timestamp + lastSec * 1_000L
-        } else {
-            lastEnter = System.currentTimeMillis()
+            lastEnter = initialNote.timestamp + lastSeconds * 1_000L
         }
     }
 
-    private fun addLine(row: NoteRow, index: Int = lines.size) {
-        lines.add(index, row)
+    fun markDirty() {
+        if (finishing) return
+        editRevision += 1L
+        saved = false
     }
 
     fun onTextChange(index: Int, newValue: TextFieldValue) {
-        saved = false
+        if (finishing) return
+        markDirty()
         val row = lines[index]
-
         if (newValue.text.endsWith("\n")) {
             val content = newValue.text.dropLast(1)
             val hasTimestamp = content.trim().matches(Regex(".*\\(\\d+'\\d{2}''\\)$"))
             val now = System.currentTimeMillis()
-            val diffSec = (now - lastEnter) / 1_000L
-
+            val differenceSeconds = (now - lastEnter) / 1_000L
             if (content.isNotBlank()) lastEnter = now
-
-            val rel = formatSecondsToMinutesSeconds(diffSec)
+            val relative = formatSecondsToMinutesSeconds(differenceSeconds)
             val isMain = index == 0 || lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
-
             if (startTime == null && content.isNotBlank() && isMain) startTime = now
-            val effectiveStart = startTime ?: now
-            val abs = formatElapsedMinutesSeconds(effectiveStart, now, settings)
-
-            val formatted = if (content.isNotBlank()) {
-                if (isMain) content
-                else if (hasTimestamp) content
-                else "      $content ($rel)"
-            } else {
-                ""
+            val absolute = formatElapsedMinutesSeconds(startTime ?: now, now, settings)
+            val formatted = when {
+                content.isBlank() -> ""
+                isMain || hasTimestamp -> content
+                else -> "      $content ($relative)"
             }
-
             row.text.value = TextFieldValue(formatted, TextRange(formatted.length))
             ensureListSize(index)
-            if (content.isNotBlank()) timestamps[index] = abs
+            if (content.isNotBlank()) timestamps[index] = absolute
 
-            val nextIdx = index + 1
+            val nextIndex = index + 1
             val newRow = NoteRow(
                 id = nextId++,
                 text = mutableStateOf(TextFieldValue("")),
                 flag = mutableStateOf(row.flag.value),
             )
-
-            lines.add(nextIdx, newRow)
-            if (flags.size <= nextIdx) flags.add(row.flag.value) else flags.add(nextIdx, row.flag.value)
-            if (timestamps.size <= nextIdx) timestamps.add("") else timestamps.add(nextIdx, "")
-
+            lines.add(nextIndex, newRow)
+            if (flags.size <= nextIndex) flags.add(row.flag.value) else flags.add(nextIndex, row.flag.value)
+            if (timestamps.size <= nextIndex) timestamps.add("") else timestamps.add(nextIndex, "")
             scope.launch {
                 delay(100L)
-                if (nextIdx < lines.size) {
-                    listState.scrollToItem(nextIdx)
+                if (nextIndex < lines.size) {
+                    listState.scrollToItem(nextIndex)
                     newRow.focusRequester.requestFocus()
                 }
             }
-
             saveNote(isLastNote = false, exit = false)
         } else {
             row.text.value = newValue
@@ -159,12 +137,13 @@ class NoteEditorState(
     }
 
     fun toggleFlag(index: Int) {
+        if (finishing) return
+        markDirty()
         val row = lines[index]
         val newFlag = row.flag.value.next()
         row.flag.value = newFlag
         ensureListSize(index)
         flags[index] = newFlag
-        saved = false
         saveNote(isLastNote = false, exit = false)
     }
 
@@ -173,48 +152,43 @@ class NoteEditorState(
         exit: Boolean,
         finishWorkout: Boolean = false,
     ) {
-        if (saved && !exit) return
-
+        if (finishing || (saved && !exit)) return
+        if (exit) finishing = true
         val range = lines.indices
         val finalStartTime = startTime ?: noteTimestamp
-
-        range.forEach { i ->
-            val row = lines[i]
-            if (row.text.value.text.isNotBlank() && timestamps.getOrElse(i) { "" }.isBlank()) {
-                val nowAbs = formatElapsedMinutesSeconds(
-                    finalStartTime,
-                    System.currentTimeMillis(),
-                    settings,
-                )
-                ensureListSize(i)
-                timestamps[i] = nowAbs
+        range.forEach { index ->
+            val row = lines[index]
+            if (row.text.value.text.isNotBlank() && timestamps.getOrElse(index) { "" }.isBlank()) {
+                ensureListSize(index)
+                timestamps[index] = formatElapsedMinutesSeconds(finalStartTime, System.currentTimeMillis(), settings)
             }
-            ensureListSize(i)
-            flags[i] = row.flag.value
+            ensureListSize(index)
+            flags[index] = row.flag.value
         }
-
         val plainContent = range.joinToString("\n") { lines[it].text.value.text }
         val validTimestamps = range.map { timestamps.getOrElse(it) { "" } }
         val validFlags = range.map { flags.getOrElse(it) { ExerciseFlag.BILATERAL } }
         val combined = combineTextAndTimes(plainContent, validTimestamps, validFlags)
-
-        val isNew = currentNoteVersion == null
-        val isEmpty = combined.isBlank() &&
-            viewModel.currentTitle.isBlank() &&
-            viewModel.currentLearnings.isBlank()
-
+        val isNew = viewModel.currentId == -1L
+        val isEmpty = combined.isBlank() && viewModel.currentTitle.isBlank() && viewModel.currentLearnings.isBlank()
         if (isNew && isEmpty) {
             if (exit) finishExit(isLastNote, finishWorkout = true)
             return
         }
 
-        viewModel.saveNote(
-            finalText = combined,
-            settings = settings,
-            newNoteTimestamp = noteTimestamp,
-        ) {
-            saved = true
+        val requestedRevision = editRevision
+        val onPersisted = {
+            if (requestedRevision == editRevision) saved = true
             if (exit) finishExit(isLastNote, finishWorkout)
+        }
+        val onFailure: (String) -> Unit = {
+            saved = false
+            if (exit) finishing = false
+        }
+        if (finishWorkout) {
+            viewModel.finalizeWorkout(combined, noteTimestamp, onPersisted, onFailure)
+        } else {
+            viewModel.saveDraft(combined, noteTimestamp, onPersisted, onFailure)
         }
     }
 
@@ -223,16 +197,17 @@ class NoteEditorState(
             onSaveSuccess()
             return
         }
-
         scope.launch {
             NoteTimerStore.stop(context, noteTimestamp)
             onSaveSuccess()
         }
     }
 
+    private fun addLine(row: NoteRow, index: Int = lines.size) = lines.add(index, row)
+
     private fun ensureListSize(index: Int) {
-        while (timestamps.size <= index + 1) timestamps.add("")
-        while (flags.size <= index + 1) flags.add(ExerciseFlag.BILATERAL)
+        while (timestamps.size <= index) timestamps.add("")
+        while (flags.size <= index) flags.add(ExerciseFlag.BILATERAL)
     }
 
     private fun cleanLists() {
@@ -253,16 +228,7 @@ fun rememberNoteEditorState(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
-
     return remember(viewModel) {
-        NoteEditorState(
-            viewModel = viewModel,
-            settings = settings,
-            context = context,
-            scope = scope,
-            listState = listState,
-            initialNote = note,
-            onSaveSuccess = onSaveSuccess,
-        )
+        NoteEditorState(viewModel, settings, context, scope, listState, note, onSaveSuccess)
     }
 }

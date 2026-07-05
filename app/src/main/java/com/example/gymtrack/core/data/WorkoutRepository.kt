@@ -1,22 +1,23 @@
 package com.example.gymtrack.core.data
 
+import androidx.room.withTransaction
 import com.example.gymtrack.core.util.ParsedSetDTO
 import com.example.gymtrack.core.util.WorkoutParser
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 
 class WorkoutRepository(
-    private val noteDao: NoteDao,
-    private val exerciseDao: ExerciseDao,
-    private val setDao: SetDao
+    private val database: NoteDatabase,
 ) {
+    private val noteDao = database.noteDao()
+    private val exerciseDao = database.exerciseDao()
+    private val setDao = database.setDao()
     private val parser = WorkoutParser()
 
     fun getAllExercises(): Flow<List<ExerciseEntity>> {
         return exerciseDao.getAllExercises()
     }
 
-    // Support both All-Time (0) and Time-Range filtering
     fun getExercisesSortedByCount(minTimestamp: Long = 0): Flow<List<ExerciseWithCount>> {
         return if (minTimestamp == 0L) {
             exerciseDao.getExercisesSortedByCount()
@@ -49,10 +50,23 @@ class WorkoutRepository(
                 modifier = set.modifier,
                 brand = set.brand,
                 relativeTime = set.relativeTime,
-                absoluteTime = set.absoluteTime
+                absoluteTime = set.absoluteTime,
             )
         }
         setDao.replaceSetsForWorkout(workoutId, setEntities)
+    }
+
+    /**
+     * Persists the completed compatibility workout and its derived statistics
+     * rows as one Room transaction. Draft autosave intentionally does not call
+     * this method.
+     */
+    suspend fun saveCompletedWorkout(note: NoteEntity) {
+        database.withTransaction {
+            noteDao.insert(note)
+            val parsedSets = parser.parseWorkout(note.text)
+            saveParsedSets(parsedSets, note.timestamp)
+        }
     }
 
     suspend fun syncNoteToWorkout(note: NoteEntity) {
@@ -60,7 +74,6 @@ class WorkoutRepository(
         saveParsedSets(parsedSets, note.timestamp)
     }
 
-    // [FIX] New function to forcefully rebuild stats from Notes
     suspend fun forceUpdateStats() {
         val allNotes = noteDao.getAll().first()
         allNotes.forEach { note ->
@@ -68,7 +81,6 @@ class WorkoutRepository(
         }
     }
 
-    // Keeps old check for first-run migration
     suspend fun checkAndMigrate() {
         val noteCount = noteDao.getCount()
         val setCount = setDao.getCount()
@@ -84,7 +96,11 @@ class WorkoutRepository(
         if (existing != null) return existing.exerciseId
         val aliasMatch = exerciseDao.findByAlias(normalizedName).firstOrNull()
         if (aliasMatch != null) return aliasMatch.exerciseId
-        val newExercise = ExerciseEntity(name = normalizedName, aliases = "", muscleGroup = null)
+        val newExercise = ExerciseEntity(
+            name = normalizedName,
+            aliases = "",
+            muscleGroup = null,
+        )
         return exerciseDao.insert(newExercise)
     }
 }

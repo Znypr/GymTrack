@@ -37,6 +37,7 @@ fun NoteEditor(
     onSaveSuccess: () -> Unit,
 ) {
     val note by viewModel.uiState.collectAsState()
+    val saveError by viewModel.saveError.collectAsState()
     val isEditingExisting = viewModel.currentId != -1L
     val startTimerOnOpen = remember(viewModel) { viewModel.currentId == -1L }
 
@@ -48,32 +49,45 @@ fun NoteEditor(
     }
 
     val state = rememberNoteEditorState(viewModel, settings, note, onSaveSuccess)
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(saveError) {
+        saveError?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearSaveError()
+        }
+    }
 
     LaunchedEffect(Unit) {
         if (state.lines.isNotEmpty()) {
-            val lastIdx = state.lines.lastIndex
-            state.listState.scrollToItem(lastIdx)
+            state.listState.scrollToItem(state.lines.lastIndex)
         }
     }
 
     val noteTimestamp = state.noteTimestamp
-
     var selectedCategory by remember(note) {
-        mutableStateOf(settings.categories.find { it.name == note?.categoryName } ?: Category("Push", 0xFFFF3B30))
+        mutableStateOf(
+            settings.categories.find { it.name == note?.categoryName }
+                ?: Category("Push", 0xFFFF3B30),
+        )
     }
-    var learningsValue by remember(note) { mutableStateOf(TextFieldValue(note?.learnings ?: "")) }
+    var learningsValue by remember(note) {
+        mutableStateOf(TextFieldValue(note?.learnings ?: ""))
+    }
     var showLearnings by remember { mutableStateOf(false) }
 
     LaunchedEffect(selectedCategory) { viewModel.currentCategory = selectedCategory }
     LaunchedEffect(learningsValue.text) { viewModel.currentLearnings = learningsValue.text }
     LaunchedEffect(note) { note?.let { viewModel.currentTitle = it.title } }
 
-    BackHandler { state.saveNote(isLastNote, exit = true) }
+    BackHandler { state.saveNote(isLastNote = isLastNote, exit = true) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) state.saveNote(isLastNote, exit = false)
+            if (event == Lifecycle.Event.ON_STOP) {
+                state.saveNote(isLastNote = isLastNote, exit = false)
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -82,18 +96,18 @@ fun NoteEditor(
     val view = LocalView.current
     SideEffect {
         val window = (view.context as Activity).window
-        val controller = WindowInsetsControllerCompat(window, view)
-        controller.isAppearanceLightStatusBars = !settings.darkMode
+        WindowInsetsControllerCompat(window, view).isAppearanceLightStatusBars = !settings.darkMode
     }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 title = {},
                 navigationIcon = {
-                    IconButton(onClick = { state.saveNote(isLastNote, exit = true) }) {
+                    IconButton(onClick = { state.saveNote(isLastNote = isLastNote, exit = true) }) {
                         Icon(
                             Icons.Default.ArrowBack,
                             contentDescription = "Back",
@@ -134,7 +148,8 @@ fun NoteEditor(
                     selectedCategory = selectedCategory,
                     onCategorySelect = {
                         selectedCategory = it
-                        state.saved = false
+                        viewModel.currentCategory = it
+                        state.markDirty()
                     },
                     topPadding = padding.calculateTopPadding(),
                 )
@@ -166,7 +181,8 @@ fun NoteEditor(
                 onDismiss = { showLearnings = false },
                 onValueChange = {
                     learningsValue = it
-                    state.saved = false
+                    viewModel.currentLearnings = it.text
+                    state.markDirty()
                 },
             )
         }

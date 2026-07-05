@@ -67,11 +67,10 @@ fun NavigationHost(
                                     Toast.LENGTH_SHORT,
                                 ).show()
                                 selectedNotes = emptySet()
-                            } catch (e: Exception) {
-                                e.printStackTrace()
+                            } catch (error: Exception) {
                                 Toast.makeText(
                                     context,
-                                    "Export failed: ${e.localizedMessage}",
+                                    "Export failed: ${error.localizedMessage}",
                                     Toast.LENGTH_LONG,
                                 ).show()
                             }
@@ -86,14 +85,13 @@ fun NavigationHost(
                 },
                 onOpenSettings = { navController.navigate("settings") },
                 onOpenStats = { navController.navigate("stats") },
-                onSwipeRight = { },
+                onSwipeRight = {},
                 settings = settings,
             )
         }
 
         composable("editor?noteId={noteId}") { backStackEntry ->
             val noteId = backStackEntry.arguments?.getString("noteId")?.toLongOrNull() ?: -1L
-            val context = LocalContext.current
             val notes by noteRepository.getAllNotes().collectAsState(initial = emptyList())
             val isLatestWorkout = noteId == -1L || notes.lastOrNull()?.timestamp == noteId
 
@@ -102,7 +100,6 @@ fun NavigationHost(
                     noteId,
                     noteRepository,
                     workoutRepository,
-                    context,
                 ),
             )
 
