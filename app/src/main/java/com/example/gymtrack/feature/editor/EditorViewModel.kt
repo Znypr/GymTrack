@@ -4,31 +4,38 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.gymtrack.core.data.Category
-import com.example.gymtrack.core.data.NoteEntity
 import com.example.gymtrack.core.data.NoteLine
-import com.example.gymtrack.core.data.Settings
-import com.example.gymtrack.core.data.repository.NoteRepository
 import com.example.gymtrack.core.data.WorkoutRepository
-import com.example.gymtrack.core.util.exportNote
+import com.example.gymtrack.core.data.repository.NoteRepository
+import com.example.gymtrack.core.data.repository.toEntity
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import android.content.Context
-import kotlinx.coroutines.NonCancellable
 
 class EditorViewModel(
     private val initialId: Long,
     private val noteRepo: NoteRepository,
     private val workoutRepo: WorkoutRepository,
-    private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<NoteLine?>(null)
     val uiState = _uiState.asStateFlow()
 
-    var currentId: Long = initialId // This can now change from -1 to a real timestamp
+    private val _saveError = MutableStateFlow<String?>(null)
+    val saveError = _saveError.asStateFlow()
+
+    private val saveCoordinator = EditorSaveCoordinator(
+        persistDraft = noteRepo::saveNote,
+        finalizeWorkout = { note -> workoutRepo.saveCompletedWorkout(note.toEntity()) },
+    )
+
+    private val idLock = Any()
+
+    var currentId: Long = initialId
+        private set
 
     var currentTitle = ""
     var currentCategory: Category? = null
@@ -41,65 +48,115 @@ class EditorViewModel(
                 initialize(note)
             }
         } else {
-            initialize(null) // New note
+            initialize(null)
         }
     }
 
-
-    // Initialize the editor with data (Called once when UI loads)
     fun initialize(note: NoteLine?) {
         if (note != null) {
             currentTitle = note.title
-            currentCategory = Category(note.categoryName ?: "Uncategorized", note.categoryColor ?: 0xFF808080)
+            currentCategory = Category(
+                note.categoryName ?: "Uncategorized",
+                note.categoryColor ?: 0xFF808080,
+            )
             currentLearnings = note.learnings
             _uiState.value = note
         } else {
-            // Defaults for new note
-            currentCategory = Category("Push", 0xFFFF3B30) // Default
+            currentCategory = Category("Push", 0xFFFF3B30)
         }
     }
 
-    fun saveNote(finalText: String, settings: Settings, onComplete: () -> Unit) {
+    fun saveDraft(
+        finalText: String,
+        onComplete: () -> Unit = {},
+        onError: (String) -> Unit = {},
+    ) {
+        requestSave(
+            note = snapshot(finalText),
+            kind = EditorSaveKind.DRAFT,
+            onComplete = onComplete,
+            onError = onError,
+        )
+    }
+
+    fun finalizeWorkout(
+        finalText: String,
+        onComplete: () -> Unit = {},
+        onError: (String) -> Unit = {},
+    ) {
+        requestSave(
+            note = snapshot(finalText),
+            kind = EditorSaveKind.FINALIZE,
+            onComplete = onComplete,
+            onError = onError,
+        )
+    }
+
+    fun clearSaveError() {
+        _saveError.value = null
+    }
+
+    private fun snapshot(finalText: String): NoteLine {
+        val timestamp = synchronized(idLock) {
+            if (currentId == -1L) {
+                currentId = System.currentTimeMillis()
+            }
+            currentId
+        }
+
+        return NoteLine(
+            title = currentTitle,
+            text = finalText,
+            timestamp = timestamp,
+            categoryName = currentCategory?.name,
+            categoryColor = currentCategory?.color,
+            learnings = currentLearnings,
+        )
+    }
+
+    private fun requestSave(
+        note: NoteLine,
+        kind: EditorSaveKind,
+        onComplete: () -> Unit,
+        onError: (String) -> Unit,
+    ) {
+        val revision = saveCoordinator.reserveRevision()
+        _saveError.value = null
+
         viewModelScope.launch(Dispatchers.IO) {
-            withContext(NonCancellable) {
-                val timestamp = if (currentId != -1L) currentId else System.currentTimeMillis()
-                currentId = timestamp
-
-                val updatedNote = NoteLine(
-                    title = currentTitle,
-                    text = finalText,
-                    timestamp = timestamp,
-                    categoryName = currentCategory?.name,
-                    categoryColor = currentCategory?.color,
-                    learnings = currentLearnings
-                )
-
-                noteRepo.saveNote(updatedNote)
-
-                // CRITICAL: Update the internal state so the ViewModel knows it's saved
-                _uiState.value = updatedNote
-
-                val entity = NoteEntity(timestamp, updatedNote.title, updatedNote.text,
-                    updatedNote.categoryName, updatedNote.categoryColor, updatedNote.learnings)
-                workoutRepo.syncNoteToWorkout(entity)
-                exportNote(context, updatedNote, settings)
+            val result = runCatching {
+                withContext(NonCancellable) {
+                    saveCoordinator.persist(revision, kind, note)
+                }
             }
+
             withContext(Dispatchers.Main) {
-                onComplete()
+                result.fold(
+                    onSuccess = { outcome ->
+                        if (outcome == EditorSaveOutcome.Persisted) {
+                            _uiState.value = note
+                            onComplete()
+                        }
+                    },
+                    onFailure = { error ->
+                        val message = error.message?.takeIf(String::isNotBlank)
+                            ?: "Workout save failed"
+                        _saveError.value = message
+                        onError(message)
+                    },
+                )
             }
         }
     }
 
-    // Factory
     class Factory(
         private val noteId: Long,
         private val noteRepo: NoteRepository,
         private val workoutRepo: WorkoutRepository,
-        private val context: Context
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return EditorViewModel(noteId, noteRepo, workoutRepo, context) as T
+            return EditorViewModel(noteId, noteRepo, workoutRepo) as T
         }
     }
 }
