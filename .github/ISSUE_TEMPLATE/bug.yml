@@ -38,6 +38,18 @@ body:
       required: true
 
   - type: textarea
+    id: relationships
+    attributes:
+      label: Parent issue and dependencies
+      description: Link a parent initiative, related issue, or active blocker. Write "None" when independent.
+      placeholder: |
+        Parent: #123
+        Related: #120
+        Blocked by: #118
+    validations:
+      required: true
+
+  - type: textarea
     id: observed
     attributes:
       label: Observed behavior
@@ -112,7 +124,7 @@ body:
     attributes:
       label: Submission checks
       options:
-        - label: I searched existing issues for duplicates.
+        - label: I searched existing Issues for duplicates.
           required: true
         - label: I removed private data from attachments.
           required: true

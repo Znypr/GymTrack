@@ -3,6 +3,12 @@ name: Create branch and draft pull request
 on:
   issues:
     types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Issue number
+        required: true
+        type: number
 
 permissions:
   contents: write
@@ -10,22 +16,43 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: work-item-${{ github.event.issue.number }}
+  group: work-item-${{ github.event.issue.number || inputs.issue_number || github.run_id }}
   cancel-in-progress: false
 
 jobs:
   create-work-item:
-    if: github.event.label.name == 'status:ready' && github.event.issue.pull_request == null
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issues' && github.event.label.name == 'status:ready')
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
 
     steps:
-      - name: Create work branch and draft pull request
+      - name: Create work item
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.WORK_ITEM_TOKEN || github.token }}
           script: |
             const { owner, repo } = context.repo;
-            const issue = context.payload.issue;
-            const labels = issue.labels.map(label => typeof label === 'string' ? label : label.name);
+            const number = Number(process.env.ISSUE_NUMBER);
+            if (!Number.isInteger(number) || number < 1) {
+              core.setFailed(`Invalid issue number: ${process.env.ISSUE_NUMBER}`);
+              return;
+            }
+
+            const issue = (await github.rest.issues.get({
+              owner, repo, issue_number: number
+            })).data;
+            const labels = issue.labels.map(label =>
+              typeof label === 'string' ? label : label.name
+            );
+
+            if (issue.pull_request || !labels.includes('status:ready')) {
+              core.setFailed(`#${number} must be an issue with status:ready.`);
+              return;
+            }
 
             const prefix = labels.includes('type:bug') ? 'fix'
               : labels.includes('type:refactor') ? 'refactor'
@@ -33,75 +60,54 @@ jobs:
               : labels.includes('type:chore') ? 'chore'
               : labels.includes('type:spike') ? 'spike'
               : 'feat';
-
-            const slug = issue.title
-              .toLowerCase()
+            const slug = issue.title.toLowerCase()
               .replace(/[^a-z0-9]+/g, '-')
               .replace(/^-|-$/g, '')
               .slice(0, 50);
+            const branch = `${prefix}/${number}-${slug || 'work-item'}`;
+            const base = (await github.rest.repos.get({ owner, repo })).data.default_branch;
 
-            const branchName = `${prefix}/${issue.number}-${slug || 'work-item'}`;
-            const repository = await github.rest.repos.get({ owner, repo });
-            const base = repository.data.default_branch;
-
-            const existingPulls = await github.paginate(github.rest.pulls.list, {
-              owner,
-              repo,
-              state: 'all',
-              head: `${owner}:${branchName}`,
-              per_page: 100
+            const pulls = await github.paginate(github.rest.pulls.list, {
+              owner, repo, state: 'all', head: `${owner}:${branch}`, per_page: 100
             });
-
-            if (existingPulls.length > 0) {
+            if (pulls.length) {
               await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number: issue.number,
-                body: `Work item already exists: ${existingPulls[0].html_url}`
+                owner, repo, issue_number: number,
+                body: `Work item already exists: ${pulls[0].html_url}`
               });
               return;
             }
 
-            let branchExists = true;
+            let exists = true;
             try {
-              await github.rest.git.getRef({ owner, repo, ref: `heads/${branchName}` });
+              await github.rest.git.getRef({ owner, repo, ref: `heads/${branch}` });
             } catch (error) {
               if (error.status !== 404) throw error;
-              branchExists = false;
+              exists = false;
             }
 
-            if (!branchExists) {
+            if (!exists) {
               const baseRef = await github.rest.git.getRef({ owner, repo, ref: `heads/${base}` });
-              const baseCommit = await github.rest.git.getCommit({ owner, repo, commit_sha: baseRef.data.object.sha });
-              const initialCommit = await github.rest.git.createCommit({
-                owner,
-                repo,
-                message: `chore: start work on #${issue.number}`,
-                tree: baseCommit.data.tree.sha,
+              const commit = await github.rest.git.getCommit({
+                owner, repo, commit_sha: baseRef.data.object.sha
+              });
+              const initial = await github.rest.git.createCommit({
+                owner, repo,
+                message: `chore: start work on #${number}`,
+                tree: commit.data.tree.sha,
                 parents: [baseRef.data.object.sha]
               });
-
               await github.rest.git.createRef({
-                owner,
-                repo,
-                ref: `refs/heads/${branchName}`,
-                sha: initialCommit.data.sha
+                owner, repo, ref: `refs/heads/${branch}`, sha: initial.data.sha
               });
             }
 
             const pull = await github.rest.pulls.create({
-              owner,
-              repo,
-              title: `${prefix}: ${issue.title.replace(/^(bug|feat|feature|refactor|docs|chore|spike):\s*/i, '')}`,
-              head: branchName,
-              base,
-              draft: true,
-              body: `## Linked issue\n\nCloses #${issue.number}\n\n## Problem\n\n${issue.title}\n\n## Implementation\n\nDraft created automatically when the issue received \`status:ready\`. Complete the repository pull-request template before review.`
+              owner, repo, head: branch, base, draft: true,
+              title: `${prefix}: ${issue.title}`,
+              body: `## Linked issue\n\nCloses #${number}\n\nDraft created for an issue with \`status:ready\`.`
             });
-
             await github.rest.issues.createComment({
-              owner,
-              repo,
-              issue_number: issue.number,
-              body: `Implementation started.\n\n- Branch: \`${branchName}\`\n- Draft pull request: ${pull.data.html_url}`
+              owner, repo, issue_number: number,
+              body: `Implementation started.\n\n- Branch: \`${branch}\`\n- Draft pull request: ${pull.data.html_url}`
             });

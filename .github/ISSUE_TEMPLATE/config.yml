@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Project charter and roadmap
+  - name: Project documentation
     url: https://github.com/Znypr/GymTrack/tree/master/docs
-    about: Review product direction, architecture, and planned work before opening an issue.
+    about: Review product direction, architecture, roadmap, and work-tracking rules before opening an Issue.
+  - name: Search existing Issues
+    url: https://github.com/Znypr/GymTrack/issues
+    about: Check existing work before creating a duplicate Issue.

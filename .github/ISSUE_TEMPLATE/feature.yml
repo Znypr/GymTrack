@@ -26,6 +26,17 @@ body:
       required: true
 
   - type: textarea
+    id: relationships
+    attributes:
+      label: Parent issue and dependencies
+      description: Link the parent initiative and active blockers using issue numbers. Write "None" when this is independent.
+      placeholder: |
+        Parent: #123
+        Blocked by: #120
+    validations:
+      required: true
+
+  - type: textarea
     id: problem
     attributes:
       label: User problem
@@ -107,7 +118,7 @@ body:
     attributes:
       label: Submission checks
       options:
-        - label: I checked the project charter and roadmap.
+        - label: I checked the project charter and existing Issues.
           required: true
-        - label: I searched existing issues for duplicates.
+        - label: I searched existing Issues for duplicates.
           required: true
