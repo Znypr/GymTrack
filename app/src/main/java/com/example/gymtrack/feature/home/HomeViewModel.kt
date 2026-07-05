@@ -13,6 +13,7 @@ import com.example.gymtrack.core.data.repository.toEntity
 import com.example.gymtrack.core.util.exportNote
 import com.example.gymtrack.core.util.importNote
 import java.io.File
+import java.io.IOException
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -42,7 +43,14 @@ class HomeViewModel(
         notes: Set<NoteLine>,
         settings: Settings,
     ): List<File> = withContext(Dispatchers.IO) {
-        notes.map { exportNote(context, it, settings) }
+        notes.map { note ->
+            val file = exportNote(context, note, settings)
+            if (!file.exists() || file.name == "export_failed.log") {
+                val displayName = note.title.ifBlank { "workout" }
+                throw IOException("Could not export $displayName")
+            }
+            file
+        }
     }
 
     fun importNotesFromUris(context: Context, uris: List<Uri>, settings: Settings) {
