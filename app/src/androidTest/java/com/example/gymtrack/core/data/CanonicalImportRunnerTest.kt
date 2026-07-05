@@ -79,7 +79,10 @@ class CanonicalImportRunnerTest {
                     .getForWorkout(workout!!.id)
                 assertEquals(1, occurrences.size)
                 assertEquals("UNILATERAL", occurrences.single().mode)
-                assertEquals(CanonicalKeys.legacyExercise(legacyExerciseId), occurrences.single().exerciseId)
+                assertEquals(
+                    CanonicalKeys.namedExercise("Bench press"),
+                    occurrences.single().exerciseId,
+                )
 
                 val sets = database.canonicalWorkoutSetDao()
                     .getForWorkoutExercises(occurrences.map { it.id })
