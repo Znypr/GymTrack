@@ -45,7 +45,7 @@ Label groups:
 - `type:*` — nature of the work;
 - `priority:*` — urgency and impact;
 - `area:*` — affected product or technical area;
-- `status:*` — triage, readiness, blockers, and required decisions;
+- `status:*` — triage, readiness, validation, blockers, and required decisions;
 - `risk:*` — migration, compatibility, performance, privacy, or release risk.
 
 Every triaged issue should have one type, one priority, one or more areas, and relevant risks. Workflow status labels are mutually exclusive.
@@ -78,20 +78,35 @@ GYMTRACK_PROJECT_TOKEN
 
 The secret must contain a GitHub token that can read and write the repository and user-owned Project. The workflow resolves the Project, Status field, Project item, and Status option IDs at runtime.
 
+Canonical Status order:
+
+1. Triage
+2. Backlog
+3. Ready
+4. In Progress
+5. In Review
+6. Validation
+7. Blocked
+8. Needs decision
+9. Done
+
+The workflow creates any missing canonical Status options and preserves the IDs of existing options so current card values are not cleared.
+
 Status mapping:
 
-| Repository state | Preferred Project Status |
+| Repository state | Project Status |
 | --- | --- |
 | Closed issue or merged linked pull request | Done |
-| `status:blocked` | Blocked |
 | `status:needs-decision` | Needs decision |
+| `status:blocked` | Blocked |
+| `status:validation` | Validation |
 | `status:needs-triage` | Triage |
 | Open linked draft pull request | In Progress |
-| Open linked ready pull request | Review |
+| Open linked ready pull request | In Review |
 | `status:ready` | Ready |
 | Other open issue | Backlog |
 
-When a preferred custom option does not exist, the workflow uses a compatible built-in option such as `Todo`, `In Progress`, or `Done`. If no compatible option exists, it logs a warning instead of silently selecting an unrelated status.
+Explicit workflow labels take precedence over pull-request state. The workflow no longer falls back from `Blocked`, `Needs decision`, or `Validation` to unrelated columns.
 
 Use the workflow's manual dispatch with an issue number to backfill, test, or recover synchronization for an existing Issue.
 
@@ -105,7 +120,7 @@ Use the workflow's manual dispatch with an issue number to backfill, test, or re
 - `status:ready` is applied only after Definition of Ready.
 - A draft pull request represents implementation in progress.
 - A ready pull request represents review.
-- Green checks with remaining runtime confirmation represent validation.
+- `status:validation` means automated checks pass and only runtime or manual confirmation remains.
 - Squash merge with `Closes #N` closes the Issue.
 
 See [`docs/TICKET_BOARD.md`](TICKET_BOARD.md) for the canonical tracking rules.

@@ -41,16 +41,21 @@ jobs:
 
             const normalize = value => value.trim().toLowerCase();
 
-            const statusCandidates = {
-              Triage: ["Triage", "Todo", "To do", "Backlog"],
-              Backlog: ["Backlog", "Todo", "To do"],
-              Ready: ["Ready", "Todo", "To do", "Backlog"],
-              Blocked: ["Blocked", "Todo", "To do", "In Progress"],
-              "Needs decision": ["Needs decision", "Blocked", "Todo", "To do"],
-              "In Progress": ["In Progress", "In progress", "Doing"],
-              Review: ["Review", "In Review", "In progress", "In Progress"],
-              Done: ["Done", "Complete", "Completed"]
-            };
+            const canonicalStatuses = [
+              { name: "Triage", color: "GRAY", description: "Requires classification and prioritization" },
+              { name: "Backlog", color: "GRAY", description: "Triaged work that is not yet active" },
+              { name: "Ready", color: "GREEN", description: "Ready to enter implementation" },
+              { name: "In Progress", color: "YELLOW", description: "Implementation is actively in progress" },
+              { name: "In Review", aliases: ["Review"], color: "BLUE", description: "Implementation is ready for review" },
+              { name: "Validation", color: "PURPLE", description: "Automated checks pass and runtime or manual validation remains" },
+              { name: "Blocked", color: "RED", description: "Cannot progress until a dependency is resolved" },
+              { name: "Needs decision", color: "ORANGE", description: "Requires a product or architecture decision" },
+              { name: "Done", color: "PURPLE", description: "Completed work" }
+            ];
+
+            const statusCandidates = Object.fromEntries(
+              canonicalStatuses.map(status => [status.name, [status.name, ...(status.aliases ?? [])]])
+            );
 
             async function getProject() {
               const result = await github.graphql(
@@ -67,6 +72,8 @@ jobs:
                             options {
                               id
                               name
+                              color
+                              description
                             }
                           }
                         }
@@ -82,14 +89,98 @@ jobs:
                 throw new Error(`Project ${projectOwner} #${projectNumber} was not found.`);
               }
 
-              const statusField = project.fields.nodes.find(
-                field => field?.name === "Status"
-              );
+              const statusField = project.fields.nodes.find(field => field?.name === "Status");
               if (!statusField) {
                 throw new Error(`Project "${project.title}" has no single-select Status field.`);
               }
 
               return { project, statusField };
+            }
+
+            function optionInput(option, fallback) {
+              return {
+                ...(option?.id ? { id: option.id } : {}),
+                name: fallback.name,
+                description: option?.description || fallback.description,
+                color: option?.color || fallback.color
+              };
+            }
+
+            async function ensureStatusOptions(statusField) {
+              const usedOptionIds = new Set();
+              const orderedOptions = [];
+              const createdNames = [];
+
+              for (const definition of canonicalStatuses) {
+                const acceptedNames = [definition.name, ...(definition.aliases ?? [])].map(normalize);
+                const existing = statusField.options.find(option =>
+                  acceptedNames.includes(normalize(option.name))
+                );
+
+                if (existing) {
+                  usedOptionIds.add(existing.id);
+                } else {
+                  createdNames.push(definition.name);
+                }
+                orderedOptions.push(optionInput(existing, definition));
+              }
+
+              const extraOptions = statusField.options
+                .filter(option => !usedOptionIds.has(option.id))
+                .map(option => ({
+                  id: option.id,
+                  name: option.name,
+                  description: option.description || "",
+                  color: option.color
+                }));
+
+              const doneIndex = orderedOptions.findIndex(option => option.name === "Done");
+              orderedOptions.splice(doneIndex, 0, ...extraOptions);
+
+              const currentSignature = statusField.options
+                .map(option => [option.id, option.name, option.description || "", option.color].join(":"))
+                .join("|");
+              const desiredSignature = orderedOptions
+                .map(option => [option.id || "new", option.name, option.description, option.color].join(":"))
+                .join("|");
+
+              if (!createdNames.length && currentSignature === desiredSignature) {
+                return statusField;
+              }
+
+              const result = await github.graphql(
+                `mutation($fieldId: ID!, $options: [ProjectV2SingleSelectFieldOptionInput!]!) {
+                  updateProjectV2Field(input: {
+                    fieldId: $fieldId
+                    singleSelectOptions: $options
+                  }) {
+                    projectV2Field {
+                      ... on ProjectV2SingleSelectField {
+                        id
+                        name
+                        options {
+                          id
+                          name
+                          color
+                          description
+                        }
+                      }
+                    }
+                  }
+                }`,
+                { fieldId: statusField.id, options: orderedOptions }
+              );
+
+              const updatedField = result.updateProjectV2Field.projectV2Field;
+              if (!updatedField) {
+                throw new Error("GitHub returned no updated Status field.");
+              }
+
+              if (createdNames.length) {
+                core.info(`Created Project statuses: ${createdNames.join(", ")}.`);
+              }
+              core.info(`Project status order: ${updatedField.options.map(option => option.name).join(" → ")}`);
+              return updatedField;
             }
 
             async function findOrAddProjectItem(projectId, issue) {
@@ -121,9 +212,7 @@ jobs:
                 );
 
                 const connection = result.node.items;
-                const existing = connection.nodes.find(
-                  item => item.content?.id === issue.node_id
-                );
+                const existing = connection.nodes.find(item => item.content?.id === issue.node_id);
                 if (existing) {
                   return existing.id;
                 }
@@ -152,42 +241,22 @@ jobs:
 
             function selectOption(statusField, desiredStatus) {
               const candidates = statusCandidates[desiredStatus] ?? [desiredStatus];
-
-              for (const candidate of candidates) {
-                const option = statusField.options.find(
-                  item => normalize(item.name) === normalize(candidate)
-                );
-                if (option) {
-                  return option;
-                }
-              }
-
-              return null;
+              return statusField.options.find(option =>
+                candidates.some(candidate => normalize(option.name) === normalize(candidate))
+              ) ?? null;
             }
 
-            async function setProjectStatus(
-              projectId,
-              itemId,
-              statusField,
-              desiredStatus,
-              issueNumber
-            ) {
+            async function setProjectStatus(projectId, itemId, statusField, desiredStatus, issueNumber) {
               const option = selectOption(statusField, desiredStatus);
               if (!option) {
-                core.warning(
-                  `No compatible Status option for "${desiredStatus}". ` +
+                throw new Error(
+                  `No Project Status option exists for "${desiredStatus}". ` +
                   `Available options: ${statusField.options.map(item => item.name).join(", ")}`
                 );
-                return;
               }
 
               await github.graphql(
-                `mutation(
-                  $projectId: ID!
-                  $itemId: ID!
-                  $fieldId: ID!
-                  $optionId: String!
-                ) {
+                `mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
                   updateProjectV2ItemFieldValue(input: {
                     projectId: $projectId
                     itemId: $itemId
@@ -214,29 +283,18 @@ jobs:
 
             function desiredIssueStatus(issue, pullRequest) {
               const labels = new Set(
-                issue.labels.map(label =>
-                  typeof label === "string" ? label : label.name
-                )
+                issue.labels.map(label => typeof label === "string" ? label : label.name)
               );
 
-              if (issue.state === "closed" || pullRequest?.merged) {
-                return "Done";
-              }
-              if (labels.has("status:blocked")) {
-                return "Blocked";
-              }
-              if (labels.has("status:needs-decision")) {
-                return "Needs decision";
-              }
-              if (labels.has("status:needs-triage")) {
-                return "Triage";
-              }
+              if (issue.state === "closed" || pullRequest?.merged) return "Done";
+              if (labels.has("status:needs-decision")) return "Needs decision";
+              if (labels.has("status:blocked")) return "Blocked";
+              if (labels.has("status:validation")) return "Validation";
+              if (labels.has("status:needs-triage")) return "Triage";
               if (pullRequest && pullRequest.state === "open") {
-                return pullRequest.draft ? "In Progress" : "Review";
+                return pullRequest.draft ? "In Progress" : "In Review";
               }
-              if (labels.has("status:ready")) {
-                return "Ready";
-              }
+              if (labels.has("status:ready")) return "Ready";
               return "Backlog";
             }
 
@@ -262,11 +320,7 @@ jobs:
                     }
                   }
                 }`,
-                {
-                  owner: repositoryOwner,
-                  repo,
-                  number: pullRequest.number
-                }
+                { owner: repositoryOwner, repo, number: pullRequest.number }
               );
 
               const linked = result.repository.pullRequest
@@ -290,16 +344,15 @@ jobs:
               issueNumbers = await issuesLinkedToPullRequest(pullRequest);
             }
 
-            issueNumbers = issueNumbers.filter(
-              number => Number.isInteger(number) && number > 0
-            );
+            issueNumbers = issueNumbers.filter(number => Number.isInteger(number) && number > 0);
 
             if (!issueNumbers.length) {
               core.info("No linked issues require synchronization.");
               return;
             }
 
-            const { project, statusField } = await getProject();
+            const { project, statusField: existingStatusField } = await getProject();
+            const statusField = await ensureStatusOptions(existingStatusField);
 
             for (const issueNumber of issueNumbers) {
               const issue = (await github.rest.issues.get({
@@ -315,11 +368,5 @@ jobs:
 
               const itemId = await findOrAddProjectItem(project.id, issue);
               const desiredStatus = desiredIssueStatus(issue, pullRequest);
-              await setProjectStatus(
-                project.id,
-                itemId,
-                statusField,
-                desiredStatus,
-                issueNumber
-              );
+              await setProjectStatus(project.id, itemId, statusField, desiredStatus, issueNumber);
             }
