@@ -35,6 +35,9 @@ data class NoteRow(
     val focusRequester: FocusRequester = FocusRequester(),
 )
 
+internal fun shouldStopTimerOnExit(isLastNote: Boolean, finishWorkout: Boolean): Boolean =
+    isLastNote && finishWorkout
+
 class NoteEditorState(
     private val viewModel: EditorViewModel,
     private val settings: Settings,
@@ -165,7 +168,11 @@ class NoteEditorState(
         saveNote(isLastNote = false, exit = false)
     }
 
-    fun saveNote(isLastNote: Boolean, exit: Boolean) {
+    fun saveNote(
+        isLastNote: Boolean,
+        exit: Boolean,
+        finishWorkout: Boolean = false,
+    ) {
         if (saved && !exit) return
 
         val range = lines.indices
@@ -197,7 +204,7 @@ class NoteEditorState(
             viewModel.currentLearnings.isBlank()
 
         if (isNew && isEmpty) {
-            if (exit) finishExit(isLastNote)
+            if (exit) finishExit(isLastNote, finishWorkout)
             return
         }
 
@@ -207,12 +214,12 @@ class NoteEditorState(
             newNoteTimestamp = noteTimestamp,
         ) {
             saved = true
-            if (exit) finishExit(isLastNote)
+            if (exit) finishExit(isLastNote, finishWorkout)
         }
     }
 
-    private fun finishExit(isLastNote: Boolean) {
-        if (!isLastNote) {
+    private fun finishExit(isLastNote: Boolean, finishWorkout: Boolean) {
+        if (!shouldStopTimerOnExit(isLastNote, finishWorkout)) {
             onSaveSuccess()
             return
         }
