@@ -187,8 +187,8 @@ internal class LegacyWorkoutProjector(
     }
 
     private fun explicitWeightUnit(raw: String): String? = when {
-        Regex("(?i)\\blbs?\\b").containsMatchIn(raw) -> "POUND"
-        Regex("(?i)\\bkg\\b").containsMatchIn(raw) -> "KILOGRAM"
+        Regex("(?i)(?:^|[^a-z])lbs?\\b").containsMatchIn(raw) -> "POUND"
+        Regex("(?i)(?:^|[^a-z])kg\\b").containsMatchIn(raw) -> "KILOGRAM"
         else -> null
     }
 
