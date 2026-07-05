@@ -1,18 +1,20 @@
 package com.example.gymtrack
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.rememberNavController
 import com.example.gymtrack.core.data.NoteDatabase
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.data.SettingsStore
-import com.example.gymtrack.core.data.repository.NoteRepository
 import com.example.gymtrack.core.data.WorkoutRepository
+import com.example.gymtrack.core.data.repository.NoteRepository
+import com.example.gymtrack.core.data.transition.CanonicalImportRunner
 import com.example.gymtrack.core.ui.theme.GymTrackTheme
 import com.example.gymtrack.feature.home.HomeViewModel
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +27,7 @@ class MainActivity : ComponentActivity() {
         val db = NoteDatabase.getDatabase(applicationContext)
         val noteRepository = NoteRepository(db.noteDao())
         val workoutRepository = WorkoutRepository(db.noteDao(), db.exerciseDao(), db.setDao())
+        val canonicalImportRunner = CanonicalImportRunner(db)
 
         setContent {
             val settingsState = remember { mutableStateOf(Settings()) }
@@ -33,8 +36,11 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(Unit) {
                 settingsState.value = SettingsStore.load(context)
                 withContext(Dispatchers.IO) {
-                    // [FIX] This re-reads ALL notes and rebuilds the charts.
-                    // This will restore your missing 100+ sets immediately.
+                    runCatching { canonicalImportRunner.run() }
+                        .onFailure { error ->
+                            Log.e("CanonicalImport", "Canonical workout import failed", error)
+                        }
+
                     workoutRepository.forceUpdateStats()
                     workoutRepository.cleanUpOrphans()
                 }
@@ -52,7 +58,7 @@ class MainActivity : ComponentActivity() {
                     settings = settingsState.value,
                     onSettingsUpdate = { newSettings -> settingsState.value = newSettings },
                     noteRepository = noteRepository,
-                    workoutRepository = workoutRepository
+                    workoutRepository = workoutRepository,
                 )
             }
         }
