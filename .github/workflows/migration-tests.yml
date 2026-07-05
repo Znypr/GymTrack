@@ -41,18 +41,24 @@ jobs:
           arch: x86_64
           disable-animations: true
           script: ./gradlew connectedDebugAndroidTest --console=plain
+      - name: Collect connected test diagnostics
+        if: always()
+        run: |
+          mkdir -p diagnostics
+          find app/build -type f | sort > diagnostics/all-build-files.txt || true
+          find app/build -type f \( -name '*.xml' -o -name '*.html' -o -name '*.txt' \) | while read -r file; do
+            mkdir -p "diagnostics/$(dirname "$file")"
+            cp "$file" "diagnostics/$file"
+          done
       - name: Print connected test failures
         if: failure()
         run: |
-          find app/build/outputs/androidTest-results -type f -name '*.xml' -print -exec cat {} \; || true
-          find app/build/reports/androidTests -type f -name '*.html' -print || true
+          find diagnostics -type f -name '*.xml' -print -exec cat {} \; || true
       - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: migration-test-reports
-          path: |
-            app/build/reports/androidTests/connected/
-            app/build/outputs/androidTest-results/connected/
-          if-no-files-found: ignore
+          path: diagnostics/
+          if-no-files-found: error
           retention-days: 7
