@@ -66,6 +66,35 @@ Configuration rules:
 
 The Project does not replace the Issue body. Scope, acceptance criteria, blockers, and validation remain in the Issue.
 
+### Project automation
+
+The **Sync GitHub Project status** workflow targets the user-owned Project `Znypr #1`.
+
+Required repository secret:
+
+```text
+GYMTRACK_PROJECT_TOKEN
+```
+
+The secret must contain a GitHub token that can read and write the repository and user-owned Project. The workflow resolves the Project, Status field, Project item, and Status option IDs at runtime.
+
+Status mapping:
+
+| Repository state | Preferred Project Status |
+| --- | --- |
+| Closed issue or merged linked pull request | Done |
+| `status:blocked` | Blocked |
+| `status:needs-decision` | Needs decision |
+| `status:needs-triage` | Triage |
+| Open linked draft pull request | In Progress |
+| Open linked ready pull request | Review |
+| `status:ready` | Ready |
+| Other open issue | Backlog |
+
+When a preferred custom option does not exist, the workflow uses a compatible built-in option such as `Todo`, `In Progress`, or `Done`. If no compatible option exists, it logs a warning instead of silently selecting an unrelated status.
+
+Use the workflow's manual dispatch with an issue number to backfill, test, or recover synchronization for an existing Issue.
+
 ## Issue and pull-request workflow
 
 - New issues receive `status:needs-triage`.
