@@ -9,6 +9,7 @@ import com.example.gymtrack.core.data.CanonicalExerciseEntity
 import com.example.gymtrack.core.data.NoteDatabase
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.data.SettingsStore
+import com.example.gymtrack.core.timer.NoteTimerStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -74,6 +75,8 @@ class BackupRepository(
             }
             throw restoreError
         }
+
+        runCatching { NoteTimerStore.stop(context) }
 
         BackupRestoreResult(
             manifest = contents.manifest,
