@@ -61,7 +61,9 @@ class HomeViewModel(
 
                 try {
                     context.contentResolver.openInputStream(uri)?.use { input ->
-                        tempFile.outputStream().use(input::copyTo)
+                        tempFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
                     }
 
                     importNote(tempFile, settings)?.let { note ->
