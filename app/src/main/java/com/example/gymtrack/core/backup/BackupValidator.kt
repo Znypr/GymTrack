@@ -8,9 +8,25 @@ object BackupValidator {
         checkUnique("canonical category IDs", payload.canonicalCategories.map { it.id })
         checkUnique("canonical exercise IDs", payload.canonicalExercises.map { it.id })
         checkUnique("canonical alias IDs", payload.canonicalExerciseAliases.map { it.id })
+        checkUnique(
+            "canonical exercise aliases",
+            payload.canonicalExerciseAliases.map { it.exerciseId to it.normalizedAlias },
+        )
         checkUnique("canonical workout IDs", payload.canonicalWorkouts.map { it.id })
+        checkUnique(
+            "canonical legacy workout timestamps",
+            payload.canonicalWorkouts.mapNotNull { it.legacyTimestamp },
+        )
         checkUnique("canonical workout exercise IDs", payload.canonicalWorkoutExercises.map { it.id })
+        checkUnique(
+            "canonical workout exercise positions",
+            payload.canonicalWorkoutExercises.map { it.workoutId to it.position },
+        )
         checkUnique("canonical workout set IDs", payload.canonicalWorkoutSets.map { it.id })
+        checkUnique(
+            "canonical workout set positions",
+            payload.canonicalWorkoutSets.map { it.workoutExerciseId to it.position },
+        )
 
         val legacyNotes = payload.legacyNotes.mapTo(hashSetOf()) { it.timestamp }
         val legacyExercises = payload.legacyExercises.mapTo(hashSetOf()) { it.exerciseId }
