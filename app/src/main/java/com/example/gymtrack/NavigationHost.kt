@@ -92,6 +92,8 @@ fun NavigationHost(
 
         composable("editor?noteId={noteId}") { backStackEntry ->
             val noteId = backStackEntry.arguments?.getString("noteId")?.toLongOrNull() ?: -1L
+            val notes by noteRepository.getAllNotes().collectAsState(initial = emptyList())
+            val isLatestWorkout = noteId == -1L || notes.lastOrNull()?.timestamp == noteId
 
             val editorViewModel: EditorViewModel = viewModel(
                 factory = EditorViewModel.Factory(
@@ -104,7 +106,7 @@ fun NavigationHost(
             NoteEditor(
                 viewModel = editorViewModel,
                 settings = settings,
-                isLastNote = true,
+                isLastNote = isLatestWorkout,
                 onCancel = { navController.popBackStack() },
                 onSaveSuccess = { navController.popBackStack() },
             )
