@@ -177,8 +177,9 @@ interface SetDao {
         CanonicalWorkoutEntity::class,
         CanonicalWorkoutExerciseEntity::class,
         CanonicalWorkoutSetEntity::class,
+        TrainingSummaryOutboxEntity::class,
     ],
-    version = 9,
+    version = 10,
 )
 abstract class NoteDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
@@ -189,6 +190,7 @@ abstract class NoteDatabase : RoomDatabase() {
     abstract fun canonicalWorkoutDao(): CanonicalWorkoutDao
     abstract fun canonicalWorkoutExerciseDao(): CanonicalWorkoutExerciseDao
     abstract fun canonicalWorkoutSetDao(): CanonicalWorkoutSetDao
+    abstract fun trainingSummaryOutboxDao(): TrainingSummaryOutboxDao
 
     companion object {
         @Volatile
