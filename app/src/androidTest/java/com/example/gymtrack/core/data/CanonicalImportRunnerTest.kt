@@ -79,10 +79,8 @@ class CanonicalImportRunnerTest {
                     .getForWorkout(workout!!.id)
                 assertEquals(1, occurrences.size)
                 assertEquals("UNILATERAL", occurrences.single().mode)
-                assertEquals(
-                    CanonicalKeys.namedExercise("Bench press"),
-                    occurrences.single().exerciseId,
-                )
+                val canonicalExerciseId = CanonicalKeys.namedExercise("Bench press")
+                assertEquals(canonicalExerciseId, occurrences.single().exerciseId)
 
                 val sets = database.canonicalWorkoutSetDao()
                     .getForWorkoutExercises(occurrences.map { it.id })
@@ -91,12 +89,38 @@ class CanonicalImportRunnerTest {
                 assertEquals(80.0, sets.single().weight ?: 0.0, 0.0)
                 assertEquals("KILOGRAM", sets.single().weightUnit)
 
+                val customAlias = "Competition bench"
+                database.canonicalExerciseDao().insertAlias(
+                    CanonicalExerciseAliasEntity(
+                        id = CanonicalKeys.alias(canonicalExerciseId, customAlias),
+                        exerciseId = canonicalExerciseId,
+                        normalizedAlias = CanonicalKeys.normalize(customAlias),
+                        originalAlias = customAlias,
+                    ),
+                )
+                val canonicalExercise = database.canonicalExerciseDao()
+                    .getById(canonicalExerciseId)!!
+                database.canonicalExerciseDao().update(
+                    canonicalExercise.copy(muscleGroup = "Custom chest"),
+                )
+                val category = database.canonicalCategoryDao().getById(workout.categoryId!!)!!
+                database.canonicalCategoryDao().update(category.copy(name = "Custom Push"))
+
                 val second = CanonicalImportRunner(database).run()
                 assertEquals(0, second.migrated)
                 assertEquals(1, second.skipped)
                 assertEquals(1, database.canonicalWorkoutDao().getCount())
                 assertEquals(1, database.canonicalWorkoutExerciseDao().getCount())
                 assertEquals(1, database.canonicalWorkoutSetDao().getCount())
+                assertEquals(2, database.canonicalExerciseDao().getAliasCount())
+                assertEquals(
+                    "Custom chest",
+                    database.canonicalExerciseDao().getById(canonicalExerciseId)?.muscleGroup,
+                )
+                assertEquals(
+                    "Custom Push",
+                    database.canonicalCategoryDao().getById(workout.categoryId)?.name,
+                )
                 assertTrue(database.noteDao().getById(1_000_000L)?.text == encoded)
                 assertEquals(1, database.setDao().getCount())
             }
