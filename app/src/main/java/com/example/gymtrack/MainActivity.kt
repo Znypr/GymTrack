@@ -36,13 +36,17 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(Unit) {
                 settingsState.value = SettingsStore.load(context)
                 withContext(Dispatchers.IO) {
+                    runCatching {
+                        workoutRepository.forceUpdateStats()
+                        workoutRepository.cleanUpOrphans()
+                    }.onFailure { error ->
+                        Log.e("LegacyStats", "Legacy workout statistics rebuild failed", error)
+                    }
+
                     runCatching { canonicalImportRunner.run() }
                         .onFailure { error ->
                             Log.e("CanonicalImport", "Canonical workout import failed", error)
                         }
-
-                    workoutRepository.forceUpdateStats()
-                    workoutRepository.cleanUpOrphans()
                 }
             }
 
