@@ -69,26 +69,38 @@ internal class CanonicalImportRunner(
     }
 
     private suspend fun upsertCategory(category: CanonicalCategoryEntity) {
-        val inserted = database.canonicalCategoryDao().insert(category)
-        if (inserted == -1L) database.canonicalCategoryDao().update(category)
+        database.canonicalCategoryDao().insert(category)
     }
 
     private suspend fun upsertExercises(catalog: CanonicalExerciseCatalog) {
+        val dao = database.canonicalExerciseDao()
         val exercises = catalog.exerciseEntities()
 
-        exercises.forEach { exercise ->
-            val withoutParent = exercise.copy(parentExerciseId = null)
-            val inserted = database.canonicalExerciseDao().insert(withoutParent)
-            if (inserted == -1L) database.canonicalExerciseDao().update(withoutParent)
-        }
-        exercises.forEach { exercise -> database.canonicalExerciseDao().update(exercise) }
-
-        val aliasesByExercise = catalog.aliasEntities().groupBy { it.exerciseId }
-        exercises.forEach { exercise ->
-            database.canonicalExerciseDao().deleteAliasesForExercise(exercise.id)
-            aliasesByExercise[exercise.id].orEmpty().forEach { alias ->
-                database.canonicalExerciseDao().insertAlias(alias)
+        exercises.forEach { incoming ->
+            val existing = dao.getById(incoming.id)
+            if (existing == null) {
+                dao.insert(incoming.copy(parentExerciseId = null))
+            } else {
+                val merged = existing.copy(
+                    canonicalName = existing.canonicalName.ifBlank { incoming.canonicalName },
+                    normalizedName = existing.normalizedName.ifBlank { incoming.normalizedName },
+                    muscleGroup = existing.muscleGroup ?: incoming.muscleGroup,
+                )
+                if (merged != existing) dao.update(merged)
             }
+        }
+
+        exercises.forEach { incoming ->
+            val existing = dao.getById(incoming.id) ?: return@forEach
+            val merged = existing.copy(
+                parentExerciseId = existing.parentExerciseId ?: incoming.parentExerciseId,
+                muscleGroup = existing.muscleGroup ?: incoming.muscleGroup,
+            )
+            if (merged != existing) dao.update(merged)
+        }
+
+        catalog.aliasEntities().forEach { alias ->
+            dao.insertAlias(alias)
         }
     }
 
