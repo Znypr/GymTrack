@@ -40,9 +40,7 @@ jobs:
           api-level: 29
           arch: x86_64
           disable-animations: true
-          script: |
-            set -o pipefail
-            ./gradlew connectedDebugAndroidTest --console=plain 2>&1 | tee connected-test.log
+          script: bash -o pipefail -c './gradlew connectedDebugAndroidTest --console=plain 2>&1 | tee connected-test.log'
       - name: Collect connected test diagnostics
         if: always()
         run: |
