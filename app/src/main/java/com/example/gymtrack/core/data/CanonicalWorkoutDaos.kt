@@ -20,6 +20,9 @@ interface CanonicalWorkoutDao {
     @Query("SELECT * FROM workouts WHERE legacy_timestamp = :legacyTimestamp LIMIT 1")
     suspend fun getByLegacyTimestamp(legacyTimestamp: Long): CanonicalWorkoutEntity?
 
+    @Query("SELECT id FROM workouts WHERE legacy_timestamp IS NOT NULL ORDER BY started_at, id")
+    suspend fun getLegacyBackedWorkoutIds(): List<String>
+
     @Query("SELECT COUNT(*) FROM workouts")
     suspend fun getCount(): Int
 }
@@ -32,7 +35,7 @@ interface CanonicalWorkoutExerciseDao {
     @Query("DELETE FROM workout_exercises WHERE workout_id = :workoutId")
     suspend fun deleteForWorkout(workoutId: String)
 
-    @Query("SELECT * FROM workout_exercises WHERE workout_id = :workoutId ORDER BY position")
+    @Query("SELECT * FROM workout_exercises WHERE workout_id = :workoutId ORDER BY position, id")
     suspend fun getForWorkout(workoutId: String): List<CanonicalWorkoutExerciseEntity>
 
     @Query("SELECT COUNT(*) FROM workout_exercises")
@@ -43,6 +46,18 @@ interface CanonicalWorkoutExerciseDao {
 interface CanonicalWorkoutSetDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAll(workoutSets: List<CanonicalWorkoutSetEntity>)
+
+    @Query(
+        """
+        SELECT workout_sets.*
+        FROM workout_sets
+        INNER JOIN workout_exercises
+            ON workout_exercises.id = workout_sets.workout_exercise_id
+        WHERE workout_exercises.workout_id = :workoutId
+        ORDER BY workout_exercises.position, workout_sets.position, workout_sets.id
+        """,
+    )
+    suspend fun getForWorkout(workoutId: String): List<CanonicalWorkoutSetEntity>
 
     @Query("SELECT * FROM workout_sets WHERE workout_exercise_id IN (:workoutExerciseIds) ORDER BY workout_exercise_id, position")
     suspend fun getForWorkoutExercises(workoutExerciseIds: List<String>): List<CanonicalWorkoutSetEntity>
