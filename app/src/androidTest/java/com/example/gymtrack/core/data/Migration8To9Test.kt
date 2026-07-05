@@ -127,34 +127,38 @@ class Migration8To9Test {
                         updatedAt = 2000L,
                     ),
                 )
-                database.canonicalWorkoutExerciseDao().insert(
-                    CanonicalWorkoutExerciseEntity(
-                        id = "workout-exercise-1",
-                        workoutId = "workout-1",
-                        exerciseId = "exercise-row",
-                        position = 0,
-                        mode = "BILATERAL",
-                        modifier = null,
-                        equipmentBrand = null,
-                        startedAtOffsetSeconds = null,
-                        startedAt = null,
-                        legacyRelativeTimeText = null,
-                        legacyAbsoluteTimeText = null,
+                database.canonicalWorkoutExerciseDao().insertAll(
+                    listOf(
+                        CanonicalWorkoutExerciseEntity(
+                            id = "workout-exercise-1",
+                            workoutId = "workout-1",
+                            exerciseId = "exercise-row",
+                            position = 0,
+                            mode = "BILATERAL",
+                            modifier = null,
+                            equipmentBrand = null,
+                            startedAtOffsetSeconds = null,
+                            startedAt = null,
+                            legacyRelativeTimeText = null,
+                            legacyAbsoluteTimeText = null,
+                        ),
                     ),
                 )
-                database.canonicalWorkoutSetDao().insert(
-                    CanonicalWorkoutSetEntity(
-                        id = "set-1",
-                        workoutExerciseId = "workout-exercise-1",
-                        position = 0,
-                        repetitions = 10,
-                        weight = 70.0,
-                        weightUnit = "KILOGRAM",
-                        durationSeconds = null,
-                        distanceMeters = null,
-                        performedAtOffsetSeconds = null,
-                        rpe = null,
-                        rir = null,
+                database.canonicalWorkoutSetDao().insertAll(
+                    listOf(
+                        CanonicalWorkoutSetEntity(
+                            id = "set-1",
+                            workoutExerciseId = "workout-exercise-1",
+                            position = 0,
+                            repetitions = 10,
+                            weight = 70.0,
+                            weightUnit = "KILOGRAM",
+                            durationSeconds = null,
+                            distanceMeters = null,
+                            performedAtOffsetSeconds = null,
+                            rpe = null,
+                            rir = null,
+                        ),
                     ),
                 )
             }
