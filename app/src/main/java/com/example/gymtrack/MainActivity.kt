@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.rememberNavController
+import com.example.gymtrack.core.backup.BackupRepository
 import com.example.gymtrack.core.data.NoteDatabase
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.data.SettingsStore
@@ -26,6 +27,7 @@ class MainActivity : ComponentActivity() {
         val db = NoteDatabase.getDatabase(applicationContext)
         val noteRepository = NoteRepository(db.noteDao())
         val workoutRepository = WorkoutRepository(db)
+        val backupRepository = BackupRepository(db)
         val canonicalImportRunner = CanonicalImportRunner(db)
 
         setContent {
@@ -62,6 +64,7 @@ class MainActivity : ComponentActivity() {
                     onSettingsUpdate = { newSettings -> settingsState.value = newSettings },
                     noteRepository = noteRepository,
                     workoutRepository = workoutRepository,
+                    backupRepository = backupRepository,
                 )
             }
         }
