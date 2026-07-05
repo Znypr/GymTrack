@@ -37,6 +37,17 @@ body:
       required: true
 
   - type: textarea
+    id: relationships
+    attributes:
+      label: Parent issue and dependencies
+      description: Link the parent initiative and active blockers using issue numbers. Write "None" when this is independent.
+      placeholder: |
+        Parent: #123
+        Blocked by: #120
+    validations:
+      required: true
+
+  - type: textarea
     id: problem
     attributes:
       label: Current technical problem
@@ -112,15 +123,15 @@ body:
   - type: textarea
     id: documentation
     attributes:
-      label: Documentation impact
-      description: Identify README, architecture, ADR, testing, or roadmap updates.
+      label: Durable documentation impact
+      description: Identify architecture, ADR, contract, testing, or user documentation changes. Routine ticket movement does not require documentation updates.
 
   - type: checkboxes
     id: declaration
     attributes:
       label: Submission checks
       options:
-        - label: The task is small enough for one reviewable pull request or is explicitly split.
+        - label: The task is small enough for one reviewable pull request or is explicitly split into child Issues.
           required: true
-        - label: I searched existing issues for duplicates.
+        - label: I searched existing Issues for duplicates.
           required: true
