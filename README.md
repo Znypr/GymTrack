@@ -2,23 +2,20 @@
 
 GymTrack is a local-first Android workout logger built with Kotlin and Jetpack Compose. It combines a fast, note-like logging workflow with structured workout history and progression statistics.
 
-> **Project status:** active architecture transition. Explicit Room migrations, the canonical v9 schema, deterministic legacy backfill, canonical repository boundaries, dual-read verification, and a versioned `TrainingSummary` projection are merged. The editor/save pipeline, statistics cutover, timer replacement, cleanup, and release configuration remain active work. See the [dated project status](docs/PROJECT_STATUS.md).
-
 ## Current capabilities
 
-- Room-backed local workout storage
+- Room-backed local workout storage with explicit migrations
 - Full-screen workout editor
 - Relative and elapsed timestamps
 - Bilateral, unilateral, and superset flags
 - Configurable workout categories and colors
 - Workout learnings or notes
-- Foreground workout timer on `master`; persisted timer replacement awaiting Android 14+ validation in PR #128
+- Workout timer
 - CSV import and export
 - Workout history, statistics, and progression charts
 - Dark and light themes
-- Explicit database migrations and canonical v9 transition tables
-- Deterministic legacy-data backfill and dual-read verification
-- Versioned compact training-summary projection for external integrations
+- Canonical workout tables with legacy-data compatibility
+- Versioned compact training summaries for external integrations
 
 ## Product direction
 
@@ -33,21 +30,27 @@ Every major feature should improve at least one of:
 
 Read the [project charter](docs/PROJECT_CHARTER.md) for goals, principles, ambitions, and non-goals.
 
+## Work tracking
+
+- [GitHub Issues](https://github.com/Znypr/GymTrack/issues) contain the canonical problem statement, scope, acceptance criteria, priority, dependencies, and validation plan.
+- The GitHub Project is a visual view over those issues. It must not contain separate duplicate work items.
+- Pull requests contain implementation, review, checks, and runtime-validation evidence.
+- Static documentation does not maintain the current queue or backlog.
+
+See [work-tracking rules](docs/TICKET_BOARD.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Documentation
 
-- [Current project status](docs/PROJECT_STATUS.md)
 - [Project charter](docs/PROJECT_CHARTER.md)
 - [Architecture](docs/ARCHITECTURE.md)
-- [Canonical-data transition](docs/CANONICAL_DATA_TRANSITION.md)
-- [Training summary contract](docs/TRAINING_SUMMARY.md)
 - [Roadmap](docs/ROADMAP.md)
-- [Ticket-board rules](docs/TICKET_BOARD.md)
+- [Work-tracking rules](docs/TICKET_BOARD.md)
+- [Canonical-data transition](docs/CANONICAL_DATA_TRANSITION.md)
+- [Training-summary contract](docs/TRAINING_SUMMARY.md)
 - [Testing strategy](docs/TESTING.md)
 - [Repository settings](docs/REPOSITORY_SETTINGS.md)
 - [Work-item automation](docs/WORK_ITEM_AUTOMATION.md)
 - [Contribution workflow](CONTRIBUTING.md)
-
-GitHub Issues, labels, linked pull requests, and required checks are the live source of truth for current work. Static documentation is orientation only and must carry an explicit review date when it describes status.
 
 ## Technology
 
@@ -87,21 +90,17 @@ On Windows:
 ./gradlew assembleDebug
 ```
 
-The same checks run in GitHub Actions for pull requests targeting `master`. Database changes also require the relevant Room migration and emulator-backed validation described in [docs/TESTING.md](docs/TESTING.md).
-
-## Contributing
-
-Start with an issue. An issue that satisfies the Definition of Ready receives `status:ready`, which creates or authorizes a dedicated branch and draft pull request. Once implementation starts, pull-request state replaces `status:ready` as the live board state. See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/WORK_ITEM_AUTOMATION.md](docs/WORK_ITEM_AUTOMATION.md).
+Database changes also require the relevant Room migration and emulator-backed validation described in [docs/TESTING.md](docs/TESTING.md).
 
 ## Architecture direction
 
-GymTrack remains a single Gradle application module at its current scale. The canonical data foundation now exists beside the legacy compatibility path. The remaining transition is incremental:
+GymTrack remains a single Gradle application module at its current scale. The target is a layered, feature-oriented architecture with:
 
-- separate autosave from finalization, statistics synchronization, and export;
-- move the editor to typed draft state;
-- move normal history and statistics reads to canonical data;
-- remove unconditional startup repair work;
-- retain legacy compatibility only for a documented verification period;
-- keep Room entities and Android details behind domain repository boundaries.
+- typed domain models;
+- one canonical persisted workout model;
+- explicit Room migrations;
+- pure, testable parsing and statistics logic;
+- import/export separated from autosave;
+- UI and ViewModels isolated from Room entities.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the current transition architecture and target pipeline.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the current and target data flows.
