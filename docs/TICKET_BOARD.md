@@ -1,107 +1,102 @@
-# Ticket Board
+# Work tracking
 
-GitHub Issues are the only source of truth for GymTrack work status. A GitHub Project board is not required and must not be maintained as a second status system.
+GymTrack uses GitHub Issues as the canonical work records. The GitHub Project is a visual view over those issues, not a second tracker.
 
-The board is derived from existing issue labels, linked pull-request state, CI state, and issue closure. This keeps status visible, queryable, and maintainable through the repository API.
+## Where information lives
 
-## Column rules
-
-Each open issue belongs to exactly one column. Evaluate the rules from top to bottom.
-
-| Column | Rule |
+| Information | Canonical location |
 |---|---|
-| Inbox | Open issue with `status:needs-triage` |
-| Needs decision | Open issue with `status:needs-decision` |
-| Blocked | Open issue with `status:blocked` |
-| Validation | Linked open PR has all required checks green but manual validation remains |
-| In review | Linked open PR is ready for review and validation is not the remaining step |
-| In progress | Linked open PR is a draft |
-| Ready | Open issue has `status:ready` and no open linked PR |
-| Backlog | Triaged open issue has no workflow status label and no open linked PR |
-| Done | Issue is closed, normally by a merged PR using `Closes #<number>` |
+| Problem, outcome, scope, acceptance criteria | GitHub Issue |
+| Priority, type, area, risk | Issue labels |
+| Parent, child, and blocker relationships | Issue body and linked issues |
+| Visual planning and filtering | GitHub Project view |
+| Implementation, review, checks, validation | Pull request |
+| Long-term product sequence | `docs/ROADMAP.md` |
+| Architecture and durable decisions | `docs/ARCHITECTURE.md` and ADRs |
 
-`status:ready` must be removed after implementation starts. Draft/ready PR state then represents progress and review without duplicating status labels.
+Do not copy the current queue, completed tickets, or dependency lists into static Markdown files.
 
-## Classification labels
+## Issue contract
+
+Every implementation issue should contain:
+
+- the concrete problem or user need;
+- the intended observable outcome;
+- included and excluded scope;
+- testable acceptance criteria;
+- parent issue and blockers, when applicable;
+- validation and rollback expectations;
+- data, compatibility, performance, privacy, or release risks.
+
+The issue body is the current contract. Update it when scope or dependencies change instead of creating a separate status document. Comments should record decisions, evidence, and history rather than restating the issue.
+
+## Classification
 
 Every triaged issue should have:
 
-- one `type:*` label;
-- one `priority:*` label;
+- exactly one `type:*` label;
+- exactly one `priority:*` label;
 - one or more `area:*` labels;
 - relevant `risk:*` labels;
-- at most one workflow label from `status:needs-triage`, `status:ready`, `status:blocked`, or `status:needs-decision`.
+- at most one workflow label: `status:needs-triage`, `status:ready`, `status:blocked`, or `status:needs-decision`.
 
-No workflow label means Backlog unless a linked pull request moves the issue to In progress, In review, or Validation.
+Labels remain the canonical classification metadata. Project views may display and filter those labels without copying them into separate custom fields.
 
-## Movement rules
+## Project view
 
-1. New issue: add `status:needs-triage`.
-2. Triaged but unscheduled: remove workflow labels; the issue is Backlog.
-3. Decision required: use `status:needs-decision`.
-4. Dependency prevents work: use `status:blocked` and document the dependency.
-5. Definition of Ready satisfied: use `status:ready`.
-6. Draft PR opened: remove `status:ready`; the issue is In progress.
-7. PR marked ready: the issue is In review.
-8. Required checks pass and only runtime/manual confirmation remains: the issue is Validation.
-9. PR merged with `Closes #N`: the issue closes and is Done.
-10. PR closed without merge: return the issue to Ready, Backlog, Blocked, or Needs decision based on the reason.
+The Project should contain the issue itself, never a duplicate draft item describing the same work.
 
-## Dependency rules
+Recommended views:
 
-Use `status:blocked` only when work cannot correctly begin. The issue body or latest status comment must name the dependency.
+- **Board:** grouped by Status for active work;
+- **Backlog:** table filtered to open issues without active implementation;
+- **Priority:** grouped or sorted by `priority:*` labels;
+- **Area:** filtered by `area:*` labels;
+- **Recently done:** closed issues and merged pull requests.
 
-Current architecture dependencies:
+Project Status is a visual projection of issue and pull-request state. Automation should add issues and synchronize status where possible. Manual card movement is fallback behavior, not the normal workflow.
 
-- #123 is blocked by #119 and #120.
-- #125 is blocked by #120 and #123.
-- #126 is blocked by #120 and #123.
+## Lifecycle
 
-Once all named dependencies are merged or resolved, remove `status:blocked` and return the issue to Backlog or Ready.
+1. New issue: `status:needs-triage`.
+2. Triaged backlog: classification labels present, no workflow label.
+3. Decision required: `status:needs-decision`.
+4. Blocked: `status:blocked` with `Blocked by #...` in the issue body.
+5. Ready: `status:ready` after the Definition of Ready is satisfied.
+6. In progress: linked draft pull request exists; remove `status:ready`.
+7. In review: linked pull request is ready for review.
+8. Validation: required checks pass and only runtime or manual confirmation remains.
+9. Done: pull request merges with `Closes #N`, closing the issue.
 
-## Normalization policy
+The Project view may show these states, but the issue, pull request, and checks determine the truth.
 
-When this board is introduced or audited:
+## Parent and child issues
 
-1. assign one type and one priority to every open issue;
-2. assign at least one area;
-3. add risks only when they affect validation or rollback;
-4. remove `status:ready` from issues that already have an open PR;
-5. add `status:needs-decision` to unresolved decision tickets;
-6. add `status:blocked` only with named dependencies;
-7. leave ordinary unscheduled work without a workflow label so it resolves to Backlog.
+Use a parent issue only for an outcome that requires multiple independently reviewable changes.
 
-## Current-board queries
+- The parent contains the shared outcome and a task list of child issues.
+- Each child issue has one reviewable scope and one principal pull request.
+- Child issues link back to the parent.
+- The parent closes when its child outcomes and parent-level acceptance criteria are complete.
+- Do not duplicate child details in roadmap or status files.
 
-Use GitHub issue searches for the label-defined columns:
+## Dependencies
 
-- Inbox: `is:issue is:open label:"status:needs-triage"`
-- Needs decision: `is:issue is:open label:"status:needs-decision"`
-- Blocked: `is:issue is:open label:"status:blocked"`
-- Ready: `is:issue is:open label:"status:ready"`
-- Backlog: `is:issue is:open -label:"status:needs-triage" -label:"status:needs-decision" -label:"status:blocked" -label:"status:ready"`
-- Done: `is:issue is:closed`
+Use `status:blocked` only when work cannot correctly begin.
 
-In progress, In review, and Validation are derived from linked pull requests and checks. They are reported in issue comments and the current-status summary when needed.
-
-## Current-status summary format
-
-When reporting the board, use this order:
+The issue body should state:
 
 ```text
-Validation
-In review
-In progress
-Ready
-Needs decision
-Blocked
-Backlog
-Inbox
-Recently done
+Blocked by #123
 ```
 
-For every active ticket include issue number, title, priority, linked PR when present, and the specific blocker or remaining validation step.
+Remove the label and update the body when the dependency is resolved. Completed dependency history can remain in comments or Git history; it does not need to stay in the active dependency section.
 
-## Operating principle
+## Operating rules
 
-Do not copy ticket state into roadmap documents, checklists, or a GitHub Project. Roadmaps define sequence and intent. Issues, labels, pull requests, checks, and closure define live status.
+- One real work item equals one GitHub Issue.
+- One Project card points to that issue.
+- One pull request has one principal issue.
+- The roadmap contains outcomes, not ticket state.
+- Architecture documents contain system design, not the active implementation queue.
+- Static status snapshots are not maintained.
