@@ -108,6 +108,7 @@ data class WorkoutSet(
 enum class WeightUnit {
     KILOGRAM,
     POUND,
+    UNKNOWN,
 }
 
 data class Exercise(
