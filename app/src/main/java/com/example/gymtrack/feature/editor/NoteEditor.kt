@@ -3,14 +3,7 @@ package com.example.gymtrack.feature.editor
 import android.annotation.SuppressLint
 import android.app.Activity
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
@@ -170,6 +163,7 @@ fun NoteEditor(
                     selectedCategory = selectedCategory,
                     onCategorySelect = {
                         selectedCategory = it
+                        viewModel.currentCategory = it
                         state.markDirty()
                     },
                     topPadding = padding.calculateTopPadding(),
@@ -192,6 +186,7 @@ fun NoteEditor(
                 onDismiss = { showLearnings = false },
                 onValueChange = {
                     learningsValue = it
+                    viewModel.currentLearnings = it.text
                     state.markDirty()
                 },
             )
