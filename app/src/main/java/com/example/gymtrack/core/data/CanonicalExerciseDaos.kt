@@ -32,11 +32,17 @@ interface CanonicalExerciseDao {
     @Query("SELECT * FROM canonical_exercises WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): CanonicalExerciseEntity?
 
+    @Query("SELECT * FROM canonical_exercises WHERE id IN (:ids)")
+    suspend fun getByIds(ids: List<String>): List<CanonicalExerciseEntity>
+
     @Query("SELECT * FROM canonical_exercises WHERE normalized_name = :normalizedName LIMIT 1")
     suspend fun getByNormalizedName(normalizedName: String): CanonicalExerciseEntity?
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAlias(alias: CanonicalExerciseAliasEntity): Long
+
+    @Query("SELECT * FROM exercise_aliases WHERE exercise_id IN (:exerciseIds) ORDER BY exercise_id, normalized_alias")
+    suspend fun getAliasesForExercises(exerciseIds: List<String>): List<CanonicalExerciseAliasEntity>
 
     @Query("DELETE FROM exercise_aliases WHERE exercise_id = :exerciseId")
     suspend fun deleteAliasesForExercise(exerciseId: String)
