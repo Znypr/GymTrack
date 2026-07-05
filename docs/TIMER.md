@@ -13,7 +13,9 @@ Preferences DataStore stores the active workout timestamp, accumulated seconds, 
 - Older workout edits do not display a timer.
 - Backgrounding and process recreation preserve running or paused state.
 - Resume retains accumulated time.
-- Normal editor exit clears timer state before navigation.
+- Navigating to notes or workout history preserves the active timer so prior exercises, weights, and reps can be checked during a session.
+- The explicit Finish action saves the workout, clears timer state, and returns to history.
+- The timer Stop control clears timer state without leaving the editor.
 - After a restart, state is available when GymTrack is opened again.
 
 ## Android behavior
@@ -22,7 +24,7 @@ The manifest declares no timer service, foreground-service permission, or notifi
 
 ## Validation
 
-Automated tests cover long duration, pause/resume, workout switching, and backward clock movement.
+Automated tests cover long duration, pause/resume, workout switching, backward clock movement, and navigation-versus-finish exit behavior.
 
 Manual validation on Android 14 or newer:
 
@@ -30,5 +32,6 @@ Manual validation on Android 14 or newer:
 2. Background and reopen the app.
 3. Close the app process, reopen the newest workout, and verify elapsed time.
 4. Repeat while paused, then resume.
-5. Confirm older workouts have no timer.
-6. Exit the active workout and confirm reopening does not auto-start.
+5. Open older workouts and confirm they have no timer while the active timer continues.
+6. Return to the active workout and confirm the same timer state is restored.
+7. Use Finish and confirm reopening does not restore an active timer.
