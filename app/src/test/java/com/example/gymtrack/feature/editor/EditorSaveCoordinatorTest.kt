@@ -14,7 +14,7 @@ class EditorSaveCoordinatorTest {
     fun supersededQueuedDraftIsNotWritten() = runBlocking {
         val drafts = mutableListOf<String>()
         val coordinator = EditorSaveCoordinator<String>(
-            persistDraft = drafts::add,
+            persistDraft = { value -> drafts += value },
             finalizeWorkout = {},
         )
 
@@ -76,8 +76,8 @@ class EditorSaveCoordinatorTest {
         val drafts = mutableListOf<String>()
         val completed = mutableListOf<String>()
         val coordinator = EditorSaveCoordinator<String>(
-            persistDraft = drafts::add,
-            finalizeWorkout = completed::add,
+            persistDraft = { value -> drafts += value },
+            finalizeWorkout = { value -> completed += value },
         )
 
         val finalizationRevision = coordinator.reserveRevision()
