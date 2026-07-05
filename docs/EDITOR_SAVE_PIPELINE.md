@@ -32,6 +32,7 @@ All editor writes pass through `EditorSaveCoordinator`.
 - The editor does not navigate away until finalization succeeds.
 - A failed write keeps the editor open and displays a snackbar error.
 - Completion mode blocks subsequent lifecycle autosaves from replacing the final snapshot.
+- New workouts use one stable timestamp for timer state, draft identity, and final workout identity.
 
 This prevents slower older saves from completing after newer saves and overwriting current editor state.
 
@@ -57,7 +58,7 @@ The repository uses one Room transaction to:
 3. resolve exercise identities;
 4. replace all derived set rows for that workout.
 
-If any step fails, the transaction rolls back and navigation does not occur.
+If any step fails, the transaction rolls back and navigation does not occur. For the active workout, persisted timer state is cleared after finalization succeeds and before navigation completes.
 
 ## Export boundary
 
@@ -69,13 +70,7 @@ Automated tests cover:
 
 - superseded queued drafts;
 - serialization of an in-flight save followed by a newer save;
-- finalization routing through the completion writer.
+- finalization routing through the completion writer;
+- timer duration, pause, resume, and stable workout switching.
 
-Runtime regression validation should cover:
-
-1. enter several sets rapidly;
-2. toggle exercise modes repeatedly;
-3. background and reopen the app;
-4. leave the editor immediately after an edit;
-5. reopen the workout and verify the latest text, timestamps, flags, category, and learnings;
-6. export from history and verify an export failure leaves the workout unchanged.
+Deferred runtime validation is tracked in #165 and #166.
