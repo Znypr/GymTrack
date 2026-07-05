@@ -17,8 +17,11 @@ import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.data.WorkoutRepository
 import com.example.gymtrack.core.data.repository.NoteRepository
+import com.example.gymtrack.core.timer.NoteTimerState
+import com.example.gymtrack.core.timer.NoteTimerStore
 import com.example.gymtrack.feature.editor.EditorViewModel
 import com.example.gymtrack.feature.editor.NoteEditor
+import com.example.gymtrack.feature.editor.shouldShowActiveWorkoutControls
 import com.example.gymtrack.feature.home.HomeViewModel
 import com.example.gymtrack.feature.home.NotesScreen
 import com.example.gymtrack.feature.settings.SettingsScreen
@@ -91,9 +94,14 @@ fun NavigationHost(
         }
 
         composable("editor?noteId={noteId}") { backStackEntry ->
+            val context = LocalContext.current
             val noteId = backStackEntry.arguments?.getString("noteId")?.toLongOrNull() ?: -1L
-            val notes by noteRepository.getAllNotes().collectAsState(initial = emptyList())
-            val isLatestWorkout = noteId == -1L || notes.lastOrNull()?.timestamp == noteId
+            val timerStates = remember(context) { NoteTimerStore.observe(context) }
+            val timerState by timerStates.collectAsState(initial = NoteTimerState())
+            val isActiveWorkout = shouldShowActiveWorkoutControls(
+                noteId = noteId,
+                activeNoteTimestamp = timerState.activeNoteTimestamp,
+            )
 
             val editorViewModel: EditorViewModel = viewModel(
                 factory = EditorViewModel.Factory(
@@ -106,7 +114,7 @@ fun NavigationHost(
             NoteEditor(
                 viewModel = editorViewModel,
                 settings = settings,
-                isLastNote = isLatestWorkout,
+                isLastNote = isActiveWorkout,
                 onCancel = { navController.popBackStack() },
                 onSaveSuccess = { navController.popBackStack() },
             )
