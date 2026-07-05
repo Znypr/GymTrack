@@ -1,27 +1,30 @@
-# GymTrack Architecture
+# GymTrack architecture
 
-**Status:** Current-state audit and target direction  
-**Baseline:** `master` at `558398d069196d9e7400883e5d88a40615a4a2d0`
+**Status:** transition architecture and target direction  
+**Last reviewed:** 5 July 2026  
+**Baseline:** `master` at `daa6adac766537ff84d2bcb331d3a5c840662abd`
 
 ## Purpose
 
-This document explains how GymTrack currently works, where responsibilities are mixed, and the intended dependency and data-flow direction. It is not permission for a large rewrite. Changes should be incremental, issue-driven, and migration-safe.
+This document describes the architecture that exists now, the compatibility paths that remain, and the intended dependency and data-flow direction. It is not permission for a large rewrite. Changes must remain incremental, issue-driven, tested, and migration-safe.
 
 ## Current stack
 
-| Concern | Implementation |
+| Concern | Current implementation |
 |---|---|
 | Platform | Native Android |
 | Language | Kotlin |
 | UI | Jetpack Compose and Material 3 |
 | Navigation | Navigation Compose |
-| Primary storage | Room |
+| Primary storage | Room schema v9 |
 | Settings | Preferences DataStore |
-| Timer | Android foreground service |
+| Timer on `master` | Android foreground `shortService`; replacement is PR #128 |
 | Concurrency | Coroutines and Flow |
 | Charts | Custom Compose Canvas charts |
 | Dependency wiring | Manual construction and ViewModel factories |
-| Tests | Limited JUnit and Android template tests |
+| Testing | JVM unit tests, lint/build CI, Room migration and emulator-backed integration tests |
+
+The application remains one Gradle application module. A module split is not currently justified; package and dependency boundaries should be strengthened first.
 
 ## Current package shape
 
@@ -31,9 +34,15 @@ com.example.gymtrack/
 ├── NavigationHost.kt
 ├── core/
 │   ├── data/
+│   │   ├── canonical/
+│   │   └── transition/
 │   ├── services/
 │   ├── ui/
 │   └── util/
+├── domain/
+│   ├── model/
+│   ├── repository/
+│   └── summary/
 └── feature/
     ├── editor/
     ├── home/
@@ -41,106 +50,109 @@ com.example.gymtrack/
     └── stats/
 ```
 
-The repository is already partly feature-oriented. The main problem is not the number of modules. It is that domain models, Room entities, parsing, import/export, ViewModel logic, and Compose state cross boundaries freely.
+The package identity remains `com.example.gymtrack`. Selecting a permanent identity and production release configuration is tracked by #124.
 
-## Current runtime pipeline
+## Current transition state
+
+GymTrack currently has two connected representations:
+
+1. the legacy note-oriented runtime path used by active editor and compatibility behavior;
+2. the canonical v9 model used for migration, repository access, verification, and compact summaries.
+
+### Legacy active path
 
 ```mermaid
 flowchart LR
     A[Compose editor] --> B[NoteEditorState]
-    B --> C[Encoded NoteLine.text]
+    B --> C[Encoded note text]
     C --> D[NoteRepository]
-    D --> E[(Room notes)]
+    D --> E[(Legacy Room tables)]
 
     C --> F[WorkoutParser]
-    F --> G[WorkoutRepository]
-    G --> H[(Room exercises and sets)]
+    F --> G[Legacy workout/set synchronization]
+    G --> H[(Derived exercise and set rows)]
 
-    E --> I[StatsViewModel reparses notes]
-    H --> J[Exercise progress queries]
+    E --> I[Statistics reparsing / startup repair]
+    H --> J[Progress queries]
     I --> K[Stats UI]
     J --> K
 
-    C --> L[CSV export during save]
+    C --> L[CSV/export side effects]
 ```
 
-### Current characteristics
+Current limitations:
 
-- The note text is the original record.
-- Absolute times and flags are embedded using invisible Unicode separators.
-- Notes are parsed into exercise and set tables.
-- Some statistics query normalized set rows.
-- Other statistics parse note text again.
-- Every application start reparses all notes to rebuild statistics.
-- Autosave can also parse data and export CSV.
+- timestamps and exercise flags can still be encoded with invisible Unicode separators;
+- autosave can trigger work beyond preserving draft state;
+- multiple representations of a workout can disagree;
+- startup still performs broad statistics repair work;
+- the foreground timer uses a service type that is unsuitable for long workouts until PR #128 replaces it.
 
-This creates multiple representations of one workout and multiple partially overlapping pipelines.
+### Canonical v9 path already merged
 
-## Main architectural risks
+```mermaid
+flowchart LR
+    A[(Legacy Room data)] --> B[CanonicalImportRunner]
+    B --> C[(Canonical v9 tables)]
+    C --> D[CanonicalWorkoutRepository]
+    D --> E[WorkoutDetails]
+    A --> F[LegacyWorkoutProjector]
+    E --> G[CanonicalDualReadVerifier]
+    F --> G
+    E --> H[TrainingSummaryBuilder]
+    H --> I[Versioned TrainingSummary]
+```
 
-### Data-loss migration fallback
+Merged capabilities:
 
-Room uses destructive migration fallback. Unsupported schema changes can erase local data. Production builds must use explicit migrations and migration tests.
+- explicit Room migration chain with destructive fallback removed;
+- canonical workout, occurrence, set, exercise, alias, and category tables;
+- deterministic and idempotent backfill from legacy data;
+- ambiguity reporting rather than silent guessing;
+- domain aggregates and repository interfaces isolated from Room entities;
+- transactional canonical aggregate load/save support;
+- deterministic ordering and dual-read verification;
+- pure, versioned `TrainingSummary` projection from canonical `WorkoutDetails`.
 
-### Multiple sources of truth
+The canonical path is a foundation, not yet a claim that every production read and write uses canonical data.
 
-Workout information exists in encoded text, normalized rows, and statistics calculated directly from text. These representations can disagree.
+## Canonical model
 
-### Hidden-character persistence
+The accepted model is documented in [`docs/decisions/0002-canonical-workout-model.md`](decisions/0002-canonical-workout-model.md).
 
-Zero-width separator characters are implementation details embedded in user data. Copying, editing, importing, debugging, and future migration become fragile.
-
-### Save path side effects
-
-A save can write the note, parse it, replace sets, and write CSV. Autosave should preserve a draft safely; export and expensive derived work should be separate operations.
-
-### Identity coupled to timestamps
-
-The note timestamp acts as primary key, workout ID, and time. Stable identity, creation time, start time, and display time should be separate fields.
-
-### Process-global timer state
-
-The timer service exposes companion-object state. Restoration after process death and ownership of the active workout are not explicit.
-
-## Architectural objective
-
-Use a single-module, layered, feature-oriented architecture with one canonical persisted workout model and explicit dependency direction.
-
-A Gradle-module split is not currently justified. Package boundaries should be enforced first.
-
-## Target package structure
+Core concepts:
 
 ```text
-com.znypr.gymtrack/
-├── app/
-│   ├── GymTrackApplication.kt
-│   ├── AppContainer.kt
-│   └── navigation/
-├── domain/
-│   ├── model/
-│   ├── repository/
-│   └── service/
-├── data/
-│   ├── local/
-│   │   ├── database/
-│   │   │   ├── entity/
-│   │   │   ├── dao/
-│   │   │   └── migration/
-│   │   └── settings/
-│   ├── repository/
-│   ├── importexport/
-│   └── mapper/
-├── feature/
-│   ├── workouts/
-│   ├── editor/
-│   ├── stats/
-│   └── settings/
-└── core/
-    ├── ui/
-    ├── time/
-    ├── logging/
-    └── testing/
+Workout
+- stable workout ID
+- started and ended timestamps
+- category reference
+- title and learnings
+- lifecycle/status metadata
+- compatibility raw text during transition
+
+WorkoutExercise / occurrence
+- stable occurrence ID
+- workout and exercise references
+- explicit position
+- explicit bilateral, unilateral, or superset mode
+
+WorkoutSet
+- stable set ID
+- occurrence reference
+- explicit position
+- weight, repetitions, unit, and performed-time data
+
+Exercise
+- stable exercise ID
+- canonical name and aliases
+
+Category
+- stable category ID
+- name, color, position, and built-in state
 ```
+
+Stable identity is separate from display timestamps. Ordering and flags are stored as typed fields rather than inferred from text.
 
 ## Dependency direction
 
@@ -148,9 +160,9 @@ com.znypr.gymtrack/
 flowchart TD
     APP[Application wiring and navigation]
     FEATURE[Feature UI and ViewModels]
-    DOMAIN[Domain models and interfaces]
-    DATA[Data implementations]
-    ANDROID[Room, DataStore, services]
+    DOMAIN[Domain models, repository contracts, pure services]
+    DATA[Room implementations, mappings, import/export]
+    ANDROID[Room, DataStore, platform services]
 
     APP --> FEATURE
     APP --> DATA
@@ -161,139 +173,125 @@ flowchart TD
 
 Rules:
 
-- Compose UI does not access DAOs.
-- ViewModels depend on repository interfaces rather than Room entities.
-- Room entities do not leave the data layer.
-- Parser output uses immutable domain models.
-- Import/export is outside Compose and ViewModels.
-- Domain parsing and calculations are pure Kotlin and unit-testable.
+- Compose UI does not access DAOs directly.
+- ViewModels depend on domain repository contracts rather than Room entities.
+- Room entities remain inside the data layer.
+- Parsing, verification, summary projection, and statistics calculations should be pure Kotlin where possible.
+- Import/export and external integration do not live inside Compose components.
 - Android `Context` is accessed through application-safe abstractions.
+- Network or bridge failures must not roll back canonical workout storage.
 
-## Proposed canonical model
-
-```text
-Workout
-- id
-- startedAt
-- endedAt
-- categoryId
-- title
-- learnings
-- rawDraftText (temporary compatibility field)
-- createdAt
-- updatedAt
-
-WorkoutExercise
-- id
-- workoutId
-- exerciseId
-- position
-- mode: bilateral | unilateral | superset
-
-WorkoutSet
-- id
-- workoutExerciseId
-- position
-- weight
-- repetitions
-- unit
-- performedAtOffsetSeconds
-- rpe or rir (optional later)
-
-Exercise
-- id
-- canonicalName
-- aliases
-- muscleGroup (optional)
-
-Category
-- id
-- name
-- color
-- position
-- isBuiltIn
-```
-
-The editor may remain note-like, but it should edit a typed `WorkoutDraft` instead of parallel text, timestamp, and flag arrays.
-
-## Target pipeline
+## Target runtime pipeline
 
 ```mermaid
 flowchart LR
     A[Editor UI] --> B[Typed WorkoutDraft]
-    B --> C[Validation and save use case]
-    C --> D[Single Room transaction]
-    D --> E[(Canonical workout tables)]
+    B --> C[Draft autosave]
+    B --> D[Explicit completion/finalization]
 
-    E --> F[Reactive history queries]
-    E --> G[Statistics queries]
-    E --> H[Explicit exporter]
+    C --> E[(Draft persistence)]
+    D --> F[Validation and canonical save use case]
+    F --> G[Single Room transaction]
+    G --> H[(Canonical workout tables)]
 
-    I[CSV or legacy input] --> J[Parser]
-    J --> B
-    K[Legacy note migration] --> J
+    H --> I[Reactive history queries]
+    H --> J[Statistics queries]
+    H --> K[Explicit export]
+    H --> L[TrainingSummary projection]
+    L --> M[Local snapshot or durable outbox]
+    M --> N[External Creator OS bridge]
 ```
 
-Expected results:
+Expected properties:
 
-- Room is the canonical source of truth.
-- Parsing happens at input, import, or migration boundaries.
-- One transaction saves a complete workout.
-- Statistics read typed data.
-- Export is explicit or scheduled, not part of every autosave.
-- Startup does not rebuild all derived data.
+- draft autosave is small, serialized, and independent of export or network access;
+- explicit completion writes one consistent canonical workout;
+- history and statistics read canonical typed data;
+- export is explicit or scheduled, not a side effect of every autosave;
+- startup does not reparse all workouts;
+- compact summaries are generated only after explicit completion;
+- the external bridge upserts by stable `workout_id` and is not a second GymTrack source of truth.
 
-## Dependency injection
+## Remaining transition work
 
-Do not introduce Hilt by default. Start with a small `AppContainer` that owns:
+### #153 — Training summary snapshot/outbox
 
-- the database;
-- repository implementations;
-- settings storage;
-- parser;
-- import/export services;
-- a clock abstraction where deterministic tests need it.
+Persist or enqueue one current summary per completed workout. Retries must be idempotent, autosave must produce no summary, and transport failures must remain isolated.
 
-Hilt can be reconsidered when manual wiring becomes a demonstrated maintenance problem.
+### #122 — Save-pipeline separation
 
-## Migration strategy
+Separate draft preservation, explicit finalization, statistics synchronization, and export. Prevent stale saves from overwriting newer editor state.
 
-1. Freeze non-essential feature work.
-2. Add regression tests around the current parser, encoding, import/export, and database.
-3. Replace destructive migration fallback.
-4. Add normalized tables beside the legacy notes table.
-5. Backfill normalized data from legacy notes.
-6. Verify counts and representative workouts during migration.
-7. Switch statistics and history reads to normalized data.
-8. Switch the editor save path to typed data.
-9. Retain legacy raw text for one compatibility release.
-10. Remove legacy models and encoding only after upgrade evidence is stable.
+### #125 — Typed editor state
 
-## Initial cleanup candidates
+Replace hidden separator persistence with a typed `WorkoutDraft` and explicit row ordering, timestamps, and exercise modes while preserving legacy compatibility.
 
-Deletion requires usage search, compilation, and tests. Likely candidates include:
+### #126 — Statistics cutover
 
-- `FullProjectCode.txt`;
-- template unit and instrumentation tests;
-- superseded editor and note-card components;
-- duplicate legacy note/domain models;
-- disconnected import helpers;
-- duplicate color helper functions;
-- unused YCharts dependency;
-- duplicate Room compiler, Material 3, Core KTX, and icon dependencies;
-- unused generated resource colors.
+Remove unconditional startup rebuild after normal mutation paths maintain canonical consistency. Preserve a versioned, observable repair path only if needed.
 
-Cleanup should be isolated from behavior changes.
+### #121 — Cleanup
+
+Remove only source files and dependencies proven unused by search, compilation, tests, and smoke validation. Keep cleanup separate from behavior changes.
+
+### #124 — Release architecture
+
+Choose the permanent package identity, separate debug and release signing, define versioning, and document release validation before external distribution.
+
+## Timer transition
+
+PR #128 replaces the process-global foreground-service timer with persisted timestamp-derived state in Preferences DataStore. Automated checks pass, but it remains unmerged until Android 14+ manual background/process-restoration validation is recorded.
+
+Until that PR merges, the service-based timer is still the runtime architecture on `master`.
+
+## Creator OS integration boundary
+
+GymTrack owns:
+
+- canonical detailed workout data;
+- versioned `TrainingSummary` projection;
+- local snapshot or durable outbox after explicit completion.
+
+The external Creator OS repository owns:
+
+- transport from the local summary boundary;
+- Google Sheets upsert;
+- retries and operational monitoring outside GymTrack.
+
+GymTrack must not require Google Sheets, a backend, or network availability for active logging.
+
+## Migration and compatibility policy
+
+Completed:
+
+1. remove destructive migration fallback;
+2. add explicit migration tests;
+3. add canonical tables beside legacy tables;
+4. backfill deterministically and idempotently;
+5. expose canonical repositories and dual-read verification.
+
+Remaining:
+
+6. switch production reads and writes one path at a time;
+7. investigate every verification mismatch;
+8. retain legacy raw data for the documented compatibility period;
+9. remove legacy encodings and tables only after upgrade evidence is stable.
+
+No migration step may silently discard user data or infer ambiguous values without reporting them.
 
 ## Architecture Decision Records
 
-Create an ADR when a change:
+Create or update an ADR when a change:
 
 - changes the canonical data model;
-- changes persistence or backup strategy;
+- changes persistence, migration, backup, or restore strategy;
 - changes import/export compatibility;
 - introduces or removes a major dependency;
 - changes module boundaries;
-- creates a long-term platform constraint.
+- creates a long-term platform or integration constraint.
 
-ADRs live under `docs/decisions/` and contain context, considered options, decision, consequences, and status.
+ADRs live under `docs/decisions/` and include context, options, decision, consequences, and status.
+
+## Documentation maintenance
+
+Update this file after a phase-defining architecture merge. The baseline commit and absolute review date must change together. Live issue and pull-request state remains authoritative for implementation status.
