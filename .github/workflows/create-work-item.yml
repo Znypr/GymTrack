@@ -33,7 +33,7 @@ jobs:
       - name: Create work item
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.WORK_ITEM_TOKEN || github.token }}
+          github-token: ${{ secrets.WORK_ITEM_TOKEN || secrets.GYMTRACK_PROJECT_TOKEN || github.token }}
           script: |
             const { owner, repo } = context.repo;
             const number = Number(process.env.ISSUE_NUMBER);
@@ -102,11 +102,25 @@ jobs:
               });
             }
 
-            const pull = await github.rest.pulls.create({
-              owner, repo, head: branch, base, draft: true,
-              title: `${prefix}: ${issue.title}`,
-              body: `## Linked issue\n\nCloses #${number}\n\nDraft created for an issue with \`status:ready\`.`
-            });
+            let pull;
+            try {
+              pull = await github.rest.pulls.create({
+                owner, repo, head: branch, base, draft: true,
+                title: `${prefix}: ${issue.title}`,
+                body: `## Linked issue\n\nCloses #${number}\n\nDraft created for an issue with \`status:ready\`.`
+              });
+            } catch (error) {
+              if (error.status === 403) {
+                core.setFailed(
+                  'Pull-request creation was forbidden. Configure WORK_ITEM_TOKEN or ' +
+                  'GYMTRACK_PROJECT_TOKEN with repository write access, or enable ' +
+                  'Actions pull-request creation in repository settings.'
+                );
+                return;
+              }
+              throw error;
+            }
+
             await github.rest.issues.createComment({
               owner, repo, issue_number: number,
               body: `Implementation started.\n\n- Branch: \`${branch}\`\n- Draft pull request: ${pull.data.html_url}`
