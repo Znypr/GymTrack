@@ -2,7 +2,6 @@ package com.example.gymtrack.core.data.transition
 
 import androidx.room.withTransaction
 import com.example.gymtrack.core.data.CanonicalCategoryEntity
-import com.example.gymtrack.core.data.CanonicalExerciseEntity
 import com.example.gymtrack.core.data.CanonicalWorkoutEntity
 import com.example.gymtrack.core.data.NoteDatabase
 import com.example.gymtrack.core.data.NoteEntity
@@ -121,32 +120,45 @@ internal class CanonicalImportRunner(
     }
 
     private fun buildCategories(notes: List<NoteEntity>): Map<CategorySignature, CanonicalCategoryEntity> {
-        val signatures = notes.mapNotNull { note ->
-            val name = note.categoryName?.trim().orEmpty()
-            if (name.isEmpty()) null else CategorySignature(name, note.categoryColor ?: 0L)
-        }.distinctBy { signature ->
-            "${CanonicalKeys.normalize(signature.name)}:${signature.colorArgb}"
-        }.sortedBy { signature -> CanonicalKeys.normalize(signature.name) }
+        val displayNameBySignature = linkedMapOf<CategorySignature, String>()
+        notes.forEach { note ->
+            val displayName = note.categoryName?.trim().orEmpty()
+            if (displayName.isNotEmpty()) {
+                val signature = CategorySignature(
+                    normalizedName = CanonicalKeys.normalize(displayName),
+                    colorArgb = note.categoryColor ?: 0L,
+                )
+                displayNameBySignature.putIfAbsent(signature, displayName)
+            }
+        }
 
-        return signatures.mapIndexed { position, signature ->
-            signature to CanonicalCategoryEntity(
-                id = CanonicalKeys.category(signature.name, signature.colorArgb),
-                name = signature.name,
-                colorArgb = signature.colorArgb,
-                position = position,
-                isBuiltIn = false,
-                isArchived = false,
-            )
-        }.toMap()
+        return displayNameBySignature.entries
+            .sortedWith(compareBy({ it.key.normalizedName }, { it.key.colorArgb }))
+            .mapIndexed { position, (signature, displayName) ->
+                signature to CanonicalCategoryEntity(
+                    id = CanonicalKeys.category(displayName, signature.colorArgb),
+                    name = displayName,
+                    colorArgb = signature.colorArgb,
+                    position = position,
+                    isBuiltIn = false,
+                    isArchived = false,
+                )
+            }
+            .toMap()
     }
 
     private fun categoryFor(
         note: NoteEntity,
         categories: Map<CategorySignature, CanonicalCategoryEntity>,
     ): CanonicalCategoryEntity? {
-        val name = note.categoryName?.trim().orEmpty()
-        if (name.isEmpty()) return null
-        return categories[CategorySignature(name, note.categoryColor ?: 0L)]
+        val displayName = note.categoryName?.trim().orEmpty()
+        if (displayName.isEmpty()) return null
+        return categories[
+            CategorySignature(
+                normalizedName = CanonicalKeys.normalize(displayName),
+                colorArgb = note.categoryColor ?: 0L,
+            )
+        ]
     }
 
     private fun failedProjection(
@@ -173,7 +185,7 @@ internal class CanonicalImportRunner(
     }
 
     private data class CategorySignature(
-        val name: String,
+        val normalizedName: String,
         val colorArgb: Long,
     )
 }
