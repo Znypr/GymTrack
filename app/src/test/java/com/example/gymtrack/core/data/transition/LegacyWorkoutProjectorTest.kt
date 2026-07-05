@@ -16,8 +16,40 @@ class LegacyWorkoutProjectorTest {
     fun deterministicKeysAreStableAndNamespaced() {
         assertEquals(CanonicalKeys.workout(123L), CanonicalKeys.workout(123L))
         assertNotEquals(CanonicalKeys.workout(123L), CanonicalKeys.workout(124L))
-        assertNotEquals(CanonicalKeys.workout(123L), CanonicalKeys.legacyExercise(123L))
-        assertEquals(CanonicalKeys.namedExercise("  Bench   Press "), CanonicalKeys.namedExercise("bench press"))
+        assertNotEquals(CanonicalKeys.workout(123L), CanonicalKeys.namedExercise("123"))
+        assertEquals(
+            CanonicalKeys.namedExercise("  Bench   Press "),
+            CanonicalKeys.namedExercise("bench press"),
+        )
+    }
+
+    @Test
+    fun exerciseIdentityDoesNotDependOnLegacyAutoIncrementId() {
+        val first = CanonicalExerciseCatalog(
+            listOf(
+                ExerciseEntity(
+                    exerciseId = 7L,
+                    name = "Bench press",
+                    parentId = null,
+                    muscleGroup = "Chest",
+                    aliases = "Bench",
+                ),
+            ),
+        )
+        val rebuilt = CanonicalExerciseCatalog(
+            listOf(
+                ExerciseEntity(
+                    exerciseId = 91L,
+                    name = "Bench press",
+                    parentId = null,
+                    muscleGroup = "Chest",
+                    aliases = "Bench",
+                ),
+            ),
+        )
+
+        assertEquals(first.resolve("Bench").id, rebuilt.resolve("Bench").id)
+        assertEquals(CanonicalKeys.namedExercise("Bench press"), first.resolve("Bench").id)
     }
 
     @Test
@@ -78,7 +110,7 @@ class LegacyWorkoutProjectorTest {
         assertEquals(listOf(0, 1), projection.workoutExercises.map { it.position })
         assertEquals("UNILATERAL", projection.workoutExercises[0].mode)
         assertEquals("SUPERSET", projection.workoutExercises[1].mode)
-        assertEquals(CanonicalKeys.legacyExercise(7L), projection.workoutExercises[0].exerciseId)
+        assertEquals(CanonicalKeys.namedExercise("Bench press"), projection.workoutExercises[0].exerciseId)
         assertEquals(2, projection.workoutSets.size)
         assertEquals("KILOGRAM", projection.workoutSets[0].weightUnit)
         assertNull(projection.workoutSets[1].weightUnit)
