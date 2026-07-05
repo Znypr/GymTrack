@@ -1,5 +1,3 @@
-// FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\example\gymtrack\NavigationHost.kt
-
 package com.example.gymtrack
 
 import android.widget.Toast
@@ -34,16 +32,14 @@ fun NavigationHost(
     settings: Settings,
     onSettingsUpdate: (Settings) -> Unit,
     noteRepository: NoteRepository,
-    workoutRepository: WorkoutRepository
+    workoutRepository: WorkoutRepository,
 ) {
     NavHost(navController = navController, startDestination = "notes") {
-
-        // 1. HOME SCREEN
         composable("notes") {
             val context = LocalContext.current
             val scope = rememberCoroutineScope()
             val homeViewModel: HomeViewModel = viewModel(
-                factory = HomeViewModel.Factory(noteRepository, workoutRepository)
+                factory = HomeViewModel.Factory(noteRepository, workoutRepository),
             )
             val notes by homeViewModel.notes.collectAsState()
 
@@ -58,17 +54,25 @@ fun NavigationHost(
                 },
                 onDelete = { selected ->
                     homeViewModel.deleteNotes(selected)
-                    selectedNotes = emptySet() },
+                    selectedNotes = emptySet()
+                },
                 onExport = { selected ->
                     if (selected.isNotEmpty()) {
                         scope.launch {
                             try {
                                 homeViewModel.exportNotes(context, selected, settings)
-                                Toast.makeText(context, "Exported ${selected.size} notes to Downloads", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    "Exported ${selected.size} notes to Downloads",
+                                    Toast.LENGTH_SHORT,
+                                ).show()
                                 selectedNotes = emptySet()
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                                Toast.makeText(context, "Export failed: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                            } catch (error: Exception) {
+                                Toast.makeText(
+                                    context,
+                                    "Export failed: ${error.localizedMessage}",
+                                    Toast.LENGTH_LONG,
+                                ).show()
                             }
                         }
                     } else {
@@ -76,29 +80,25 @@ fun NavigationHost(
                     }
                 },
                 onCreate = { navController.navigate("editor?noteId=-1") },
-                // [FIX] Updated for multiple files
                 onImport = { uris ->
                     homeViewModel.importNotesFromUris(context, uris, settings)
                 },
                 onOpenSettings = { navController.navigate("settings") },
                 onOpenStats = { navController.navigate("stats") },
-                onSwipeRight = { /* Swipe logic */ },
-                settings = settings
+                onSwipeRight = {},
+                settings = settings,
             )
         }
 
-        // ... (Rest of the composables remain unchanged) ...
         composable("editor?noteId={noteId}") { backStackEntry ->
             val noteId = backStackEntry.arguments?.getString("noteId")?.toLongOrNull() ?: -1L
-            val context = LocalContext.current
 
             val editorViewModel: EditorViewModel = viewModel(
                 factory = EditorViewModel.Factory(
                     noteId,
                     noteRepository,
                     workoutRepository,
-                    context
-                )
+                ),
             )
 
             NoteEditor(
@@ -106,13 +106,13 @@ fun NavigationHost(
                 settings = settings,
                 isLastNote = true,
                 onCancel = { navController.popBackStack() },
-                onSaveSuccess = { navController.popBackStack() }
+                onSaveSuccess = { navController.popBackStack() },
             )
         }
 
         composable("stats") {
             val statsViewModel: StatsViewModel = viewModel(
-                factory = StatsViewModel.Factory(noteRepository)
+                factory = StatsViewModel.Factory(noteRepository),
             )
             val state by statsViewModel.uiState.collectAsState()
 
@@ -121,7 +121,7 @@ fun NavigationHost(
                 workoutRepository = workoutRepository,
                 settings = settings,
                 onTimeRangeSelected = { statsViewModel.setTimeRange(it) },
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
             )
         }
 
@@ -129,7 +129,7 @@ fun NavigationHost(
             SettingsScreen(
                 settings = settings,
                 onUpdate = onSettingsUpdate,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
             )
         }
     }
