@@ -213,6 +213,7 @@ abstract class NoteDatabase : RoomDatabase() {
     abstract fun canonicalWorkoutDao(): CanonicalWorkoutDao
     abstract fun canonicalWorkoutExerciseDao(): CanonicalWorkoutExerciseDao
     abstract fun canonicalWorkoutSetDao(): CanonicalWorkoutSetDao
+    abstract fun backupDao(): BackupDao
 
     companion object {
         @Volatile
