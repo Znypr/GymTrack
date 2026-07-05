@@ -32,7 +32,10 @@ private val CardDeepDark = Color(0xFF181818)
 fun SettingsScreen(
     settings: Settings,
     onUpdate: (Settings) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onCreateBackup: () -> Unit,
+    onRestoreBackup: () -> Unit,
+    dataOperationInProgress: Boolean,
 ) {
     var editingCategory by remember { mutableStateOf<Category?>(null) }
 
@@ -55,41 +58,68 @@ fun SettingsScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = backgroundColor,
-                    titleContentColor = textColor
-                )
+                    titleContentColor = textColor,
+                ),
             )
-        }
+        },
     ) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+            verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            // --- PREFERENCES ---
             item {
                 SettingsSectionTitle("Preferences")
                 SettingsCard {
                     SettingsSwitchRow("Dark Mode", settings.darkMode) { update { copy(darkMode = it) } }
-                    Divider(color = textColor.copy(alpha = 0.1f))
+                    HorizontalDivider(color = textColor.copy(alpha = 0.1f))
                     SettingsSwitchRow("24-Hour Time", settings.is24Hour) { update { copy(is24Hour = it) } }
                 }
             }
 
-            // --- CATEGORIES ---
+            item {
+                SettingsSectionTitle("Data Management")
+                SettingsCard {
+                    SettingsActionRow(
+                        title = "Back up all data",
+                        subtitle = "Create one portable GymTrack backup file",
+                        enabled = !dataOperationInProgress,
+                        onClick = onCreateBackup,
+                    )
+                    HorizontalDivider(color = textColor.copy(alpha = 0.1f))
+                    SettingsActionRow(
+                        title = "Restore from backup",
+                        subtitle = "Replace local data after validating the file",
+                        enabled = !dataOperationInProgress,
+                        onClick = onRestoreBackup,
+                    )
+                    if (dataOperationInProgress) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(12.dp))
+                            Text("Working…", color = textColor)
+                        }
+                    }
+                }
+            }
+
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     SettingsSectionTitle("Workout Categories")
                     IconButton(
                         onClick = {
                             val newCat = Category("New Category", randomColor())
                             update { copy(categories = categories + newCat) }
-                        }
+                        },
                     ) {
                         Icon(Icons.Default.Add, contentDescription = "Add", tint = MaterialTheme.colorScheme.primary)
                     }
@@ -105,7 +135,7 @@ fun SettingsScreen(
                         if (settings.categories.size > 1) {
                             update { copy(categories = categories - cat) }
                         }
-                    }
+                    },
                 )
             }
 
@@ -117,25 +147,49 @@ fun SettingsScreen(
                 category = editingCategory!!,
                 onDismiss = { editingCategory = null },
                 onSave = { updatedCat ->
-                    // Replace the old category with the new one
                     val newList = settings.categories.map {
                         if (it == editingCategory) updatedCat else it
                     }
                     update { copy(categories = newList) }
                     editingCategory = null
-                }
+                },
             )
         }
     }
 }
 
-// --- COMPONENTS ---
+@Composable
+private fun SettingsActionRow(
+    title: String,
+    subtitle: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(16.dp),
+    ) {
+        Text(
+            text = title,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.5f),
+            fontWeight = FontWeight.Medium,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = subtitle,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (enabled) 1f else 0.5f),
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
 
 @Composable
 fun EditCategoryDialog(
     category: Category,
     onDismiss: () -> Unit,
-    onSave: (Category) -> Unit
+    onSave: (Category) -> Unit,
 ) {
     var name by remember { mutableStateOf(category.name) }
     var color by remember { mutableStateOf(category.color) }
@@ -149,11 +203,10 @@ fun EditCategoryDialog(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Category Name") },
-                    singleLine = true
+                    singleLine = true,
                 )
                 Spacer(Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Show color preview
                     Box(Modifier.size(40.dp).clip(CircleShape).background(Color(color)))
                     Spacer(Modifier.width(16.dp))
                     Button(onClick = { color = randomColor() }) {
@@ -171,16 +224,12 @@ fun EditCategoryDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
+        },
     )
 }
 
-// [FIXED] Correctly returns a Long compatible with Compose Color(Long)
 fun randomColor(): Long {
     val hue = (0..360).random().toFloat()
-    // 1. Generate HSV color
-    // 2. Convert to ARGB Int (which might be negative)
-    // 3. Convert to Long and Mask with 0xFFFFFFFF to make it a valid positive Unsigned Long
     return Color.hsv(hue, 0.8f, 0.9f).toArgb().toLong() and 0xFFFFFFFF
 }
 
@@ -191,7 +240,7 @@ fun SettingsSectionTitle(text: String) {
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
+        modifier = Modifier.padding(bottom = 8.dp, start = 4.dp),
     )
 }
 
@@ -202,7 +251,7 @@ fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
     Card(
         colors = CardDefaults.cardColors(containerColor = cardColor),
         shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(if(isDark) 0.dp else 2.dp)
+        elevation = CardDefaults.cardElevation(if (isDark) 0.dp else 2.dp),
     ) {
         Column(modifier = Modifier.fillMaxWidth()) { content() }
     }
@@ -213,7 +262,7 @@ fun SettingsSwitchRow(title: String, checked: Boolean, onCheckedChange: (Boolean
     Row(
         modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }.padding(16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(title, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
         Switch(checked = checked, onCheckedChange = onCheckedChange)
@@ -225,7 +274,7 @@ fun CategoryRow(
     category: Category,
     textColor: Color,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
 ) {
     val isDark = MaterialTheme.colorScheme.background.run { red < 0.5 && green < 0.5 && blue < 0.5 }
     val cardColor = if (isDark) CardDeepDark else MaterialTheme.colorScheme.surface
@@ -234,12 +283,12 @@ fun CategoryRow(
         colors = CardDefaults.cardColors(containerColor = cardColor),
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onEdit() },
-        elevation = CardDefaults.cardElevation(if(isDark) 0.dp else 2.dp)
+        elevation = CardDefaults.cardElevation(if (isDark) 0.dp else 2.dp),
     ) {
         Row(
             modifier = Modifier.padding(16.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(12.dp).clip(CircleShape).background(Color(category.color)))
@@ -247,7 +296,11 @@ fun CategoryRow(
                 Text(category.name, fontWeight = FontWeight.Bold, color = textColor, fontSize = 16.sp)
             }
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f))
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "Delete",
+                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
+                )
             }
         }
     }
