@@ -14,7 +14,7 @@ import com.example.gymtrack.domain.repository.VerificationStatus
 import com.example.gymtrack.domain.repository.WorkoutVerificationReport
 import kotlinx.coroutines.flow.first
 
-class CanonicalDualReadVerifier(
+internal class CanonicalDualReadVerifier(
     private val database: NoteDatabase,
     private val repository: CanonicalWorkoutRepository,
     private val projector: LegacyWorkoutProjector = LegacyWorkoutProjector(),
@@ -75,7 +75,7 @@ class CanonicalDualReadVerifier(
             )
         }
         val expectedProjection = projector.project(note, category, catalog)
-        val expected = expectedProjection.toDetails(catalog)
+        val expected = expectedProjection.toDetails(catalog, category)
         val mismatches = compare(expected, actual)
 
         return WorkoutVerificationReport(
@@ -141,6 +141,7 @@ class CanonicalDualReadVerifier(
 
     private fun com.example.gymtrack.core.data.transition.CanonicalWorkoutProjection.toDetails(
         catalog: CanonicalExerciseCatalog,
+        category: CanonicalCategoryEntity?,
     ): WorkoutDetails {
         val aliases = catalog.aliasEntities()
         val referencedIds = workoutExercises.map { it.exerciseId }.toSet()
@@ -155,19 +156,7 @@ class CanonicalDualReadVerifier(
                 sets = workoutSets.map { it.toDomain() },
             ),
             exerciseDefinitions = definitions,
-            category = categoryEntity()?.toDomain(),
-        )
-    }
-
-    private fun com.example.gymtrack.core.data.transition.CanonicalWorkoutProjection.categoryEntity(): CanonicalCategoryEntity? {
-        val categoryId = workout.categoryId ?: return null
-        return CanonicalCategoryEntity(
-            id = categoryId,
-            name = "Legacy category",
-            colorArgb = 0L,
-            position = 0,
-            isBuiltIn = false,
-            isArchived = false,
+            category = category?.toDomain(),
         )
     }
 }
