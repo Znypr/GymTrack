@@ -41,6 +41,11 @@ jobs:
           arch: x86_64
           disable-animations: true
           script: ./gradlew connectedDebugAndroidTest --console=plain
+      - name: Print connected test failures
+        if: failure()
+        run: |
+          find app/build/outputs/androidTest-results -type f -name '*.xml' -print -exec cat {} \; || true
+          find app/build/reports/androidTests -type f -name '*.html' -print || true
       - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4
