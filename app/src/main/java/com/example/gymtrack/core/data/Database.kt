@@ -73,11 +73,20 @@ interface NoteDao {
     @Query("SELECT * FROM notes ORDER BY timestamp ASC")
     fun getAll(): Flow<List<NoteEntity>>
 
+    @Query("SELECT * FROM notes ORDER BY timestamp ASC")
+    suspend fun getAllForBackup(): List<NoteEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(note: NoteEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllForRestore(notes: List<NoteEntity>)
+
     @Delete
     suspend fun delete(note: NoteEntity)
+
+    @Query("DELETE FROM notes")
+    suspend fun deleteAllForRestore()
 
     @Query("SELECT * FROM notes WHERE timestamp = :id LIMIT 1")
     suspend fun getById(id: Long): NoteEntity?
@@ -91,11 +100,20 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercises")
     fun getAllExercises(): Flow<List<ExerciseEntity>>
 
+    @Query("SELECT * FROM exercises ORDER BY exerciseId")
+    suspend fun getAllForBackup(): List<ExerciseEntity>
+
     @Query("SELECT * FROM exercises WHERE name = :name LIMIT 1")
     suspend fun getByName(name: String): ExerciseEntity?
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(exercise: ExerciseEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllForRestore(exercises: List<ExerciseEntity>)
+
+    @Query("DELETE FROM exercises")
+    suspend fun deleteAllForRestore()
 
     @Query("SELECT * FROM exercises WHERE aliases LIKE '%' || :query || '%'")
     suspend fun findByAlias(query: String): List<ExerciseEntity>
@@ -134,6 +152,12 @@ interface ExerciseDao {
 interface SetDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSets(sets: List<SetEntity>)
+
+    @Query("SELECT * FROM sets ORDER BY setId")
+    suspend fun getAllForBackup(): List<SetEntity>
+
+    @Query("DELETE FROM sets")
+    suspend fun deleteAllForRestore()
 
     @Query("DELETE FROM sets WHERE workoutId = :workoutId")
     suspend fun deleteSetsForWorkout(workoutId: Long)
