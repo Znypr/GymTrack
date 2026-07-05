@@ -43,6 +43,7 @@ See [work-tracking rules](docs/TICKET_BOARD.md) and [CONTRIBUTING.md](CONTRIBUTI
 
 - [Project charter](docs/PROJECT_CHARTER.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Editor save pipeline](docs/EDITOR_SAVE_PIPELINE.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Work-tracking rules](docs/TICKET_BOARD.md)
 - [Canonical-data transition](docs/CANONICAL_DATA_TRANSITION.md)
