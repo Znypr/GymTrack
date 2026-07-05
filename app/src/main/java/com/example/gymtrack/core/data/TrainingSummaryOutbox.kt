@@ -48,6 +48,9 @@ interface TrainingSummaryOutboxDao {
     @Query("SELECT * FROM training_summary_outbox WHERE workout_id = :workoutId LIMIT 1")
     suspend fun getByWorkoutId(workoutId: String): TrainingSummaryOutboxEntity?
 
+    @Query("SELECT * FROM training_summary_outbox ORDER BY enqueued_at, workout_id")
+    suspend fun getAll(): List<TrainingSummaryOutboxEntity>
+
     @Query("SELECT * FROM training_summary_outbox ORDER BY enqueued_at, workout_id LIMIT :limit")
     suspend fun getPending(limit: Int): List<TrainingSummaryOutboxEntity>
 
