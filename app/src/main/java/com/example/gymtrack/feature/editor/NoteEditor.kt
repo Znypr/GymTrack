@@ -7,25 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,6 +24,7 @@ import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.feature.editor.components.EditorHeroHeader
 import com.example.gymtrack.feature.editor.components.EditorListSection
 import com.example.gymtrack.feature.editor.components.LearningsPopup
+import com.example.gymtrack.feature.editor.components.NoteTimer
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,6 +39,7 @@ fun NoteEditor(
     val note by viewModel.uiState.collectAsState()
     val saveError by viewModel.saveError.collectAsState()
     val isEditingExisting = viewModel.currentId != -1L
+    val startTimerOnOpen = remember(viewModel) { viewModel.currentId == -1L }
 
     if (isEditingExisting && note == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -75,12 +60,11 @@ fun NoteEditor(
 
     LaunchedEffect(Unit) {
         if (state.lines.isNotEmpty()) {
-            val lastIndex = state.lines.lastIndex
-            state.listState.scrollToItem(lastIndex)
+            state.listState.scrollToItem(state.lines.lastIndex)
         }
     }
 
-    val noteTimestamp = note?.timestamp ?: System.currentTimeMillis()
+    val noteTimestamp = state.noteTimestamp
     var selectedCategory by remember(note) {
         mutableStateOf(
             settings.categories.find { it.name == note?.categoryName }
@@ -92,19 +76,11 @@ fun NoteEditor(
     }
     var showLearnings by remember { mutableStateOf(false) }
 
-    LaunchedEffect(selectedCategory) {
-        viewModel.currentCategory = selectedCategory
-    }
-    LaunchedEffect(learningsValue.text) {
-        viewModel.currentLearnings = learningsValue.text
-    }
-    LaunchedEffect(note) {
-        note?.let { viewModel.currentTitle = it.title }
-    }
+    LaunchedEffect(selectedCategory) { viewModel.currentCategory = selectedCategory }
+    LaunchedEffect(learningsValue.text) { viewModel.currentLearnings = learningsValue.text }
+    LaunchedEffect(note) { note?.let { viewModel.currentTitle = it.title } }
 
-    BackHandler {
-        state.saveNote(isLastNote = isLastNote, exit = true)
-    }
+    BackHandler { state.saveNote(isLastNote = isLastNote, exit = true) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -131,11 +107,7 @@ fun NoteEditor(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 title = {},
                 navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            state.saveNote(isLastNote = isLastNote, exit = true)
-                        },
-                    ) {
+                    IconButton(onClick = { state.saveNote(isLastNote = isLastNote, exit = true) }) {
                         Icon(
                             Icons.Default.ArrowBack,
                             contentDescription = "Back",
@@ -168,6 +140,16 @@ fun NoteEditor(
                     },
                     topPadding = padding.calculateTopPadding(),
                 )
+
+                if (isLastNote) {
+                    NoteTimer(
+                        noteTimestamp = noteTimestamp,
+                        startOnOpen = startTimerOnOpen,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
 
                 Column(
                     modifier = Modifier
