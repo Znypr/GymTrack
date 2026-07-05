@@ -40,11 +40,14 @@ jobs:
           api-level: 29
           arch: x86_64
           disable-animations: true
-          script: ./gradlew connectedDebugAndroidTest --console=plain
+          script: |
+            set -o pipefail
+            ./gradlew connectedDebugAndroidTest --console=plain 2>&1 | tee connected-test.log
       - name: Collect connected test diagnostics
         if: always()
         run: |
           mkdir -p diagnostics
+          cp connected-test.log diagnostics/connected-test.log 2>/dev/null || true
           find app/build -type f | sort > diagnostics/all-build-files.txt || true
           find app/build -type f \( -name '*.xml' -o -name '*.html' -o -name '*.txt' \) | while read -r file; do
             mkdir -p "diagnostics/$(dirname "$file")"
@@ -53,6 +56,7 @@ jobs:
       - name: Print connected test failures
         if: failure()
         run: |
+          tail -200 diagnostics/connected-test.log || true
           find diagnostics -type f -name '*.xml' -print -exec cat {} \; || true
       - name: Upload reports
         if: always()
