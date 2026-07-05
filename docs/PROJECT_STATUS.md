@@ -12,8 +12,9 @@ The application remains in transition. The active editor, normal history and sta
 
 ## Active work
 
+- **#129:** work-item automation code merged in PR #156, but the controlled `status:ready` test on #153 still produced no branch, draft PR, or issue comment. The issue is reopened for Actions event and permission validation.
 - **#127 / PR #128:** persisted timestamp-derived workout timer; automated checks pass, Android 14+ manual restoration validation remains.
-- **#153:** local `TrainingSummary` snapshot or durable outbox after explicit workout completion. Autosave must not enqueue summaries.
+- **#153:** local `TrainingSummary` snapshot or durable outbox after explicit workout completion. A manual work branch exists because automation did not create the work item.
 - **#135:** parent Creator OS integration ticket. GymTrack owns summary production; downstream transport remains outside this repository.
 
 ## Sequenced backlog
@@ -26,7 +27,6 @@ The application remains in transition. The active editor, normal history and sta
 
 ## Recently completed
 
-- **#129 / PR #156:** recoverable work-item automation rebuilt and merged after required checks passed.
 - **#119 / PR #146:** explicit migration chain and migration tests.
 - **#120 / PR #138:** canonical workout-model decision.
 - **#139 / PR #149:** canonical Room v9 schema.
@@ -43,6 +43,7 @@ The application remains in transition. The active editor, normal history and sta
 - Startup statistics repair remains until #126.
 - The foreground timer remains on `master` until PR #128 is validated and merged.
 - Package identity and release signing remain unfinished until #124.
+- Automatic issue-to-work-item creation is not yet proven reliable until #129 passes its end-to-end acceptance criteria.
 
 ## Maintenance
 
