@@ -10,10 +10,7 @@ internal object CanonicalKeys {
     fun category(name: String, colorArgb: Long): String =
         key("category", "${normalize(name)}:$colorArgb")
 
-    fun legacyExercise(legacyExerciseId: Long): String =
-        key("legacy-exercise", legacyExerciseId.toString())
-
-    fun namedExercise(name: String): String = key("named-exercise", normalize(name))
+    fun namedExercise(name: String): String = key("exercise", normalize(name))
 
     fun alias(exerciseKey: String, alias: String): String =
         key("exercise-alias", "$exerciseKey:${normalize(alias)}")
@@ -32,6 +29,8 @@ internal object CanonicalKeys {
     private fun key(namespace: String, value: String): String {
         val bytes = MessageDigest.getInstance("SHA-256")
             .digest("$namespace:$value".toByteArray(StandardCharsets.UTF_8))
-        return bytes.joinToString(separator = "") { byte -> "%02x".format(byte) }.take(32)
+        return bytes.joinToString(separator = "") { byte ->
+            "%02x".format(byte.toInt() and 0xff)
+        }.take(32)
     }
 }
