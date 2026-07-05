@@ -116,6 +116,19 @@ fun NoteEditor(
                     }
                 },
                 actions = {
+                    if (isLastNote) {
+                        TextButton(
+                            onClick = {
+                                state.saveNote(
+                                    isLastNote = true,
+                                    exit = true,
+                                    finishWorkout = true,
+                                )
+                            },
+                        ) {
+                            Text("Finish")
+                        }
+                    }
                     IconButton(onClick = { showLearnings = true }) {
                         Icon(
                             Icons.Default.Menu,

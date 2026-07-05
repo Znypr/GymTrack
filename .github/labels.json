@@ -24,6 +24,7 @@
 
   {"name":"status:needs-triage","color":"ededed","description":"Requires classification and prioritization"},
   {"name":"status:ready","color":"0e8a16","description":"Meets Definition of Ready and may enter implementation"},
+  {"name":"status:validation","color":"1d76db","description":"Implementation is complete and awaiting runtime or manual validation"},
   {"name":"status:blocked","color":"b60205","description":"Cannot progress because of a dependency or decision"},
   {"name":"status:needs-decision","color":"d4c5f9","description":"Requires a product or architecture decision"},
 

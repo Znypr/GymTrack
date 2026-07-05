@@ -28,6 +28,9 @@ data class NoteRow(
     val focusRequester: FocusRequester = FocusRequester(),
 )
 
+internal fun shouldStopTimerOnExit(isLastNote: Boolean, finishWorkout: Boolean): Boolean =
+    isLastNote && finishWorkout
+
 class NoteEditorState(
     private val viewModel: EditorViewModel,
     private val settings: Settings,
@@ -144,7 +147,11 @@ class NoteEditorState(
         saveNote(isLastNote = false, exit = false)
     }
 
-    fun saveNote(isLastNote: Boolean, exit: Boolean) {
+    fun saveNote(
+        isLastNote: Boolean,
+        exit: Boolean,
+        finishWorkout: Boolean = false,
+    ) {
         if (finishing || (saved && !exit)) return
         if (exit) finishing = true
         val range = lines.indices
@@ -165,28 +172,28 @@ class NoteEditorState(
         val isNew = viewModel.currentId == -1L
         val isEmpty = combined.isBlank() && viewModel.currentTitle.isBlank() && viewModel.currentLearnings.isBlank()
         if (isNew && isEmpty) {
-            if (exit) finishExit(isLastNote)
+            if (exit) finishExit(isLastNote, finishWorkout = true)
             return
         }
 
         val requestedRevision = editRevision
         val onPersisted = {
             if (requestedRevision == editRevision) saved = true
-            if (exit) finishExit(isLastNote)
+            if (exit) finishExit(isLastNote, finishWorkout)
         }
         val onFailure: (String) -> Unit = {
             saved = false
             if (exit) finishing = false
         }
-        if (exit) {
+        if (finishWorkout) {
             viewModel.finalizeWorkout(combined, noteTimestamp, onPersisted, onFailure)
         } else {
             viewModel.saveDraft(combined, noteTimestamp, onPersisted, onFailure)
         }
     }
 
-    private fun finishExit(isLastNote: Boolean) {
-        if (!isLastNote) {
+    private fun finishExit(isLastNote: Boolean, finishWorkout: Boolean) {
+        if (!shouldStopTimerOnExit(isLastNote, finishWorkout)) {
             onSaveSuccess()
             return
         }
