@@ -13,23 +13,24 @@ internal class CanonicalExerciseCatalog(
 
     init {
         val keyByLegacyId = legacyExercises.associate { legacy ->
-            legacy.exerciseId to CanonicalKeys.legacyExercise(legacy.exerciseId)
+            legacy.exerciseId to CanonicalKeys.namedExercise(displayName(legacy))
         }
 
         legacyExercises.sortedBy { it.exerciseId }.forEach { legacy ->
+            val name = displayName(legacy)
             val key = keyByLegacyId.getValue(legacy.exerciseId)
-            val displayName = legacy.name.trim().ifEmpty { "Unknown exercise ${legacy.exerciseId}" }
-            val normalizedName = CanonicalKeys.normalize(displayName)
-            val exercise = CanonicalExerciseEntity(
+            val normalizedName = CanonicalKeys.normalize(name)
+            val parentKey = legacy.parentId?.let(keyByLegacyId::get)
+            val current = exercises[key]
+            exercises[key] = CanonicalExerciseEntity(
                 id = key,
-                canonicalName = displayName,
+                canonicalName = current?.canonicalName ?: name,
                 normalizedName = normalizedName,
-                parentExerciseId = legacy.parentId?.let(keyByLegacyId::get),
-                muscleGroup = legacy.muscleGroup,
-                createdAt = 0L,
+                parentExerciseId = current?.parentExerciseId ?: parentKey,
+                muscleGroup = current?.muscleGroup ?: legacy.muscleGroup,
+                createdAt = current?.createdAt ?: 0L,
                 updatedAt = 0L,
             )
-            exercises[key] = exercise
             keyByNormalizedName.putIfAbsent(normalizedName, key)
 
             parseAliases(legacy.aliases).forEach { alias ->
@@ -72,6 +73,9 @@ internal class CanonicalExerciseCatalog(
     fun exerciseEntities(): List<CanonicalExerciseEntity> = exercises.values.toList()
 
     fun aliasEntities(): List<CanonicalExerciseAliasEntity> = aliases.values.toList()
+
+    private fun displayName(legacy: ExerciseEntity): String =
+        legacy.name.trim().ifEmpty { "Unknown exercise" }
 
     private fun parseAliases(raw: String): List<String> = raw
         .split(',', ';', '\n')
