@@ -16,6 +16,7 @@ import com.example.gymtrack.domain.model.Workout
 import com.example.gymtrack.domain.model.WorkoutExercise
 import com.example.gymtrack.domain.model.WorkoutSet
 import com.example.gymtrack.domain.model.WorkoutStatus
+import java.util.Locale
 
 class CanonicalMappingException(message: String) : IllegalStateException(message)
 
@@ -26,7 +27,7 @@ internal fun CanonicalWorkoutEntity.toDomain(): Workout = Workout(
     categoryId = categoryId,
     title = title,
     learnings = learnings,
-    status = parseEnum(status, "workout.status"),
+    status = parseEnum<WorkoutStatus>(status, "workout.status"),
     createdAtEpochMillis = createdAt,
     updatedAtEpochMillis = updatedAt,
     legacyCompatibility = legacyTimestamp?.let { timestamp ->
@@ -34,7 +35,7 @@ internal fun CanonicalWorkoutEntity.toDomain(): Workout = Workout(
             legacyTimestamp = timestamp,
             rawDraftText = rawDraftText.orEmpty(),
             migrationStatus = legacyMigrationStatus
-                ?.let { parseEnum(it, "workout.legacyMigrationStatus") }
+                ?.let { parseEnum<LegacyMigrationStatus>(it, "workout.legacyMigrationStatus") }
                 ?: LegacyMigrationStatus.PENDING,
             migrationMessage = legacyMigrationMessage,
         )
@@ -62,7 +63,7 @@ internal fun CanonicalWorkoutExerciseEntity.toDomain(): WorkoutExercise = Workou
     workoutId = workoutId,
     exerciseId = exerciseId,
     position = position,
-    mode = parseEnum(mode, "workoutExercise.mode"),
+    mode = parseEnum<ExerciseMode>(mode, "workoutExercise.mode"),
     modifier = modifier,
     equipmentBrand = equipmentBrand,
     startedAtOffsetSeconds = startedAtOffsetSeconds,
@@ -90,7 +91,7 @@ internal fun CanonicalWorkoutSetEntity.toDomain(): WorkoutSet {
     val domainUnit = when {
         weight == null && weightUnit == null -> null
         weight != null && weightUnit == null -> WeightUnit.UNKNOWN
-        else -> parseEnum(weightUnit.orEmpty(), "workoutSet.weightUnit")
+        else -> parseEnum<WeightUnit>(weightUnit.orEmpty(), "workoutSet.weightUnit")
     }
 
     return WorkoutSet(
@@ -144,7 +145,10 @@ internal fun Exercise.toEntity(
 ): CanonicalExerciseEntity = CanonicalExerciseEntity(
     id = id,
     canonicalName = canonicalName,
-    normalizedName = canonicalName.trim().lowercase().replace(Regex("\\s+"), " "),
+    normalizedName = canonicalName
+        .trim()
+        .lowercase(Locale.ROOT)
+        .replace(Regex("\\s+"), " "),
     parentExerciseId = parentExerciseId,
     muscleGroup = muscleGroup,
     createdAt = createdAt,
