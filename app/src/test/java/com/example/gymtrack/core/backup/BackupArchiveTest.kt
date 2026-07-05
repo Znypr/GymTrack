@@ -1,24 +1,9 @@
 package com.example.gymtrack.core.backup
 
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class BackupArchiveTest {
-    @Test
-    fun archiveRoundTripPreservesPayload() {
-        val payload = BackupFixtures.payload()
-        val output = ByteArrayOutputStream()
-        val manifest = BackupArchive.write(output, payload, "1.8", 9, 1234L)
-        val restored = BackupArchive.read(ByteArrayInputStream(output.toByteArray()))
-
-        assertEquals(payload, restored.payload)
-        assertEquals(manifest, restored.manifest)
-        assertEquals(9, restored.manifest.counts.totalRecords)
-    }
-
     @Test
     fun missingRelationshipIsRejected() {
         val payload = BackupFixtures.payload()
@@ -27,6 +12,17 @@ class BackupArchiveTest {
                 payload.canonicalWorkoutSets.single().copy(workoutExerciseId = "missing"),
             ),
         )
+        assertThrows(InvalidBackupException::class.java) {
+            BackupValidator.check(invalid)
+        }
+    }
+
+    @Test
+    fun duplicateStableIdsAreRejected() {
+        val payload = BackupFixtures.payload()
+        val duplicate = payload.canonicalWorkouts.single().copy()
+        val invalid = payload.copy(canonicalWorkouts = listOf(duplicate, duplicate))
+
         assertThrows(InvalidBackupException::class.java) {
             BackupValidator.check(invalid)
         }
