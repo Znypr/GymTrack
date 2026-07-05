@@ -23,6 +23,24 @@ interface CanonicalWorkoutDao {
     @Query("SELECT id FROM workouts WHERE legacy_timestamp IS NOT NULL ORDER BY started_at, id")
     suspend fun getLegacyBackedWorkoutIds(): List<String>
 
+    @Query(
+        """
+        UPDATE workouts
+        SET status = 'COMPLETED',
+            ended_at = COALESCE(ended_at, :endedAt),
+            updated_at = CASE
+                WHEN updated_at < :updatedAt THEN :updatedAt
+                ELSE updated_at
+            END
+        WHERE id = :workoutId
+        """,
+    )
+    suspend fun markCompleted(
+        workoutId: String,
+        endedAt: Long?,
+        updatedAt: Long,
+    ): Int
+
     @Query("SELECT COUNT(*) FROM workouts")
     suspend fun getCount(): Int
 }
