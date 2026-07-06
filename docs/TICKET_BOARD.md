@@ -90,7 +90,7 @@ For pull requests:
 - A linked draft pull request moves the ticket to In Progress and applies `status:in-progress`.
 - A linked ready-for-review pull request moves the ticket to Needs Manual Review and applies `status:needs-manual-review`.
 - Closed issues or merged linked pull requests move the ticket to Completed and apply `status:completed`.
-- Full reconciliation runs include open and closed issues so the Completed column is backfilled instead of only showing issues closed after automation was installed.
+- Full reconciliation runs include open and closed issues so the Completed column is backfilled.
 - Adding one workflow status label removes the other workflow status labels.
 - The board should not be manually dragged except as recovery. Change the issue status label or pull-request state instead.
 
