@@ -1,6 +1,12 @@
 package com.example.gymtrack
 
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -13,6 +19,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.example.gymtrack.core.backup.BackupManifest
+import com.example.gymtrack.core.backup.BackupRepository
 import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.data.WorkoutRepository
@@ -27,6 +35,9 @@ import com.example.gymtrack.feature.home.NotesScreen
 import com.example.gymtrack.feature.settings.SettingsScreen
 import com.example.gymtrack.feature.stats.StatsScreen
 import com.example.gymtrack.feature.stats.StatsViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.launch
 
 @Composable
@@ -36,6 +47,7 @@ fun NavigationHost(
     onSettingsUpdate: (Settings) -> Unit,
     noteRepository: NoteRepository,
     workoutRepository: WorkoutRepository,
+    backupRepository: BackupRepository,
 ) {
     NavHost(navController = navController, startDestination = "notes") {
         composable("notes") {
@@ -136,11 +148,140 @@ fun NavigationHost(
         }
 
         composable("settings") {
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
+            var operationInProgress by remember { mutableStateOf(false) }
+            var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+            var pendingRestoreManifest by remember { mutableStateOf<BackupManifest?>(null) }
+
+            val createBackupLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.CreateDocument("application/octet-stream"),
+            ) { destination ->
+                destination ?: return@rememberLauncherForActivityResult
+                scope.launch {
+                    operationInProgress = true
+                    try {
+                        val result = backupRepository.createBackup(
+                            contentResolver = context.contentResolver,
+                            destination = destination,
+                            settings = settings,
+                            appVersion = BuildConfig.VERSION_NAME,
+                            databaseSchemaVersion = 9,
+                        )
+                        Toast.makeText(
+                            context,
+                            "Backup created: ${result.manifest.counts.totalRecords} records",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    } catch (error: Exception) {
+                        Toast.makeText(
+                            context,
+                            "Backup failed: ${error.localizedMessage}",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    } finally {
+                        operationInProgress = false
+                    }
+                }
+            }
+
+            val restoreBackupLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.OpenDocument(),
+            ) { source ->
+                source ?: return@rememberLauncherForActivityResult
+                scope.launch {
+                    operationInProgress = true
+                    try {
+                        pendingRestoreManifest = backupRepository.inspectBackup(
+                            context.contentResolver,
+                            source,
+                        )
+                        pendingRestoreUri = source
+                    } catch (error: Exception) {
+                        Toast.makeText(
+                            context,
+                            "Invalid backup: ${error.localizedMessage}",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    } finally {
+                        operationInProgress = false
+                    }
+                }
+            }
+
             SettingsScreen(
                 settings = settings,
                 onUpdate = onSettingsUpdate,
                 onBack = { navController.popBackStack() },
+                onCreateBackup = {
+                    val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                    createBackupLauncher.launch("GymTrack-backup-$date.gymtrack-backup")
+                },
+                onRestoreBackup = {
+                    restoreBackupLauncher.launch(
+                        arrayOf("application/octet-stream", "application/zip", "application/json"),
+                    )
+                },
+                dataOperationInProgress = operationInProgress,
             )
+
+            val restoreUri = pendingRestoreUri
+            val restoreManifest = pendingRestoreManifest
+            if (restoreUri != null && restoreManifest != null) {
+                AlertDialog(
+                    onDismissRequest = {
+                        pendingRestoreUri = null
+                        pendingRestoreManifest = null
+                    },
+                    title = { Text("Replace all local data?") },
+                    text = {
+                        Text(
+                            "This validated backup contains ${restoreManifest.counts.totalRecords} records. " +
+                                "Your current GymTrack data will be replaced.",
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                pendingRestoreUri = null
+                                pendingRestoreManifest = null
+                                scope.launch {
+                                    operationInProgress = true
+                                    try {
+                                        val result = backupRepository.restoreBackup(
+                                            context = context.applicationContext,
+                                            contentResolver = context.contentResolver,
+                                            source = restoreUri,
+                                        )
+                                        onSettingsUpdate(result.settings)
+                                        Toast.makeText(
+                                            context,
+                                            "Restored ${result.manifest.counts.totalRecords} records",
+                                            Toast.LENGTH_LONG,
+                                        ).show()
+                                    } catch (error: Exception) {
+                                        Toast.makeText(
+                                            context,
+                                            "Restore failed: ${error.localizedMessage}",
+                                            Toast.LENGTH_LONG,
+                                        ).show()
+                                    } finally {
+                                        operationInProgress = false
+                                    }
+                                }
+                            },
+                        ) { Text("Replace and restore") }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = {
+                                pendingRestoreUri = null
+                                pendingRestoreManifest = null
+                            },
+                        ) { Text("Cancel") }
+                    },
+                )
+            }
         }
     }
 }
