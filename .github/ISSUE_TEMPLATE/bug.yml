@@ -1,6 +1,13 @@
 name: Bug report
 description: Report reproducible incorrect behavior, a crash, or a data-integrity problem
 title: "bug: "
+labels:
+  - "type:bug"
+  - "status:ideas"
+assignees:
+  - Znypr
+projects:
+  - Znypr/2
 body:
   - type: markdown
     attributes:
@@ -34,6 +41,22 @@ body:
         - Settings
         - Build or release
         - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: roadmap_phase
+    attributes:
+      label: Roadmap phase or milestone fit
+      description: Select the closest roadmap checkpoint. Use this to set the GitHub milestone after creation when applicable.
+      options:
+        - Phase 1 — Safety and reliability foundation
+        - Phase 2 — Canonical workout data
+        - Phase 3 — Logging workflow reliability
+        - Phase 4 — Statistics and product quality
+        - Phase 5 — Beta and release readiness
+        - Later ambition
+        - No milestone needed
     validations:
       required: true
 
@@ -125,6 +148,8 @@ body:
       label: Submission checks
       options:
         - label: I searched existing Issues for duplicates.
+          required: true
+        - label: I selected the nearest roadmap phase or explicitly marked that no milestone is needed.
           required: true
         - label: I removed private data from attachments.
           required: true
