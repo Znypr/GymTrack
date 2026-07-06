@@ -43,12 +43,23 @@ For a solo-maintained project, formal approval can initially remain optional. Re
 Label groups:
 
 - `type:*` — nature of the work;
-- `priority:*` — urgency and impact;
+- `priority:*` — execution rank and practical priority;
 - `area:*` — affected product or technical area;
-- `status:*` — triage, readiness, validation, blockers, and required decisions;
+- `status:*` — mutually exclusive workflow states that synchronize the Project `Status` field;
+- `flag:*` — blockers, pending decisions, or other cross-cutting state;
 - `risk:*` — migration, compatibility, performance, privacy, or release risk.
 
-Every triaged issue should have one type, one priority, one or more areas, and relevant risks. Workflow status labels are mutually exclusive.
+Every triaged issue should have one type, one `priority:*` execution-rank label, one or more areas, and relevant risk or flag labels. Workflow status labels are mutually exclusive and are maintained by automation when pull-request state changes.
+
+Execution-rank labels:
+
+1. `priority:01-now`
+2. `priority:02-next`
+3. `priority:03-soon`
+4. `priority:04-later`
+5. `priority:05-icebox`
+
+The numeric prefix is intentional. It makes the labels visually sortable and keeps the execution order stable in issue lists and Project table views.
 
 ## GitHub Project
 
@@ -58,11 +69,11 @@ Configuration rules:
 
 - add the actual Issue, not a duplicate draft item;
 - keep one Project item per Issue;
-- use a board grouped by Status for active work;
-- use table views for backlog, priority, and area filters;
-- display issue labels instead of duplicating type, priority, and area into separate fields unless a field has a demonstrated Project-specific purpose;
-- automate issue addition and Status synchronization where possible;
-- treat manual movement as fallback behavior only.
+- use a board grouped by the `Status` workflow field;
+- use a table view that displays labels for type, priority/execution rank, area, flags, and risks;
+- display issue labels instead of duplicating type, priority, and area into separate Project fields unless a field has a demonstrated Project-specific purpose;
+- automate issue addition and `Status` synchronization;
+- treat manual movement as recovery behavior only.
 
 The Project does not replace the Issue body. Scope, acceptance criteria, blockers, and validation remain in the Issue.
 
@@ -76,52 +87,49 @@ Required repository secret:
 GYMTRACK_PROJECT_TOKEN
 ```
 
-The secret must contain a GitHub token that can read and write the repository and user-owned Project. The workflow resolves the Project, Status field, Project item, and Status option IDs at runtime.
+The secret must contain a GitHub token that can read and write the repository and user-owned Project. The workflow resolves the Project, `Status` field, Project item, and Status option IDs at runtime.
 
-Canonical Status order:
+Canonical `Status` order:
 
-1. Triage
-2. Backlog
+1. Ideas
+2. Planned
 3. Ready
 4. In Progress
-5. In Review
-6. Validation
-7. Blocked
-8. Needs decision
-9. Done
+5. Needs Manual Review
+6. Completed
 
-The workflow creates any missing canonical Status options and preserves the IDs of existing options so current card values are not cleared.
+The workflow creates any missing canonical `Status` options and preserves the IDs of matching legacy options so current card values are not cleared.
 
 Status mapping:
 
-| Repository state | Project Status |
+| Repository state | Project `Status` |
 | --- | --- |
-| Closed issue or merged linked pull request | Done |
-| `status:needs-decision` | Needs decision |
-| `status:blocked` | Blocked |
-| `status:validation` | Validation |
-| `status:needs-triage` | Triage |
+| Closed issue or merged linked pull request | Completed |
 | Open linked draft pull request | In Progress |
-| Open linked ready pull request | In Review |
+| Open linked ready pull request | Needs Manual Review |
+| `status:completed` | Completed |
+| `status:needs-manual-review` | Needs Manual Review |
+| `status:in-progress` | In Progress |
 | `status:ready` | Ready |
-| Other open issue | Backlog |
+| `status:planned` | Planned |
+| `status:ideas` | Ideas |
+| Other open issue | Planned |
 
-Explicit workflow labels take precedence over pull-request state. The workflow no longer falls back from `Blocked`, `Needs decision`, or `Validation` to unrelated columns.
+The workflow also enforces one active `status:*` label at a time. Legacy workflow labels such as `status:needs-triage`, `status:needs-review`, `status:validation`, `status:blocked`, and `status:needs-decision` are migrated or removed when an issue is touched. Use `flag:blocked` or `flag:decision-needed` for metadata that is not a board column.
 
 Use the workflow's manual dispatch with an issue number to backfill, test, or recover synchronization for an existing Issue.
 
 ## Issue and pull-request workflow
 
-- New issues receive `status:needs-triage`.
-- Triage assigns type, priority, areas, risks, parent, and blockers.
-- A triaged issue without a workflow label is backlog.
-- `status:needs-decision` marks unresolved decisions.
-- `status:blocked` requires an explicit `Blocked by #N` relationship.
+- New issues receive `status:ideas`.
+- Triage assigns type, priority/execution rank, areas, risks, flags, parent, and blockers.
+- A valid but not-yet-executable issue receives `status:planned`.
+- `flag:decision-needed` marks unresolved product, architecture, or scope decisions.
+- `flag:blocked` requires an explicit `Blocked by #N` relationship.
 - `status:ready` is applied only after Definition of Ready.
 - A draft pull request represents implementation in progress.
-- A ready pull request represents review.
-- `status:validation` means automated checks pass and only runtime or manual confirmation remains.
-- Squash merge with `Closes #N` closes the Issue.
+- A ready pull request represents manual review.
+- Squash merge with `Closes #N` closes the Issue and moves it to Completed.
 
 See [`docs/TICKET_BOARD.md`](TICKET_BOARD.md) for the canonical tracking rules.
 
