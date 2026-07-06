@@ -75,17 +75,32 @@ Every triaged issue should have:
 
 Labels remain the canonical classification metadata. Project views may display and filter those labels without copying them into separate custom fields.
 
-## Project view
+## Project views
 
 The Project should contain the issue itself, never a duplicate draft item describing the same work.
 
-Recommended views:
+Keep the Project intentionally small. It should answer three recurring questions:
 
-- **Board:** grouped by Status for active work;
-- **Backlog:** table filtered to open issues without active implementation;
-- **Priority:** grouped or sorted by `priority:*` labels;
-- **Area:** filtered by `area:*` labels;
-- **Recently done:** closed issues and merged pull requests.
+1. What is active now?
+2. What is ready or waiting?
+3. What was recently finished?
+
+Persistent Project views:
+
+- **Active board:** board grouped by Status for triage, ready work, active implementation, review, validation, blocked work, decisions, and done work.
+- **Backlog table:** table of open issues that are not actively being implemented, reviewed, or validated. Sort by priority, then updated date. Use labels for type, area, and risk.
+- **Recently done:** closed issues and merged pull requests for recent review, cleanup, and release-note checks.
+
+Do not maintain separate permanent Project views for priority, area, bug lists, documentation work, automation work, PR-only status, roadmap slices, or all completed work. Use issue labels, GitHub filters, or temporary ad-hoc views for those questions.
+
+A new persistent Project view requires its own issue and should be approved only when it meets all of these conditions:
+
+- it supports a repeated planning or execution decision;
+- it cannot be answered cleanly by filtering labels in an existing view;
+- it does not duplicate issue labels, pull-request state, or static documentation;
+- it has a named owner or maintenance reason.
+
+Temporary views may be created for audits, releases, or cleanup passes, but they should be deleted when the task is complete.
 
 Canonical board columns:
 
@@ -258,19 +273,3 @@ Remove the label and update the body when the dependency is resolved. Completed 
 ## Validation
 
 Use `status:validation` only after implementation and automated checks are complete and the remaining work is runtime, device, emulator, workflow-UI, or other manual confirmation.
-
-The validation ticket or parent issue should list the exact test matrix and required evidence. Remove the label when validation fails and implementation resumes, or close the issue when validation passes and the associated pull request merges.
-
-## Operating rules
-
-- One real work item equals one GitHub Issue.
-- One Project card points to that issue.
-- One pull request has one principal issue.
-- One execution stream has one principal active implementation issue.
-- No substantive work exists only in chat.
-- Scope changes update the ticket before implementation continues.
-- Discovered work becomes a linked ticket.
-- Paused work receives a resumable checkpoint.
-- The roadmap contains outcomes, not ticket state.
-- Architecture documents contain system design, not the active implementation queue.
-- Static status snapshots are not maintained.
