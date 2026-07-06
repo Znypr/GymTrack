@@ -44,7 +44,8 @@ jobs:
               { name: 'Ideas', aliases: ['Inbox', 'Triage', 'Needs decision'], color: 'PINK', description: 'Raw, unclear, unclassified, or decision-needed work' },
               { name: 'Planned', aliases: ['Backlog'], color: 'YELLOW', description: 'Valid work that is not executable yet' },
               { name: 'Ready', aliases: [], color: 'BLUE', description: 'Ready to enter implementation' },
-              { name: 'In Progress', aliases: ['Doing', 'In Review', 'Review', 'Validation'], color: 'RED', description: 'Implementation, review, or validation is active' },
+              { name: 'In Progress', aliases: ['Doing'], color: 'RED', description: 'Implementation is active' },
+              { name: 'Needs Review', aliases: ['In Review', 'Review', 'Validation'], color: 'PURPLE', description: 'Ready for manual review or validation' },
               { name: 'Completed', aliases: ['Done'], color: 'BLUE', description: 'Completed work' }
             ];
 
@@ -169,7 +170,10 @@ jobs:
             function issueStatus(issue, linkedPullRequest) {
               const labels = new Set(issue.labels.map(label => typeof label === 'string' ? label : label.name));
               if (issue.state === 'closed' || linkedPullRequest?.merged) return 'Completed';
-              if (linkedPullRequest && linkedPullRequest.state === 'open') return 'In Progress';
+              if (linkedPullRequest && linkedPullRequest.state === 'open') {
+                return linkedPullRequest.draft ? 'In Progress' : 'Needs Review';
+              }
+              if (labels.has('status:needs-review')) return 'Needs Review';
               if (labels.has('status:ready')) return 'Ready';
               if (labels.has('status:needs-triage')) return 'Ideas';
               if (context.eventName === 'issues' && ['opened', 'reopened'].includes(context.payload.action)) return 'Ideas';
