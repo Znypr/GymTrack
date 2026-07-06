@@ -51,6 +51,36 @@ Workflow labels are mutually exclusive and mirror the Project `Status` field:
 - `status:needs-manual-review`
 - `status:completed`
 
+## Minimum metadata
+
+The goal is a professional work record, not administrative noise. Fill the sidebar and body fields that help prioritization, review, and later resumption.
+
+For every non-trivial issue:
+
+| Field | Rule |
+|---|---|
+| Assignee | Assign the current owner. Use `Znypr` for solo-owned GymTrack work unless another owner is explicit. |
+| Labels | Include exactly one `type:*`, one workflow `status:*`, one priority label, and at least one `area:*`. Add `risk:*` or `flag:*` only when useful. |
+| Project | Add the issue to `Creator OS - Operations`; do not create duplicate operational cards elsewhere. |
+| Milestone | Set a milestone only when the issue advances a roadmap phase, release checkpoint, or charter-level outcome. Do not use milestones for status, priority, or permanent areas. |
+| Development | Link implementation through a branch and pull request; the PR must use `Closes #N`. |
+
+Milestone choice follows the charter and roadmap before local convenience:
+
+- safety and migration work maps to Phase 1;
+- canonical workout model work maps to Phase 2;
+- editor, autosave, and timer reliability map to Phase 3;
+- statistics and product-quality work map to Phase 4;
+- signing, release, privacy, and beta-readiness work map to Phase 5.
+
+For pull requests:
+
+- keep the linked issue as the main Project card unless the pull request itself needs independent tracking;
+- assign the implementer;
+- request reviewers only after the draft becomes ready for review;
+- copy the linked issue milestone when the PR represents that milestone work;
+- add labels only when they clarify review scope, risk, or release handling.
+
 ## Automation rules
 
 - New issues go to Ideas and receive `status:ideas`.
@@ -71,3 +101,4 @@ Workflow labels are mutually exclusive and mirror the Project `Status` field:
 - Paused work receives a resumable checkpoint.
 - The roadmap contains outcomes, not ticket state.
 - Architecture docs contain system design, not the active queue.
+- Missing metadata is fixed during triage before work is marked Ready.
