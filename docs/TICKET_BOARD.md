@@ -37,8 +37,9 @@ Use labels for ticket metadata and workflow transition commands.
 Metadata labels:
 
 - `type:*` — kind of work.
-- `priority:01-now` through `priority:05-icebox` — execution rank. The numeric prefix is intentional so labels sort in execution order.
-- `area:*` — affected product or technical area.
+- `priority:p0` through `priority:p3` — importance bucket. P0 is urgent or critical; P3 is low-priority or optional.
+- `rank:NNN` — optional explicit order inside a priority bucket.
+- `area:*` — affected product, technical, or governance area.
 - `risk:*` — migration, compatibility, performance, privacy, or release risk.
 - `flag:*` — cross-cutting state such as blockers or pending decisions.
 
@@ -51,6 +52,36 @@ Workflow labels are mutually exclusive and mirror the Project `Status` field:
 - `status:needs-manual-review`
 - `status:completed`
 
+## Minimum metadata
+
+The goal is a professional work record, not administrative noise. Fill the sidebar and body fields that help prioritization, review, and later resumption.
+
+For every non-trivial issue:
+
+| Field | Rule |
+|---|---|
+| Assignee | Assign the current owner. Use `Znypr` for solo-owned GymTrack work unless another owner is explicit. |
+| Labels | Include exactly one `type:*`, one workflow `status:*`, one `priority:*`, and at least one `area:*`. Add `rank:NNN`, `risk:*`, or `flag:*` only when useful. |
+| Project | Add the issue to `Creator OS - Operations`; do not create duplicate operational cards elsewhere. |
+| Milestone | Set a milestone only when the issue advances a roadmap phase, release checkpoint, or charter-level outcome. Do not use milestones for status, priority, or permanent areas. |
+| Development | Link implementation through a branch and pull request; the PR must use `Closes #N`. |
+
+Milestone choice follows the charter and roadmap before local convenience:
+
+- safety and migration work maps to Phase 1;
+- canonical workout model work maps to Phase 2;
+- editor, autosave, and timer reliability map to Phase 3;
+- statistics and product-quality work map to Phase 4;
+- signing, release, privacy, and beta-readiness work map to Phase 5.
+
+For pull requests:
+
+- keep the linked issue as the main Project card unless the pull request itself needs independent tracking;
+- assign the implementer;
+- request reviewers only after the draft becomes ready for review;
+- copy the linked issue milestone when the PR represents that milestone work;
+- add labels only when they clarify review scope, risk, or release handling.
+
 ## Automation rules
 
 - New issues go to Ideas and receive `status:ideas`.
@@ -59,8 +90,35 @@ Workflow labels are mutually exclusive and mirror the Project `Status` field:
 - A linked draft pull request moves the ticket to In Progress and applies `status:in-progress`.
 - A linked ready-for-review pull request moves the ticket to Needs Manual Review and applies `status:needs-manual-review`.
 - Closed issues or merged linked pull requests move the ticket to Completed and apply `status:completed`.
+- Full reconciliation runs include open and closed issues so the Completed column is backfilled.
 - Adding one workflow status label removes the other workflow status labels.
 - The board should not be manually dragged except as recovery. Change the issue status label or pull-request state instead.
+
+## Pull-request branch refresh
+
+Use `.github/workflows/update-pr-branch.yml` when a ready pull request is mergeable but branch protection still requires the PR branch to include the latest protected base branch.
+
+This workflow is the controlled automation equivalent of GitHub's **Update branch -> Update with merge commit** button.
+
+Manual dispatch:
+
+1. Open **Actions**.
+2. Select **Update PR branch**.
+3. Click **Run workflow**.
+4. Enter the pull request number.
+5. Run the workflow.
+6. Wait for the merge commit and follow-up required checks.
+
+Safety rules:
+
+- open pull requests only;
+- draft pull requests are rejected;
+- fork pull requests are rejected;
+- the workflow checks that the PR head SHA did not move before merging;
+- merge conflicts fail the workflow and must be resolved manually;
+- the workflow creates a normal merge commit on the PR branch and never rebases or force-pushes.
+
+Prefer this workflow only for PRs that are otherwise ready for review, waiting on required checks, or waiting for auto-merge.
 
 ## Operating rules
 
@@ -71,3 +129,4 @@ Workflow labels are mutually exclusive and mirror the Project `Status` field:
 - Paused work receives a resumable checkpoint.
 - The roadmap contains outcomes, not ticket state.
 - Architecture docs contain system design, not the active queue.
+- Missing metadata is fixed during triage before work is marked Ready.

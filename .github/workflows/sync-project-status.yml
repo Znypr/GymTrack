@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       issue_number:
-        description: Optional issue number to synchronize. Leave empty to sync all open issues.
+        description: Optional issue number to synchronize. Leave empty to sync all issues, including closed issues.
         required: false
         type: number
   schedule:
@@ -48,6 +48,7 @@ jobs:
             const defaultArea = process.env.DEFAULT_AREA;
             const { owner, repo } = context.repo;
             const norm = value => String(value || '').trim().toLowerCase();
+            core.info('Closed issues are included during full reconciliation so Completed columns are backfilled.');
 
             const statuses = [
               { name: 'Ideas', aliases: ['Inbox', 'Triage', 'Needs decision'], color: 'PINK', description: 'Raw, unclear, unclassified, or decision-needed work' },
@@ -98,7 +99,12 @@ jobs:
             }));
 
             const statusLabelToProject = new Map([
-              ['status:ideas', 'Ideas'], ['status:needs-triage', 'Ideas'], ['status:planned', 'Planned'], ['status:ready', 'Ready'], ['status:in-progress', 'In Progress'], ['status:needs-manual-review', 'Needs Manual Review'], ['status:needs-review', 'Needs Manual Review'], ['status:validation', 'Needs Manual Review'], ['status:completed', 'Completed']
+              ['status:ideas', 'Ideas'], ['status:needs-triage', 'Ideas'],
+              ['status:planned', 'Planned'],
+              ['status:ready', 'Ready'],
+              ['status:in-progress', 'In Progress'],
+              ['status:needs-manual-review', 'Needs Manual Review'], ['status:needs-review', 'Needs Manual Review'], ['status:validation', 'Needs Manual Review'],
+              ['status:completed', 'Completed']
             ]);
             const projectToStatusLabel = new Map([['Ideas', 'status:ideas'], ['Planned', 'status:planned'], ['Ready', 'status:ready'], ['In Progress', 'status:in-progress'], ['Needs Manual Review', 'status:needs-manual-review'], ['Completed', 'status:completed']]);
             const allWorkflowStatusLabels = new Set([...statusLabelToProject.keys(), 'status:blocked', 'status:needs-decision']);
@@ -145,20 +151,30 @@ jobs:
               const confidence = titleCaseSlug([...labels].find(label => label.startsWith('confidence:'))?.slice('confidence:'.length)) || null;
               return { Area: defaultArea, Type: typeLabel, Priority: priorityEntry?.priority, 'Priority Score': priorityEntry?.score, 'Execution rank': rankLabel || priorityEntry?.rank, Energy: energy, Confidence: confidence };
             }
+            async function loadProject() {
+              const result = await github.graphql(`query($login: String!, $number: Int!) { user(login: $login) { projectV2(number: $number) { id fields(first: 100) { nodes { __typename ... on ProjectV2Field { id name dataType } ... on ProjectV2SingleSelectField { id name options { id name color description } } } } } } }`, { login: projectOwner, number: projectNumber });
+              const project = result.user.projectV2;
+              const fields = new Map(project.fields.nodes.filter(Boolean).map(field => [field.name, field]));
+              return { project, fields };
+            }
+            async function syncStatusOptions(fields) {
+              const statusField = fields.get('Status');
+              if (!statusField) throw new Error('Project Status field not found.');
+              const usedIds = new Set();
+              const statusOptions = statuses.map(status => {
+                const names = [status.name, ...status.aliases].map(norm);
+                const existing = statusField.options.find(option => names.includes(norm(option.name)) && !usedIds.has(option.id));
+                if (existing) usedIds.add(existing.id);
+                return { ...(existing?.id ? { id: existing.id } : {}), name: status.name, color: status.color, description: status.description };
+              });
+              await github.graphql(`mutation($fieldId: ID!, $options: [ProjectV2SingleSelectFieldOptionInput!]!) { updateProjectV2Field(input: { fieldId: $fieldId, singleSelectOptions: $options }) { projectV2Field { ... on ProjectV2SingleSelectField { id } } } }`, { fieldId: statusField.id, options: statusOptions });
+            }
 
-            const projectResult = await github.graphql(`query($login: String!, $number: Int!) { user(login: $login) { projectV2(number: $number) { id fields(first: 100) { nodes { __typename ... on ProjectV2Field { id name dataType } ... on ProjectV2SingleSelectField { id name options { id name color description } } } } } } }`, { login: projectOwner, number: projectNumber });
-            const project = projectResult.user.projectV2;
-            const fields = new Map(project.fields.nodes.filter(Boolean).map(field => [field.name, field]));
-            const statusField = fields.get('Status');
-            if (!statusField) throw new Error('Project Status field not found.');
-            const usedIds = new Set();
-            const statusOptions = statuses.map(status => {
-              const names = [status.name, ...status.aliases].map(norm);
-              const existing = statusField.options.find(option => names.includes(norm(option.name)) && !usedIds.has(option.id));
-              if (existing) usedIds.add(existing.id);
-              return { ...(existing?.id ? { id: existing.id } : {}), name: status.name, color: status.color, description: status.description };
-            });
-            await github.graphql(`mutation($fieldId: ID!, $options: [ProjectV2SingleSelectFieldOptionInput!]!) { updateProjectV2Field(input: { fieldId: $fieldId, singleSelectOptions: $options }) { projectV2Field { ... on ProjectV2SingleSelectField { id } } } }`, { fieldId: statusField.id, options: statusOptions });
+            let projectInfo = await loadProject();
+            await syncStatusOptions(projectInfo.fields);
+            projectInfo = await loadProject();
+            const project = projectInfo.project;
+            const fields = projectInfo.fields;
 
             async function findOrAddItem(issue) {
               const existing = await github.graphql(`query($issue: ID!) { node(id: $issue) { ... on Issue { projectItems(first: 100) { nodes { id project { id } } } } } }`, { issue: issue.node_id });
@@ -222,8 +238,8 @@ jobs:
             if (context.eventName === 'workflow_dispatch' && context.payload.inputs.issue_number) {
               numbers = [Number(context.payload.inputs.issue_number)];
             } else if (['workflow_dispatch', 'schedule', 'push'].includes(context.eventName)) {
-              const openIssues = await github.paginate(github.rest.issues.listForRepo, { owner, repo, state: 'open', per_page: 100 });
-              numbers = openIssues.filter(issue => !issue.pull_request).map(issue => issue.number);
+              const issues = await github.paginate(github.rest.issues.listForRepo, { owner, repo, state: 'all', per_page: 100 });
+              numbers = issues.filter(issue => !issue.pull_request).map(issue => issue.number);
             } else if (context.eventName === 'issues') {
               numbers = [context.payload.issue.number];
             } else if (context.eventName === 'pull_request') {

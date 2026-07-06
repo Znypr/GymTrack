@@ -1,0 +1,79 @@
+name: Update PR branch
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to update with the latest base branch
+        required: true
+        type: number
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: update-pr-branch-${{ inputs.pr_number }}
+  cancel-in-progress: false
+
+jobs:
+  update-pr-branch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Read pull request
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pull_number = Number(core.getInput('pr_number'));
+            const { owner, repo } = context.repo;
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
+
+            if (pr.state !== 'open') {
+              core.setFailed(`PR #${pull_number} is not open.`);
+              return;
+            }
+
+            if (pr.draft) {
+              core.setFailed(`PR #${pull_number} is draft. Mark it ready before updating the branch.`);
+              return;
+            }
+
+            if (pr.head.repo.full_name !== `${owner}/${repo}`) {
+              core.setFailed(`PR #${pull_number} is from a fork. Refusing to push to a fork branch.`);
+              return;
+            }
+
+            core.setOutput('head_ref', pr.head.ref);
+            core.setOutput('base_ref', pr.base.ref);
+            core.setOutput('head_sha', pr.head.sha);
+
+      - name: Check out PR head branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.head_ref }}
+          fetch-depth: 0
+
+      - name: Merge latest base branch
+        env:
+          BASE_REF: ${{ steps.pr.outputs.base_ref }}
+          EXPECTED_HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          current_head="$(git rev-parse HEAD)"
+          if [ "$current_head" != "$EXPECTED_HEAD_SHA" ]; then
+            echo "PR head moved from $EXPECTED_HEAD_SHA to $current_head before checkout completed. Re-run the workflow."
+            exit 1
+          fi
+
+          git fetch origin "$BASE_REF"
+          git merge --no-edit --no-ff "origin/$BASE_REF"
+
+      - name: Push updated PR branch
+        run: git push

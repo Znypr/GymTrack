@@ -2,13 +2,21 @@
 
 Closes #
 
+## Sidebar metadata
+
+- [ ] Assignee is set.
+- [ ] Reviewers are requested when this PR is ready for review.
+- [ ] Labels clarify type, status/risk, or release handling where useful.
+- [ ] Project usage matches the linked issue; no duplicate Project card unless this PR itself needs tracking.
+- [ ] Milestone matches the linked issue when this PR advances a roadmap phase or release checkpoint.
+
 ## Problem
 
 What user or technical problem does this solve?
 
 ## Charter alignment
 
-Which product principle, goal, or roadmap objective does this support?
+Which product principle, goal, roadmap phase, or milestone does this support?
 
 ## Solution
 
