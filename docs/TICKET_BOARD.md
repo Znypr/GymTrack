@@ -61,7 +61,7 @@ Work may enter `status:ready` only when:
 - risks and validation requirements are recorded;
 - the next implementation action is clear enough to begin without another planning pass.
 
-An issue that does not satisfy these conditions remains in Triage, Backlog, Needs decision, or Blocked.
+An issue that does not satisfy these conditions remains in Inbox, Backlog, or Blocked.
 
 ## Classification
 
@@ -70,25 +70,55 @@ Every triaged issue should have:
 - exactly one `type:*` label;
 - exactly one `priority:*` label;
 - one or more `area:*` labels;
-- relevant `risk:*` labels;
-- at most one workflow label: `status:needs-triage`, `status:ready`, `status:validation`, `status:blocked`, or `status:needs-decision`.
+- relevant `risk:*` labels when needed;
+- at most one workflow label: `status:needs-triage`, `status:ready`, or `status:blocked`.
 
 Labels remain the canonical classification metadata. Project views may display and filter those labels without copying them into separate custom fields.
 
-## Project views
+Do not create workflow labels for normal implementation phases such as review, validation, or decision required. Those states belong in the issue body, pull request, checks, or latest checkpoint.
+
+## Project board
 
 The Project should contain the issue itself, never a duplicate draft item describing the same work.
 
-Keep the Project intentionally small. It should answer three recurring questions:
+Keep the board intentionally small. It should answer one question: what should happen next?
 
-1. What is active now?
-2. What is ready or waiting?
-3. What was recently finished?
+Canonical board columns:
 
-Persistent Project views:
+1. **Inbox** — new, unclear, unclassified, or decision-needed work.
+2. **Backlog** — valid work that is not ready or active.
+3. **Ready** — specified work that can start without another planning pass.
+4. **Doing** — active implementation, review, or validation.
+5. **Blocked** — work that cannot continue until a real dependency is resolved.
+6. **Done** — completed work.
 
-- **Active board:** board grouped by Status for triage, ready work, active implementation, review, validation, blocked work, decisions, and done work.
-- **Backlog table:** table of open issues that are not actively being implemented, reviewed, or validated. Sort by priority, then updated date. Use labels for type, area, and risk.
+Do not maintain separate permanent columns for `In Progress`, `In Review`, `Validation`, or `Needs decision`.
+
+Use this mapping when simplifying an existing board:
+
+| Current column | New column |
+|---|---|
+| Triage | Inbox |
+| Needs decision | Inbox |
+| Backlog | Backlog |
+| Ready | Ready |
+| In Progress | Doing |
+| In Review | Doing |
+| Validation | Doing |
+| Blocked | Blocked |
+| Done | Done |
+
+Review state is visible from the pull request. Validation state is visible from checks, acceptance criteria, and checkpoint comments. Decision state is visible from the issue body and latest checkpoint.
+
+Project Status is a visual projection of issue and pull-request state. Automation should add issues and synchronize the small column set. Manual card movement is fallback behavior, not the normal workflow.
+
+## Project views
+
+The default board is the main view. Additional permanent views should be rare.
+
+Recommended persistent views:
+
+- **Board:** the six-column workflow above.
 - **Recently done:** closed issues and merged pull requests for recent review, cleanup, and release-note checks.
 
 Do not maintain separate permanent Project views for priority, area, bug lists, documentation work, automation work, PR-only status, roadmap slices, or all completed work. Use issue labels, GitHub filters, or temporary ad-hoc views for those questions.
@@ -101,20 +131,6 @@ A new persistent Project view requires its own issue and should be approved only
 - it has a named owner or maintenance reason.
 
 Temporary views may be created for audits, releases, or cleanup passes, but they should be deleted when the task is complete.
-
-Canonical board columns:
-
-1. Triage
-2. Backlog
-3. Ready
-4. In Progress
-5. In Review
-6. Validation
-7. Blocked
-8. Needs decision
-9. Done
-
-Project Status is a visual projection of issue and pull-request state. Automation should add issues, create missing canonical Status options, and synchronize status. Manual card movement is fallback behavior, not the normal workflow.
 
 ## Deterministic execution sequence
 
@@ -156,7 +172,7 @@ Use this structure:
 ```markdown
 ## Execution checkpoint
 
-**Current state:** In progress | In review | Validation | Blocked | Needs decision
+**Current state:** Doing | Blocked | Done
 
 **Completed:**
 - concrete completed work
@@ -194,13 +210,15 @@ Conversation history may provide convenience but is never the source of truth.
 
 ### 6. Review
 
-Mark the pull request ready for review only when implementation and automated checks satisfy the issue contract. The board then moves to In Review unless an explicit workflow label overrides it.
+Keep the issue in Doing while the pull request is under review. The pull request itself records review state.
+
+Mark the pull request ready for review only when implementation and automated checks satisfy the issue contract.
 
 ### 7. Validate
 
-Apply `status:validation` only when implementation and automated checks are complete and the remaining work is runtime, device, emulator, workflow-UI, migration-fixture, or other manual confirmation.
+Keep the issue in Doing while runtime, device, emulator, workflow-UI, migration-fixture, or other manual confirmation remains.
 
-Record each result against the acceptance criteria. A failed validation returns the issue to implementation; it does not remain marked as complete.
+Record each result against the acceptance criteria. A failed validation stays in Doing and updates the next exact action.
 
 ### 8. Complete
 
@@ -226,17 +244,12 @@ Small repository changes are not exempt. A short task should use a short ticket,
 
 ## Lifecycle
 
-1. New issue: `status:needs-triage`.
-2. Triaged backlog: classification labels present, no workflow label.
-3. Decision required: `status:needs-decision`.
-4. Blocked: `status:blocked` with `Blocked by #...` in the issue body.
-5. Ready: `status:ready` after the Definition of Ready is satisfied.
-6. In progress: linked draft pull request exists; remove `status:ready`.
-7. In review: linked pull request is ready for review.
-8. Validation: automated checks pass and only runtime or manual confirmation remains; apply `status:validation`.
-9. Done: pull request merges with `Closes #N`, closing the issue.
-
-Explicit workflow labels take precedence over pull-request state. For example, an issue with a draft pull request and `status:validation` appears in Validation rather than In Progress.
+1. New issue: Inbox, with `status:needs-triage` when classification is missing.
+2. Triaged backlog: Backlog, classification labels present, no workflow label.
+3. Ready: Ready, with `status:ready` after the Definition of Ready is satisfied.
+4. Doing: active branch, draft pull request, pull request review, or remaining validation.
+5. Blocked: Blocked, with `status:blocked` and `Blocked by #...` in the issue body.
+6. Done: pull request merges with `Closes #N`, closing the issue.
 
 The Project view may show these states, but the issue, pull request, checks, and checkpoint determine the truth.
 
@@ -272,9 +285,9 @@ Remove the label and update the body when the dependency is resolved. Completed 
 
 ## Validation
 
-Use `status:validation` only after implementation and automated checks are complete and the remaining work is runtime, device, emulator, workflow-UI, or other manual confirmation.
+Manual validation is not a separate board state. It remains part of Doing until the acceptance criteria and required evidence are complete.
 
-The validation ticket or parent issue should list the exact test matrix and required evidence. Remove the label when validation fails and implementation resumes, or close the issue when validation passes and the associated pull request merges.
+The issue or parent issue should list the exact test matrix and required evidence. If validation fails, update the next exact action and keep the issue in Doing. If validation passes, record the evidence and complete the associated pull request or issue.
 
 ## Operating rules
 
