@@ -35,7 +35,8 @@ The Project view displays Issues. It must not contain separate duplicate cards o
 14. Mark the pull request ready only after implementation and required checks are complete.
 15. Let automation move ready pull requests to `status:needs-manual-review`.
 16. Record emulator or device validation for runtime behavior changes.
-17. Squash merge with `Closes #N` and delete the branch.
+17. If branch protection requires a current base branch, run **Actions -> Update PR branch** with the pull request number.
+18. Squash merge with `Closes #N` and delete the branch.
 
 Automation should add Issues to the Project and update its visual status. Full reconciliation includes closed issues so Completed cards are present after migration. Manual board movement is recovery behavior only.
 
@@ -89,6 +90,7 @@ spike/190-timer-restoration-options
 - Request reviewers only when the pull request is ready for review.
 - Keep milestone and Project metadata aligned with the linked issue; do not create duplicate Project work unless the pull request itself is the tracked review object.
 - Add PR labels only when they clarify review scope, risk, release handling, or automation state.
+- Use **Actions -> Update PR branch** when GitHub requires updating with the latest base branch before required checks can pass.
 - Include screenshots or video for visible UI changes.
 - Record emulator or device validation for runtime changes.
 - Do not merge when required checks did not run.
@@ -137,37 +139,3 @@ test(import): cover multiline fields
 docs(architecture): document canonical workout model
 chore(build): remove duplicate dependencies
 ```
-
-Avoid vague messages such as `update`, `fixed bugs`, or `icons`.
-
-## Architecture changes
-
-Create an ADR when a change:
-
-- changes the canonical data model;
-- changes persistence, backup, or restore strategy;
-- changes import/export compatibility;
-- introduces or removes a major dependency;
-- changes Gradle-module boundaries;
-- creates a long-term platform constraint.
-
-## Scope discipline
-
-When unrelated problems are found:
-
-1. create or update the relevant Issue;
-2. link it from the pull request when useful;
-3. do not expand the current pull request unless required for correctness.
-
-## Security and privacy
-
-Do not commit:
-
-- signing keys;
-- credentials or tokens;
-- personal workout exports;
-- local paths or generated source dumps;
-- production user data;
-- private logs containing user content.
-
-Use synthetic fixtures for tests.
