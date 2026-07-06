@@ -37,7 +37,7 @@ The Project view displays Issues. It must not contain separate duplicate cards o
 16. Record emulator or device validation for runtime behavior changes.
 17. Squash merge with `Closes #N` and delete the branch.
 
-Automation should add Issues to the Project and update its visual status. Manual board movement is recovery behavior only.
+Automation should add Issues to the Project and update its visual status. Full reconciliation includes closed issues so Completed cards are present after migration. Manual board movement is recovery behavior only.
 
 See [`docs/TICKET_BOARD.md`](docs/TICKET_BOARD.md) for issue, Project, parent-child, and dependency rules.
 
