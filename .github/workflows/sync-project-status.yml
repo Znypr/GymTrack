@@ -48,6 +48,7 @@ jobs:
             const defaultArea = process.env.DEFAULT_AREA;
             const { owner, repo } = context.repo;
             const norm = value => String(value || '').trim().toLowerCase();
+            core.info('Closed issues are included during full reconciliation so Completed columns are backfilled.');
 
             const statuses = [
               { name: 'Ideas', aliases: ['Inbox', 'Triage', 'Needs decision'], color: 'PINK', description: 'Raw, unclear, unclassified, or decision-needed work' },
