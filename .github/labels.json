@@ -24,6 +24,7 @@
 
   {"name":"status:needs-triage","color":"ededed","description":"Requires clarification or classification"},
   {"name":"status:ready","color":"0e8a16","description":"Meets Definition of Ready and may enter implementation"},
+  {"name":"status:needs-review","color":"d4c5f9","description":"Ready for manual review or validation"},
   {"name":"status:blocked","color":"b60205","description":"Cannot progress because of a dependency"},
 
   {"name":"risk:data-migration","color":"e99695","description":"May change or migrate persisted user data"},
