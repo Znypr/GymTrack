@@ -5,6 +5,11 @@ on:
     types: [opened, edited, reopened, closed, labeled, unlabeled]
   pull_request:
     types: [opened, edited, reopened, converted_to_draft, ready_for_review, closed]
+  push:
+    branches: [master]
+    paths:
+      - .github/workflows/sync-project-status.yml
+      - .github/labels.json
   workflow_dispatch:
     inputs:
       issue_number:
@@ -93,284 +98,106 @@ jobs:
             }));
 
             const statusLabelToProject = new Map([
-              ['status:ideas', 'Ideas'],
-              ['status:needs-triage', 'Ideas'],
-              ['status:planned', 'Planned'],
-              ['status:ready', 'Ready'],
-              ['status:in-progress', 'In Progress'],
-              ['status:needs-manual-review', 'Needs Manual Review'],
-              ['status:needs-review', 'Needs Manual Review'],
-              ['status:validation', 'Needs Manual Review'],
-              ['status:completed', 'Completed']
+              ['status:ideas', 'Ideas'], ['status:needs-triage', 'Ideas'], ['status:planned', 'Planned'], ['status:ready', 'Ready'], ['status:in-progress', 'In Progress'], ['status:needs-manual-review', 'Needs Manual Review'], ['status:needs-review', 'Needs Manual Review'], ['status:validation', 'Needs Manual Review'], ['status:completed', 'Completed']
             ]);
-
-            const projectToStatusLabel = new Map([
-              ['Ideas', 'status:ideas'],
-              ['Planned', 'status:planned'],
-              ['Ready', 'status:ready'],
-              ['In Progress', 'status:in-progress'],
-              ['Needs Manual Review', 'status:needs-manual-review'],
-              ['Completed', 'status:completed']
-            ]);
-
-            const allWorkflowStatusLabels = new Set([
-              ...statusLabelToProject.keys(),
-              'status:blocked',
-              'status:needs-decision'
-            ]);
-
+            const projectToStatusLabel = new Map([['Ideas', 'status:ideas'], ['Planned', 'status:planned'], ['Ready', 'status:ready'], ['In Progress', 'status:in-progress'], ['Needs Manual Review', 'status:needs-manual-review'], ['Completed', 'status:completed']]);
+            const allWorkflowStatusLabels = new Set([...statusLabelToProject.keys(), 'status:blocked', 'status:needs-decision']);
             const priorityAliases = new Map([
-              ['priority:p0', { priority: 'P0', score: 0 }],
-              ['priority:p1', { priority: 'P1', score: 1 }],
-              ['priority:p2', { priority: 'P2', score: 2 }],
-              ['priority:p3', { priority: 'P3', score: 3 }],
-              ['priority:01-now', { priority: 'P1', score: 1, rank: 1 }],
-              ['priority:02-next', { priority: 'P1', score: 1, rank: 2 }],
-              ['priority:03-soon', { priority: 'P2', score: 2, rank: 3 }],
-              ['priority:04-later', { priority: 'P3', score: 3, rank: 4 }],
-              ['priority:05-icebox', { priority: 'P3', score: 3, rank: 5 }]
+              ['priority:p0', { priority: 'P0', score: 0 }], ['priority:p1', { priority: 'P1', score: 1 }], ['priority:p2', { priority: 'P2', score: 2 }], ['priority:p3', { priority: 'P3', score: 3 }],
+              ['priority:01-now', { priority: 'P1', score: 1, rank: 1 }], ['priority:02-next', { priority: 'P1', score: 1, rank: 2 }], ['priority:03-soon', { priority: 'P2', score: 2, rank: 3 }], ['priority:04-later', { priority: 'P3', score: 3, rank: 4 }], ['priority:05-icebox', { priority: 'P3', score: 3, rank: 5 }]
             ]);
-
-            const typeAliases = new Map([
-              ['type:action', 'Action'],
-              ['type:review', 'Review'],
-              ['type:decision', 'Decision'],
-              ['type:initiative', 'Initiative'],
-              ['type:alert', 'Alert'],
-              ['type:bug', 'Bug'],
-              ['type:feature', 'Feature'],
-              ['type:refactor', 'Refactor'],
-              ['type:chore', 'Chore'],
-              ['type:docs', 'Docs'],
-              ['type:spike', 'Spike']
-            ]);
+            const typeAliases = new Map([['type:action', 'Action'], ['type:review', 'Review'], ['type:decision', 'Decision'], ['type:initiative', 'Initiative'], ['type:alert', 'Alert'], ['type:bug', 'Bug'], ['type:feature', 'Feature'], ['type:refactor', 'Refactor'], ['type:chore', 'Chore'], ['type:docs', 'Docs'], ['type:spike', 'Spike']]);
 
             async function ensureLabels() {
               for (const [name, [color, description]] of labelDefinitions) {
-                try {
-                  await github.rest.issues.getLabel({ owner, repo, name });
-                } catch (error) {
+                try { await github.rest.issues.getLabel({ owner, repo, name }); }
+                catch (error) {
                   if (error.status !== 404) throw error;
                   await github.rest.issues.createLabel({ owner, repo, name, color, description });
                   core.info(`Created label ${name}`);
                 }
               }
             }
-
-            function labelNames(issue) {
-              return issue.labels.map(label => typeof label === 'string' ? label : label.name);
-            }
-
-            function firstLabelValue(labels, prefix) {
-              const found = [...labels].filter(label => norm(label).startsWith(prefix)).sort()[0];
-              return found ? found.slice(prefix.length) : null;
-            }
-
-            function titleCaseSlug(value) {
-              return String(value || '')
-                .split(/[-_\s]+/)
-                .filter(Boolean)
-                .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-                .join(' ');
-            }
-
+            function labelNames(issue) { return issue.labels.map(label => typeof label === 'string' ? label : label.name); }
+            function titleCaseSlug(value) { return String(value || '').split(/[-_\s]+/).filter(Boolean).map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join(' '); }
             function statusFromLabels(issue) {
               const labels = new Set(labelNames(issue).map(norm));
               const eventLabel = context.eventName === 'issues' ? norm(context.payload.label?.name) : null;
               if (eventLabel && statusLabelToProject.has(eventLabel)) return statusLabelToProject.get(eventLabel);
-
-              const precedence = [
-                'status:completed',
-                'status:needs-manual-review',
-                'status:needs-review',
-                'status:validation',
-                'status:in-progress',
-                'status:ready',
-                'status:planned',
-                'status:ideas',
-                'status:needs-triage'
-              ];
+              const precedence = ['status:completed', 'status:needs-manual-review', 'status:needs-review', 'status:validation', 'status:in-progress', 'status:ready', 'status:planned', 'status:ideas', 'status:needs-triage'];
               const found = precedence.find(label => labels.has(label));
               return found ? statusLabelToProject.get(found) : null;
             }
-
             function issueStatus(issue, linkedPullRequest) {
               if (issue.state === 'closed' || linkedPullRequest?.merged) return 'Completed';
-              if (linkedPullRequest && linkedPullRequest.state === 'open') {
-                return linkedPullRequest.draft ? 'In Progress' : 'Needs Manual Review';
-              }
+              if (linkedPullRequest && linkedPullRequest.state === 'open') return linkedPullRequest.draft ? 'In Progress' : 'Needs Manual Review';
               const labeledStatus = statusFromLabels(issue);
               if (labeledStatus) return labeledStatus;
               if (context.eventName === 'issues' && ['opened', 'reopened'].includes(context.payload.action)) return 'Ideas';
               return 'Planned';
             }
-
             function inferMetadata(issue) {
               const labels = new Set(labelNames(issue).map(norm));
               const priorityEntry = [...labels].map(label => priorityAliases.get(label)).find(Boolean);
-              const rankLabel = [...labels]
-                .map(label => /^rank:(\d{1,4})$/.exec(label)?.[1])
-                .filter(Boolean)
-                .map(Number)
-                .sort((a, b) => a - b)[0];
+              const rankLabel = [...labels].map(label => /^rank:(\d{1,4})$/.exec(label)?.[1]).filter(Boolean).map(Number).sort((a, b) => a - b)[0];
               const typeLabel = [...labels].map(label => typeAliases.get(label)).find(Boolean);
-              const area = defaultArea || titleCaseSlug(firstLabelValue(labels, 'area:'));
-              const energy = titleCaseSlug(firstLabelValue(labels, 'energy:')) || null;
-              const confidence = titleCaseSlug(firstLabelValue(labels, 'confidence:')) || null;
-              return {
-                Area: area,
-                Type: typeLabel,
-                Priority: priorityEntry?.priority,
-                'Priority Score': priorityEntry?.score,
-                'Execution rank': rankLabel || priorityEntry?.rank,
-                Energy: energy,
-                Confidence: confidence
-              };
+              const energy = titleCaseSlug([...labels].find(label => label.startsWith('energy:'))?.slice('energy:'.length)) || null;
+              const confidence = titleCaseSlug([...labels].find(label => label.startsWith('confidence:'))?.slice('confidence:'.length)) || null;
+              return { Area: defaultArea, Type: typeLabel, Priority: priorityEntry?.priority, 'Priority Score': priorityEntry?.score, 'Execution rank': rankLabel || priorityEntry?.rank, Energy: energy, Confidence: confidence };
             }
 
-            const projectResult = await github.graphql(
-              `query($login: String!, $number: Int!) {
-                user(login: $login) {
-                  projectV2(number: $number) {
-                    id
-                    fields(first: 100) {
-                      nodes {
-                        __typename
-                        ... on ProjectV2Field { id name dataType }
-                        ... on ProjectV2SingleSelectField { id name options { id name color description } }
-                      }
-                    }
-                  }
-                }
-              }`,
-              { login: projectOwner, number: projectNumber }
-            );
-
+            const projectResult = await github.graphql(`query($login: String!, $number: Int!) { user(login: $login) { projectV2(number: $number) { id fields(first: 100) { nodes { __typename ... on ProjectV2Field { id name dataType } ... on ProjectV2SingleSelectField { id name options { id name color description } } } } } } }`, { login: projectOwner, number: projectNumber });
             const project = projectResult.user.projectV2;
             const fields = new Map(project.fields.nodes.filter(Boolean).map(field => [field.name, field]));
             const statusField = fields.get('Status');
             if (!statusField) throw new Error('Project Status field not found.');
-
             const usedIds = new Set();
             const statusOptions = statuses.map(status => {
               const names = [status.name, ...status.aliases].map(norm);
               const existing = statusField.options.find(option => names.includes(norm(option.name)) && !usedIds.has(option.id));
               if (existing) usedIds.add(existing.id);
-              return {
-                ...(existing?.id ? { id: existing.id } : {}),
-                name: status.name,
-                color: status.color,
-                description: status.description
-              };
+              return { ...(existing?.id ? { id: existing.id } : {}), name: status.name, color: status.color, description: status.description };
             });
-
-            await github.graphql(
-              `mutation($fieldId: ID!, $options: [ProjectV2SingleSelectFieldOptionInput!]!) {
-                updateProjectV2Field(input: { fieldId: $fieldId, singleSelectOptions: $options }) {
-                  projectV2Field { ... on ProjectV2SingleSelectField { id } }
-                }
-              }`,
-              { fieldId: statusField.id, options: statusOptions }
-            );
+            await github.graphql(`mutation($fieldId: ID!, $options: [ProjectV2SingleSelectFieldOptionInput!]!) { updateProjectV2Field(input: { fieldId: $fieldId, singleSelectOptions: $options }) { projectV2Field { ... on ProjectV2SingleSelectField { id } } } }`, { fieldId: statusField.id, options: statusOptions });
 
             async function findOrAddItem(issue) {
-              const existing = await github.graphql(
-                `query($issue: ID!) {
-                  node(id: $issue) {
-                    ... on Issue {
-                      projectItems(first: 100) { nodes { id project { id } } }
-                    }
-                  }
-                }`,
-                { issue: issue.node_id }
-              );
+              const existing = await github.graphql(`query($issue: ID!) { node(id: $issue) { ... on Issue { projectItems(first: 100) { nodes { id project { id } } } } } }`, { issue: issue.node_id });
               const found = existing.node.projectItems.nodes.find(item => item.project.id === project.id);
               if (found) return found.id;
-
-              const added = await github.graphql(
-                `mutation($projectId: ID!, $contentId: ID!) {
-                  addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) { item { id } }
-                }`,
-                { projectId: project.id, contentId: issue.node_id }
-              );
+              const added = await github.graphql(`mutation($projectId: ID!, $contentId: ID!) { addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) { item { id } } }`, { projectId: project.id, contentId: issue.node_id });
               return added.addProjectV2ItemById.item.id;
             }
-
             async function setSingleSelect(itemId, fieldName, value) {
               if (!value) return;
               const field = fields.get(fieldName);
               if (!field?.options) return;
               const option = field.options.find(option => norm(option.name) === norm(value));
-              if (!option) {
-                core.warning(`Project field ${fieldName} has no option ${value}`);
-                return;
-              }
-              await github.graphql(
-                `mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
-                  updateProjectV2ItemFieldValue(input: {
-                    projectId: $projectId
-                    itemId: $itemId
-                    fieldId: $fieldId
-                    value: { singleSelectOptionId: $optionId }
-                  }) { projectV2Item { id } }
-                }`,
-                { projectId: project.id, itemId, fieldId: field.id, optionId: option.id }
-              );
+              if (!option) { core.warning(`Project field ${fieldName} has no option ${value}`); return; }
+              await github.graphql(`mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) { updateProjectV2ItemFieldValue(input: { projectId: $projectId itemId: $itemId fieldId: $fieldId value: { singleSelectOptionId: $optionId } }) { projectV2Item { id } } }`, { projectId: project.id, itemId, fieldId: field.id, optionId: option.id });
             }
-
             async function setNumber(itemId, fieldName, value) {
               if (value === undefined || value === null || Number.isNaN(Number(value))) return;
               const field = fields.get(fieldName);
               if (!field || field.dataType !== 'NUMBER') return;
-              await github.graphql(
-                `mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: Float!) {
-                  updateProjectV2ItemFieldValue(input: {
-                    projectId: $projectId
-                    itemId: $itemId
-                    fieldId: $fieldId
-                    value: { number: $value }
-                  }) { projectV2Item { id } }
-                }`,
-                { projectId: project.id, itemId, fieldId: field.id, value: Number(value) }
-              );
+              await github.graphql(`mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: Float!) { updateProjectV2ItemFieldValue(input: { projectId: $projectId itemId: $itemId fieldId: $fieldId value: { number: $value } }) { projectV2Item { id } } }`, { projectId: project.id, itemId, fieldId: field.id, value: Number(value) });
             }
-
             async function ensureSingleStatusLabel(issue, status) {
               const desired = projectToStatusLabel.get(status);
               if (!desired) return;
               const labels = new Set(labelNames(issue).map(norm));
               const removals = [...labels].filter(label => allWorkflowStatusLabels.has(label) && label !== desired);
-              for (const label of removals) {
-                await github.rest.issues.removeLabel({ owner, repo, issue_number: issue.number, name: label });
-              }
-              if (!labels.has(desired)) {
-                await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: [desired] });
-              }
+              for (const label of removals) await github.rest.issues.removeLabel({ owner, repo, issue_number: issue.number, name: label });
+              if (!labels.has(desired)) await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: [desired] });
             }
-
             function closingIssues(body) {
               const found = new Set();
               for (const match of body?.matchAll(/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi) ?? []) found.add(Number(match[1]));
               return [...found];
             }
-
             async function linkedIssues(pullRequest) {
-              const result = await github.graphql(
-                `query($owner: String!, $repo: String!, $number: Int!) {
-                  repository(owner: $owner, name: $repo) {
-                    pullRequest(number: $number) {
-                      closingIssuesReferences(first: 50) { nodes { number } }
-                    }
-                  }
-                }`,
-                { owner, repo, number: pullRequest.number }
-              );
-              return [...new Set([
-                ...result.repository.pullRequest.closingIssuesReferences.nodes.map(issue => issue.number),
-                ...closingIssues(pullRequest.body)
-              ])];
+              const result = await github.graphql(`query($owner: String!, $repo: String!, $number: Int!) { repository(owner: $owner, name: $repo) { pullRequest(number: $number) { closingIssuesReferences(first: 50) { nodes { number } } } } }`, { owner, repo, number: pullRequest.number });
+              return [...new Set([...result.repository.pullRequest.closingIssuesReferences.nodes.map(issue => issue.number), ...closingIssues(pullRequest.body)])];
             }
-
             async function syncIssue(number, linkedPullRequest = null) {
               const issue = (await github.rest.issues.get({ owner, repo, issue_number: number })).data;
               if (issue.pull_request) return;
@@ -390,12 +217,11 @@ jobs:
             }
 
             await ensureLabels();
-
             let numbers = [];
             let linkedPullRequest = null;
             if (context.eventName === 'workflow_dispatch' && context.payload.inputs.issue_number) {
               numbers = [Number(context.payload.inputs.issue_number)];
-            } else if (context.eventName === 'workflow_dispatch' || context.eventName === 'schedule') {
+            } else if (['workflow_dispatch', 'schedule', 'push'].includes(context.eventName)) {
               const openIssues = await github.paginate(github.rest.issues.listForRepo, { owner, repo, state: 'open', per_page: 100 });
               numbers = openIssues.filter(issue => !issue.pull_request).map(issue => issue.number);
             } else if (context.eventName === 'issues') {
@@ -404,7 +230,4 @@ jobs:
               linkedPullRequest = context.payload.pull_request;
               numbers = await linkedIssues(linkedPullRequest);
             }
-
-            for (const number of numbers.filter(number => Number.isInteger(number) && number > 0)) {
-              await syncIssue(number, linkedPullRequest);
-            }
+            for (const number of numbers.filter(number => Number.isInteger(number) && number > 0)) await syncIssue(number, linkedPullRequest);
