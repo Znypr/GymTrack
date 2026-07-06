@@ -14,7 +14,7 @@ on:
 
 permissions:
   contents: read
-  issues: read
+  issues: write
   pull-requests: read
 
 concurrency:
@@ -41,13 +41,40 @@ jobs:
             const norm = value => value.trim().toLowerCase();
 
             const statuses = [
-              { name: 'Ideas', aliases: ['Inbox', 'Triage', 'Needs decision'], color: 'PINK', description: 'Raw, unclear, unclassified, or decision-needed work' },
-              { name: 'Planned', aliases: ['Backlog'], color: 'YELLOW', description: 'Valid work that is not executable yet' },
-              { name: 'Ready', aliases: [], color: 'BLUE', description: 'Ready to enter implementation' },
+              { name: 'Ideas', aliases: ['Inbox', 'Triage', 'Needs decision'], color: 'PINK', description: 'Raw idea, unclear item, or unclassified ticket' },
+              { name: 'Planned', aliases: ['Backlog'], color: 'YELLOW', description: 'Valid ticket that is not executable yet' },
+              { name: 'Ready', aliases: [], color: 'BLUE', description: 'Specified ticket that can enter implementation' },
               { name: 'In Progress', aliases: ['Doing'], color: 'RED', description: 'Implementation is active' },
-              { name: 'Needs Review', aliases: ['In Review', 'Review', 'Validation'], color: 'PURPLE', description: 'Ready for manual review or validation' },
-              { name: 'Completed', aliases: ['Done'], color: 'BLUE', description: 'Completed work' }
+              { name: 'Needs Manual Review', aliases: ['Needs Review', 'In Review', 'Review', 'Validation'], color: 'PURPLE', description: 'Needs manual review, runtime validation, or final confirmation' },
+              { name: 'Completed', aliases: ['Done'], color: 'GREEN', description: 'Completed, merged, closed, or otherwise finished' }
             ];
+
+            const statusLabelToProject = new Map([
+              ['status:ideas', 'Ideas'],
+              ['status:needs-triage', 'Ideas'],
+              ['status:planned', 'Planned'],
+              ['status:ready', 'Ready'],
+              ['status:in-progress', 'In Progress'],
+              ['status:needs-manual-review', 'Needs Manual Review'],
+              ['status:needs-review', 'Needs Manual Review'],
+              ['status:validation', 'Needs Manual Review'],
+              ['status:completed', 'Completed']
+            ]);
+
+            const projectToStatusLabel = new Map([
+              ['Ideas', 'status:ideas'],
+              ['Planned', 'status:planned'],
+              ['Ready', 'status:ready'],
+              ['In Progress', 'status:in-progress'],
+              ['Needs Manual Review', 'status:needs-manual-review'],
+              ['Completed', 'status:completed']
+            ]);
+
+            const allWorkflowStatusLabels = new Set([
+              ...statusLabelToProject.keys(),
+              'status:blocked',
+              'status:needs-decision'
+            ]);
 
             const projectResult = await github.graphql(
               `query($login: String!, $number: Int!) {
@@ -167,18 +194,67 @@ jobs:
               );
             }
 
+            function labelNames(issue) {
+              return issue.labels.map(label => typeof label === 'string' ? label : label.name);
+            }
+
+            function statusFromLabels(issue) {
+              const labels = new Set(labelNames(issue));
+              const eventLabel = context.eventName === 'issues' ? context.payload.label?.name : null;
+              if (eventLabel && statusLabelToProject.has(eventLabel)) {
+                return statusLabelToProject.get(eventLabel);
+              }
+
+              const precedence = [
+                'status:completed',
+                'status:needs-manual-review',
+                'status:needs-review',
+                'status:validation',
+                'status:in-progress',
+                'status:ready',
+                'status:planned',
+                'status:ideas',
+                'status:needs-triage'
+              ];
+              const found = precedence.find(label => labels.has(label));
+              return found ? statusLabelToProject.get(found) : null;
+            }
+
             function issueStatus(issue, linkedPullRequest) {
-              const labels = new Set(issue.labels.map(label => typeof label === 'string' ? label : label.name));
               if (issue.state === 'closed' || linkedPullRequest?.merged) return 'Completed';
               if (linkedPullRequest && linkedPullRequest.state === 'open') {
-                return linkedPullRequest.draft ? 'In Progress' : 'Needs Review';
+                return linkedPullRequest.draft ? 'In Progress' : 'Needs Manual Review';
               }
-              if (labels.has('status:needs-review')) return 'Needs Review';
-              if (labels.has('status:ready')) return 'Ready';
-              if (labels.has('status:needs-triage')) return 'Ideas';
+              const labeledStatus = statusFromLabels(issue);
+              if (labeledStatus) return labeledStatus;
               if (context.eventName === 'issues' && ['opened', 'reopened'].includes(context.payload.action)) return 'Ideas';
-              if (context.eventName === 'workflow_dispatch') return 'Planned';
-              return null;
+              return 'Planned';
+            }
+
+            async function ensureSingleStatusLabel(issue, status) {
+              const desired = projectToStatusLabel.get(status);
+              if (!desired) return;
+
+              const labels = new Set(labelNames(issue));
+              const removals = [...labels].filter(label => allWorkflowStatusLabels.has(label) && label !== desired);
+
+              for (const label of removals) {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: issue.number,
+                  name: label
+                });
+              }
+
+              if (!labels.has(desired)) {
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: issue.number,
+                  labels: [desired]
+                });
+              }
             }
 
             function closingIssues(body) {
@@ -218,6 +294,8 @@ jobs:
             for (const number of numbers.filter(number => Number.isInteger(number) && number > 0)) {
               const issue = (await github.rest.issues.get({ owner, repo, issue_number: number })).data;
               if (issue.pull_request) continue;
+              const status = issueStatus(issue, linkedPullRequest);
               const itemId = await findOrAddItem(issue);
-              await setStatus(itemId, issueStatus(issue, linkedPullRequest));
+              await setStatus(itemId, status);
+              await ensureSingleStatusLabel(issue, status);
             }
