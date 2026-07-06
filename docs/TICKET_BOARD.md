@@ -273,3 +273,19 @@ Remove the label and update the body when the dependency is resolved. Completed 
 ## Validation
 
 Use `status:validation` only after implementation and automated checks are complete and the remaining work is runtime, device, emulator, workflow-UI, or other manual confirmation.
+
+The validation ticket or parent issue should list the exact test matrix and required evidence. Remove the label when validation fails and implementation resumes, or close the issue when validation passes and the associated pull request merges.
+
+## Operating rules
+
+- One real work item equals one GitHub Issue.
+- One Project card points to that issue.
+- One pull request has one principal issue.
+- One execution stream has one principal active implementation issue.
+- No substantive work exists only in chat.
+- Scope changes update the ticket before implementation continues.
+- Discovered work becomes a linked ticket.
+- Paused work receives a resumable checkpoint.
+- The roadmap contains outcomes, not ticket state.
+- Architecture documents contain system design, not the active implementation queue.
+- Static status snapshots are not maintained.
