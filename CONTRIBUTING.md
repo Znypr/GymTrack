@@ -9,8 +9,8 @@ GymTrack uses GitHub Issues, short-lived branches, pull requests, automated chec
 | Product direction and non-goals | `docs/PROJECT_CHARTER.md` |
 | Long-term sequence and outcomes | `docs/ROADMAP.md` |
 | Current architecture and boundaries | `docs/ARCHITECTURE.md` |
-| Work scope, priority, dependencies, acceptance criteria | GitHub Issue |
-| Visual planning and filtering | GitHub Project view |
+| Work scope, priority/execution rank, dependencies, acceptance criteria | GitHub Issue |
+| Visual workflow status and filtering | GitHub Project view |
 | Implementation, review, checks, validation | Pull request |
 | Consequential technical decisions | ADRs under `docs/decisions/` |
 
@@ -20,18 +20,21 @@ The Project view displays Issues. It must not contain separate duplicate cards o
 
 1. Create or triage one GitHub Issue.
 2. Define the problem, intended outcome, scope, non-scope, acceptance criteria, parent issue, blockers, risks, and validation plan.
-3. Apply one type, one priority, one or more areas, and relevant risk labels.
-4. Use `status:needs-decision` or `status:blocked` when the issue cannot begin.
-5. Apply `status:ready` only after the Definition of Ready is satisfied.
-6. Create a dedicated branch and draft pull request from the latest protected `master`.
-7. Remove `status:ready` after implementation starts; the pull request now provides progress and review state.
-8. Implement only the linked issue scope.
-9. Add or update tests and durable documentation.
-10. Mark the pull request ready after implementation and required checks are complete.
-11. Record emulator or device validation for runtime behavior changes.
-12. Squash merge with `Closes #N` and delete the branch.
+3. Apply one type, one priority/execution-rank label, one or more areas, and relevant risk or flag labels.
+4. Keep new or unclear work in `status:ideas`.
+5. Use `status:planned` for valid work that is not executable yet.
+6. Use `flag:decision-needed` or `flag:blocked` when the issue cannot begin for a specific reason.
+7. Apply `status:ready` only after the Definition of Ready is satisfied.
+8. Create a dedicated branch and draft pull request from the latest protected `master`.
+9. Let automation move linked draft pull requests to `status:in-progress`.
+10. Implement only the linked issue scope.
+11. Add or update tests and durable documentation.
+12. Mark the pull request ready only after implementation and required checks are complete.
+13. Let automation move ready pull requests to `status:needs-manual-review`.
+14. Record emulator or device validation for runtime behavior changes.
+15. Squash merge with `Closes #N` and delete the branch.
 
-Automation should add Issues to the Project and update its visual status. Manual board movement is fallback behavior only.
+Automation should add Issues to the Project and update its visual status. Manual board movement is recovery behavior only.
 
 See [`docs/TICKET_BOARD.md`](docs/TICKET_BOARD.md) for issue, Project, parent-child, and dependency rules.
 
@@ -43,7 +46,7 @@ An issue is ready when:
 - included and excluded scope are explicit;
 - acceptance criteria are testable;
 - the parent issue and blockers are linked or explicitly absent;
-- priority, type, area, and relevant risks are assigned;
+- priority/execution rank, type, area, and relevant risks are assigned;
 - migration, compatibility, performance, privacy, and release effects are considered;
 - the validation plan is credible;
 - the issue fits one reviewable pull request or is split into child issues.
@@ -54,7 +57,7 @@ Do not apply `status:ready` to work that still needs a product or architecture d
 
 Use a parent issue for a multi-PR outcome. The parent contains the shared result and a task list of child issues. Each child owns one reviewable scope and links back to the parent.
 
-Use `Blocked by #N` in the issue body for active dependencies. Remove completed blockers from the active dependency section rather than copying dependency history into roadmap or status documents.
+Use `Blocked by #N` in the issue body for active dependencies. Add `flag:blocked` while the dependency is active and remove the flag when the blocker is resolved.
 
 ## Branch naming
 

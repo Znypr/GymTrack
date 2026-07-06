@@ -38,90 +38,128 @@ For a solo-maintained project, formal approval can initially remain optional. Re
 
 ## Labels
 
-`.github/labels.json` is the declarative label catalogue. Run the **Sync repository labels** workflow whenever it changes.
+`.github/labels.json` is the declarative label catalogue. The Project sync workflow can also create missing global Creator OS labels when a touched issue needs them.
 
-Label groups:
+Global label groups shared with Creator OS:
 
-- `type:*` — nature of the work;
-- `priority:*` — urgency and impact;
-- `area:*` — affected product or technical area;
-- `status:*` — triage, readiness, validation, blockers, and required decisions;
-- `risk:*` — migration, compatibility, performance, privacy, or release risk.
+- `status:*` — mutually exclusive workflow states that synchronize the Project `Status` field;
+- `priority:p0` through `priority:p3` — global priority buckets;
+- `rank:NNN` — optional explicit execution rank;
+- `area:*` — high-level operating area;
+- `type:*` — work type;
+- `energy:*` and `confidence:*` — lightweight planning metadata.
 
-Every triaged issue should have one type, one priority, one or more areas, and relevant risks. Workflow status labels are mutually exclusive.
+GymTrack may keep implementation-specific labels such as `area:editor`, `area:data`, `risk:*` and `flag:*`, but global Project sorting should use Project fields rather than relying on label text.
 
-## GitHub Project
+Legacy GymTrack priority labels are still recognized by the sync workflow during transition:
 
-The Project is a visual planning surface over GitHub Issues.
+```text
+priority:01-now   -> P1, fallback rank 1
+priority:02-next  -> P1, fallback rank 2
+priority:03-soon  -> P2, fallback rank 3
+priority:04-later -> P3, fallback rank 4
+priority:05-icebox -> P3, fallback rank 5
+```
 
-Configuration rules:
+New or touched issues should use the global labels instead:
 
-- add the actual Issue, not a duplicate draft item;
-- keep one Project item per Issue;
-- use a board grouped by Status for active work;
-- use table views for backlog, priority, and area filters;
-- display issue labels instead of duplicating type, priority, and area into separate fields unless a field has a demonstrated Project-specific purpose;
-- automate issue addition and Status synchronization where possible;
-- treat manual movement as fallback behavior only.
+```text
+priority:p0
+priority:p1
+priority:p2
+priority:p3
+rank:001
+rank:002
+```
 
-The Project does not replace the Issue body. Scope, acceptance criteria, blockers, and validation remain in the Issue.
+## Global GitHub Project
 
-### Project automation
+GymTrack does not use its own operational Project anymore.
 
-The **Sync GitHub Project status** workflow targets the user-owned Project `Znypr #1`.
+Use the user-level Project:
+
+```text
+Creator OS - Operations
+```
+
+The global Project should show GymTrack work through the built-in `Repository` field and saved views/swimlanes, not through a separate GymTrack board.
+
+Required global Project fields:
+
+- `Status`
+- `Area`
+- `Type`
+- `Priority`
+- `Priority Score`
+- `Execution rank`
+- `Energy`
+- `Confidence`
+- `Source ID`
+
+No target-date field is part of the standard board model.
+
+Recommended main view:
+
+```text
+Columns: Status
+Swimlanes/grouping: Repository
+Sort 1: Priority Score ascending
+Sort 2: Execution rank ascending
+```
+
+## Project automation
+
+The **Sync Creator OS Operations Project** workflow targets the user-owned global Project `Creator OS - Operations` / Project #2.
 
 Required repository secret:
 
 ```text
-GYMTRACK_PROJECT_TOKEN
+CREATOR_OS_PROJECT_TOKEN
 ```
 
-The secret must contain a GitHub token that can read and write the repository and user-owned Project. The workflow resolves the Project, Status field, Project item, and Status option IDs at runtime.
+During transition, the workflow also accepts the old `GYMTRACK_PROJECT_TOKEN` secret as a fallback.
 
-Canonical Status order:
+The token must be able to read/write this repository and the user-owned Project.
 
-1. Triage
-2. Backlog
+Canonical `Status` order:
+
+1. Ideas
+2. Planned
 3. Ready
 4. In Progress
-5. In Review
-6. Validation
-7. Blocked
-8. Needs decision
-9. Done
-
-The workflow creates any missing canonical Status options and preserves the IDs of existing options so current card values are not cleared.
+5. Needs Manual Review
+6. Completed
 
 Status mapping:
 
-| Repository state | Project Status |
+| Repository state | Project `Status` |
 | --- | --- |
-| Closed issue or merged linked pull request | Done |
-| `status:needs-decision` | Needs decision |
-| `status:blocked` | Blocked |
-| `status:validation` | Validation |
-| `status:needs-triage` | Triage |
+| Closed issue or merged linked pull request | Completed |
 | Open linked draft pull request | In Progress |
-| Open linked ready pull request | In Review |
+| Open linked ready pull request | Needs Manual Review |
+| `status:completed` | Completed |
+| `status:needs-manual-review` / legacy `status:needs-review` | Needs Manual Review |
+| `status:in-progress` | In Progress |
 | `status:ready` | Ready |
-| Other open issue | Backlog |
+| `status:planned` | Planned |
+| `status:ideas` | Ideas |
+| Other open issue | Planned |
 
-Explicit workflow labels take precedence over pull-request state. The workflow no longer falls back from `Blocked`, `Needs decision`, or `Validation` to unrelated columns.
+The workflow also enforces one active `status:*` label at a time. Use `flag:blocked` or `flag:decision-needed` for metadata that is not a board column.
 
-Use the workflow's manual dispatch with an issue number to backfill, test, or recover synchronization for an existing Issue.
+Use manual dispatch with an issue number to backfill one issue. Leave the issue number empty to sync all open issues.
 
 ## Issue and pull-request workflow
 
-- New issues receive `status:needs-triage`.
-- Triage assigns type, priority, areas, risks, parent, and blockers.
-- A triaged issue without a workflow label is backlog.
-- `status:needs-decision` marks unresolved decisions.
-- `status:blocked` requires an explicit `Blocked by #N` relationship.
+- New issues receive `status:ideas`.
+- Triage assigns type, priority, execution rank, areas, risks, flags, parent, and blockers.
+- A valid but not-yet-executable issue receives `status:planned`.
+- `flag:decision-needed` marks unresolved product, architecture, or scope decisions.
+- `flag:blocked` requires an explicit `Blocked by #N` relationship.
 - `status:ready` is applied only after Definition of Ready.
 - A draft pull request represents implementation in progress.
-- A ready pull request represents review.
-- `status:validation` means automated checks pass and only runtime or manual confirmation remains.
-- Squash merge with `Closes #N` closes the Issue.
+- A ready pull request represents manual review.
+- Squash merge with `Closes #N` closes the Issue and moves it to Completed.
 
 See [`docs/TICKET_BOARD.md`](TICKET_BOARD.md) for the canonical tracking rules.
 
@@ -138,4 +176,4 @@ See [`docs/WORK_ITEM_AUTOMATION.md`](WORK_ITEM_AUTOMATION.md) for setup and reco
 
 ## Operating requirement
 
-Do not maintain current queues in Markdown files. GitHub Issues contain the work, the Project displays it, and pull requests contain implementation and validation evidence.
+Do not maintain current queues in Markdown files. GitHub Issues contain the work, the global Project displays it, and pull requests contain implementation and validation evidence.
