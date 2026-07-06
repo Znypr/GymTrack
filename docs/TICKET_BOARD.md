@@ -94,6 +94,32 @@ For pull requests:
 - Adding one workflow status label removes the other workflow status labels.
 - The board should not be manually dragged except as recovery. Change the issue status label or pull-request state instead.
 
+## Pull-request branch refresh
+
+Use `.github/workflows/update-pr-branch.yml` when a ready pull request is mergeable but branch protection still requires the PR branch to include the latest protected base branch.
+
+This workflow is the controlled automation equivalent of GitHub's **Update branch -> Update with merge commit** button.
+
+Manual dispatch:
+
+1. Open **Actions**.
+2. Select **Update PR branch**.
+3. Click **Run workflow**.
+4. Enter the pull request number.
+5. Run the workflow.
+6. Wait for the merge commit and follow-up required checks.
+
+Safety rules:
+
+- open pull requests only;
+- draft pull requests are rejected;
+- fork pull requests are rejected;
+- the workflow checks that the PR head SHA did not move before merging;
+- merge conflicts fail the workflow and must be resolved manually;
+- the workflow creates a normal merge commit on the PR branch and never rebases or force-pushes.
+
+Prefer this workflow only for PRs that are otherwise ready for review, waiting on required checks, or waiting for auto-merge.
+
 ## Operating rules
 
 - One real work item equals one GitHub Issue.
