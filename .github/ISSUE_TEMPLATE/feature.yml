@@ -1,6 +1,13 @@
 name: Feature request
 description: Propose a user-facing capability that supports the GymTrack charter
 title: "feat: "
+labels:
+  - "type:feature"
+  - "status:ideas"
+assignees:
+  - Znypr
+projects:
+  - Znypr/2
 body:
   - type: markdown
     attributes:
@@ -64,6 +71,22 @@ body:
     validations:
       required: true
 
+  - type: dropdown
+    id: roadmap_phase
+    attributes:
+      label: Roadmap phase or milestone fit
+      description: Select the closest roadmap checkpoint. Use this to set the GitHub milestone after creation when applicable.
+      options:
+        - Phase 1 — Safety and reliability foundation
+        - Phase 2 — Canonical workout data
+        - Phase 3 — Logging workflow reliability
+        - Phase 4 — Statistics and product quality
+        - Phase 5 — Beta and release readiness
+        - Later ambition
+        - No milestone needed
+    validations:
+      required: true
+
   - type: textarea
     id: scope
     attributes:
@@ -121,4 +144,6 @@ body:
         - label: I checked the project charter and existing Issues.
           required: true
         - label: I searched existing Issues for duplicates.
+          required: true
+        - label: I selected the nearest roadmap phase or explicitly marked that no milestone is needed.
           required: true
