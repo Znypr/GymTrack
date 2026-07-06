@@ -164,3 +164,17 @@ Database or restore behavior changes also require emulator-backed validation, in
 - checksum mismatch rejection;
 - failed restore rollback preserving previous database and settings;
 - verification that restored history, settings, statistics, and export-visible data remain coherent.
+
+## API 36 manual validation checklist
+
+Use this checklist before marking PR #182 ready for review:
+
+1. Install the PR build on an API 36 emulator or device.
+2. Create a representative local dataset with settings, categories, at least one completed workout, exercises, sets, notes, and canonical records.
+3. Create a `.gymtrack-backup` file through Settings.
+4. Restore the backup into the same populated install and confirm the replace-all warning appears before data changes.
+5. Restore the same backup into a fresh empty install.
+6. Confirm history, editor reopen, statistics, settings, selected-workout export, and timer state are coherent after restore.
+7. Select a malformed or unsupported backup file and confirm restore is rejected before local data changes.
+8. Interrupt or force a restore failure where possible and confirm previous database and settings are preserved.
+9. Record device/API level, app version, backup file name, and result in the PR validation section.
