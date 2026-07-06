@@ -12,6 +12,7 @@ GymTrack is a local-first Android workout logger built with Kotlin and Jetpack C
 - Workout learnings or notes
 - Persisted workout timer without a continuously running service
 - CSV import and export
+- One-file backup and restore
 - Workout history, statistics, and progression charts
 - Dark and light themes
 - Canonical workout tables with legacy-data compatibility
@@ -49,6 +50,7 @@ See [work-tracking rules](docs/TICKET_BOARD.md) and [CONTRIBUTING.md](CONTRIBUTI
 - [Work-tracking rules](docs/TICKET_BOARD.md)
 - [Canonical-data transition](docs/CANONICAL_DATA_TRANSITION.md)
 - [Training-summary contract](docs/TRAINING_SUMMARY.md)
+- [Backup format](docs/BACKUP_FORMAT.md)
 - [Testing strategy](docs/TESTING.md)
 - [Repository settings](docs/REPOSITORY_SETTINGS.md)
 - [Work-item automation](docs/WORK_ITEM_AUTOMATION.md)
