@@ -37,8 +37,9 @@ Use labels for ticket metadata and workflow transition commands.
 Metadata labels:
 
 - `type:*` — kind of work.
-- `priority:01-now` through `priority:05-icebox` — execution rank. The numeric prefix is intentional so labels sort in execution order.
-- `area:*` — affected product or technical area.
+- `priority:p0` through `priority:p3` — importance bucket. P0 is urgent or critical; P3 is low-priority or optional.
+- `rank:NNN` — optional explicit order inside a priority bucket.
+- `area:*` — affected product, technical, or governance area.
 - `risk:*` — migration, compatibility, performance, privacy, or release risk.
 - `flag:*` — cross-cutting state such as blockers or pending decisions.
 
@@ -60,7 +61,7 @@ For every non-trivial issue:
 | Field | Rule |
 |---|---|
 | Assignee | Assign the current owner. Use `Znypr` for solo-owned GymTrack work unless another owner is explicit. |
-| Labels | Include exactly one `type:*`, one workflow `status:*`, one priority label, and at least one `area:*`. Add `risk:*` or `flag:*` only when useful. |
+| Labels | Include exactly one `type:*`, one workflow `status:*`, one `priority:*`, and at least one `area:*`. Add `rank:NNN`, `risk:*`, or `flag:*` only when useful. |
 | Project | Add the issue to `Creator OS - Operations`; do not create duplicate operational cards elsewhere. |
 | Milestone | Set a milestone only when the issue advances a roadmap phase, release checkpoint, or charter-level outcome. Do not use milestones for status, priority, or permanent areas. |
 | Development | Link implementation through a branch and pull request; the PR must use `Closes #N`. |
