@@ -10,6 +10,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,6 +62,19 @@ fun NavigationHost(
                 factory = HomeViewModel.Factory(noteRepository, workoutRepository),
             )
             val notes by homeViewModel.notes.collectAsState()
+            val importSummary by homeViewModel.legacyCsvImportSummary.collectAsState()
+
+            LaunchedEffect(importSummary) {
+                val summary = importSummary ?: return@LaunchedEffect
+                if (summary.selected > 0) {
+                    Toast.makeText(
+                        context,
+                        summary.toUserMessage(),
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+                homeViewModel.clearLegacyCsvImportSummary()
+            }
 
             var selectedNotes by remember { mutableStateOf<Set<NoteLine>>(emptySet()) }
 
