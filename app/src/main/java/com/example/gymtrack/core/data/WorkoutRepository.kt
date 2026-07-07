@@ -1,18 +1,33 @@
 package com.example.gymtrack.core.data
 
 import androidx.room.withTransaction
+import com.example.gymtrack.core.data.canonical.toDomain
+import com.example.gymtrack.core.data.transition.CanonicalExerciseCatalog
+import com.example.gymtrack.core.data.transition.CanonicalKeys
+import com.example.gymtrack.core.data.transition.CanonicalWorkoutProjection
+import com.example.gymtrack.core.data.transition.LegacyWorkoutProjector
 import com.example.gymtrack.core.util.ParsedSetDTO
 import com.example.gymtrack.core.util.WorkoutParser
+import com.example.gymtrack.domain.model.WorkoutDetails
+import com.example.gymtrack.domain.model.WorkoutRecord
+import com.example.gymtrack.domain.summary.TRAINING_SUMMARY_SCHEMA_VERSION
+import com.example.gymtrack.domain.summary.TrainingSummaryBuilder
+import com.example.gymtrack.domain.summary.TrainingSummaryJson
+import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 
 class WorkoutRepository(
     private val database: NoteDatabase,
+    private val clockMillis: () -> Long = System::currentTimeMillis,
+    private val summaryZoneId: ZoneId = ZoneId.systemDefault(),
 ) {
     private val noteDao = database.noteDao()
     private val exerciseDao = database.exerciseDao()
     private val setDao = database.setDao()
     private val parser = WorkoutParser()
+    private val projector = LegacyWorkoutProjector(parser)
+    private val summaryBuilder = TrainingSummaryBuilder()
 
     fun getAllExercises(): Flow<List<ExerciseEntity>> {
         return exerciseDao.getAllExercises()
@@ -58,18 +73,20 @@ class WorkoutRepository(
     }
 
     /**
-     * Persists the completed compatibility workout and its derived statistics
-     * rows as one Room transaction. Draft autosave intentionally does not call
-     * this method.
+     * Persists the completed compatibility workout, derived statistics rows,
+     * canonical projection, and local TrainingSummary outbox entry as one Room
+     * transaction. Draft autosave intentionally does not call this method.
      */
     suspend fun saveCompletedWorkout(
         note: NoteEntity,
         defaultWeightUnit: WeightUnit = WeightUnit.KG,
     ) {
+        val completedAt = maxOf(note.timestamp, clockMillis())
         database.withTransaction {
             noteDao.insert(note)
             val parsedSets = parser.parseWorkout(note.text, defaultWeightUnit.storageValue)
             saveParsedSets(parsedSets, note.timestamp)
+            saveCanonicalWorkoutAndSummary(note, defaultWeightUnit, completedAt)
         }
     }
 
@@ -91,6 +108,131 @@ class WorkoutRepository(
         if (noteCount > 0 && setCount == 0) {
             forceUpdateStats()
         }
+    }
+
+    private suspend fun saveCanonicalWorkoutAndSummary(
+        note: NoteEntity,
+        defaultWeightUnit: WeightUnit,
+        completedAt: Long,
+    ) {
+        val exerciseCatalog = CanonicalExerciseCatalog(exerciseDao.getAllForBackup())
+        val category = note.toCanonicalCategory()
+        val projection = projector.project(
+            note = note,
+            category = category,
+            exercises = exerciseCatalog,
+            defaultWeightUnit = defaultWeightUnit,
+        ).asCompleted(completedAt)
+
+        category?.let(::upsertCategory)
+        upsertExerciseCatalog(exerciseCatalog, completedAt)
+        upsertWorkout(projection.workout)
+        database.canonicalWorkoutExerciseDao().deleteForWorkout(projection.workout.id)
+        if (projection.workoutExercises.isNotEmpty()) {
+            database.canonicalWorkoutExerciseDao().insertAll(projection.workoutExercises)
+        }
+        if (projection.workoutSets.isNotEmpty()) {
+            database.canonicalWorkoutSetDao().insertAll(projection.workoutSets)
+        }
+
+        val details = projection.toWorkoutDetails(
+            exerciseDefinitions = exerciseCatalog.exerciseEntities(),
+            category = category,
+        )
+        val summary = summaryBuilder.build(details, summaryZoneId)
+        val existing = database.trainingSummaryOutboxDao().get(
+            workoutId = summary.workoutId,
+            schemaVersion = summary.schemaVersion,
+        )
+        database.trainingSummaryOutboxDao().upsert(
+            TrainingSummaryOutboxEntity(
+                workoutId = summary.workoutId,
+                schemaVersion = summary.schemaVersion,
+                summaryJson = TrainingSummaryJson.encode(summary),
+                state = "PENDING",
+                attemptCount = 0,
+                lastError = null,
+                createdAt = existing?.createdAt ?: completedAt,
+                updatedAt = completedAt,
+            ),
+        )
+    }
+
+    private suspend fun upsertCategory(category: CanonicalCategoryEntity) {
+        val inserted = database.canonicalCategoryDao().insert(category)
+        if (inserted == -1L) database.canonicalCategoryDao().update(category)
+    }
+
+    private suspend fun upsertExerciseCatalog(
+        catalog: CanonicalExerciseCatalog,
+        completedAt: Long,
+    ) {
+        val dao = database.canonicalExerciseDao()
+        val exercises = catalog.exerciseEntities()
+
+        exercises.forEach { incoming ->
+            val existing = dao.getById(incoming.id)
+            val entity = incoming.copy(
+                parentExerciseId = null,
+                createdAt = existing?.createdAt ?: completedAt,
+                updatedAt = completedAt,
+            )
+            val inserted = dao.insert(entity)
+            if (inserted == -1L) dao.update(entity)
+        }
+
+        exercises.forEach { incoming ->
+            val existing = dao.getById(incoming.id) ?: return@forEach
+            val entity = existing.copy(
+                parentExerciseId = incoming.parentExerciseId,
+                muscleGroup = existing.muscleGroup ?: incoming.muscleGroup,
+                updatedAt = completedAt,
+            )
+            if (entity != existing) dao.update(entity)
+        }
+
+        catalog.aliasEntities().forEach { alias -> dao.insertAlias(alias) }
+    }
+
+    private suspend fun upsertWorkout(workout: CanonicalWorkoutEntity) {
+        val inserted = database.canonicalWorkoutDao().insert(workout)
+        if (inserted == -1L) database.canonicalWorkoutDao().update(workout)
+    }
+
+    private fun CanonicalWorkoutProjection.asCompleted(completedAt: Long): CanonicalWorkoutProjection = copy(
+        workout = workout.copy(
+            status = "COMPLETED",
+            endedAt = workout.endedAt ?: completedAt,
+            updatedAt = completedAt,
+        ),
+    )
+
+    private fun CanonicalWorkoutProjection.toWorkoutDetails(
+        exerciseDefinitions: List<CanonicalExerciseEntity>,
+        category: CanonicalCategoryEntity?,
+    ): WorkoutDetails = WorkoutDetails(
+        record = WorkoutRecord(
+            workout = workout.toDomain(),
+            exercises = workoutExercises.map { it.toDomain() },
+            sets = workoutSets.map { it.toDomain() },
+        ),
+        exerciseDefinitions = exerciseDefinitions.associate { entity ->
+            entity.id to entity.toDomain(emptyList())
+        },
+        category = category?.toDomain(),
+    )
+
+    private fun NoteEntity.toCanonicalCategory(): CanonicalCategoryEntity? {
+        val name = categoryName?.trim()?.takeIf(String::isNotEmpty) ?: return null
+        val color = categoryColor ?: 0L
+        return CanonicalCategoryEntity(
+            id = CanonicalKeys.category(name, color),
+            name = name,
+            colorArgb = color,
+            position = 0,
+            isBuiltIn = false,
+            isArchived = false,
+        )
     }
 
     private suspend fun resolveExerciseId(rawName: String): Long {
