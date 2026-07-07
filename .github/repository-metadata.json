@@ -98,6 +98,9 @@
     {"title":"M1 Safe Foundations","description":"Core data, repository, workflow, backup, migration, and deterministic execution paths are safe enough for normal development."},
     {"title":"M2 First Production Loop","description":"Each repository has one complete useful production loop working end to end in its domain."},
     {"title":"M3 Automation Hardening","description":"Automation, validation, quality gates, and recovery workflows reduce manual supervision without hiding risk."},
-    {"title":"M4 Beta Readiness","description":"Release, privacy, permissions, documentation, support, and operational recovery are ready for broader external use."}
+    {"title":"M4 Beta Readiness","description":"Release, privacy, permissions, documentation, support, and operational recovery are ready for broader external use."},
+    {"title":"M5 Migration & Import Expansion","description":"GymTrack supports safer migration into the app through import and restore expansion features with explicit duplicate, conflict, and review semantics."},
+    {"title":"M6 Intelligent Logging","description":"GymTrack uses confirmed workout history to reduce manual workout entry while keeping suggestions optional, editable, and explainable."},
+    {"title":"M7 Public Polish","description":"Store-facing assets, onboarding, support, analytics and crash policy, permissions review, and user-facing documentation are ready for public release polish."}
   ]
 }
