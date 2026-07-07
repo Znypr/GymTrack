@@ -1,5 +1,3 @@
-// FILE PATH: C:\Users\znypr\AndroidStudioProjects\GymTrack\app\src\main\java\com\example\gymtrack\feature\home\NotesScreen.kt
-
 package com.example.gymtrack.feature.home
 
 import android.net.Uri
@@ -42,20 +40,19 @@ fun NotesScreen(
     onDelete: (Set<NoteLine>) -> Unit,
     onExport: (Set<NoteLine>) -> Unit,
     onCreate: () -> Unit,
-    onImport: (List<Uri>) -> Unit, // [FIX] Changed to receive List<Uri>
+    onImport: (List<Uri>) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenStats: () -> Unit,
     onSwipeRight: () -> Unit,
     settings: Settings,
 ) {
-    // [FIX] Multi-File Picker Launcher
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenMultipleDocuments(),
         onResult = { uris ->
             if (uris.isNotEmpty()) {
                 onImport(uris)
             }
-        }
+        },
     )
 
     Scaffold(
@@ -67,7 +64,7 @@ fun NotesScreen(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                     shape = CircleShape,
-                    modifier = Modifier.size(60.dp)
+                    modifier = Modifier.size(60.dp),
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Add Note", modifier = Modifier.size(30.dp))
                 }
@@ -75,10 +72,9 @@ fun NotesScreen(
         },
         topBar = {
             if (selectedNotes.isEmpty()) {
-                // Main Header
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background
+                        containerColor = MaterialTheme.colorScheme.background,
                     ),
                     title = {
                         Text(
@@ -86,29 +82,27 @@ fun NotesScreen(
                             fontSize = 30.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.onBackground,
-                            letterSpacing = (-1).sp
+                            letterSpacing = (-1).sp,
                         )
                     },
                     actions = {
                         IconButton(onClick = onOpenStats) {
                             Icon(Icons.Default.BarChart, contentDescription = "Stats", tint = MaterialTheme.colorScheme.onBackground)
                         }
-                        // [FIX] Launch File Picker on click
                         IconButton(onClick = {
-                            importLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "application/csv", "text/plain"))
+                            importLauncher.launch(arrayOf("*/*"))
                         }) {
                             Icon(Icons.Default.UploadFile, contentDescription = "Import", tint = MaterialTheme.colorScheme.onBackground)
                         }
                         IconButton(onClick = onOpenSettings) {
                             Icon(Icons.Default.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onBackground)
                         }
-                    }
+                    },
                 )
             } else {
-                // Selection Header (Unchanged)
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface
+                        containerColor = MaterialTheme.colorScheme.surface,
                     ),
                     title = { Text("${selectedNotes.size} selected", color = MaterialTheme.colorScheme.onSurface) },
                     navigationIcon = {
@@ -128,13 +122,14 @@ fun NotesScreen(
                         }) {
                             Icon(
                                 imageVector = if (selectedNotes.size == notes.size) Icons.Default.ChecklistRtl else Icons.Default.Checklist,
-                                contentDescription = "Select All", tint = MaterialTheme.colorScheme.onSurface
+                                contentDescription = "Select All",
+                                tint = MaterialTheme.colorScheme.onSurface,
                             )
                         }
-                    }
+                    },
                 )
             }
-        }
+        },
     ) { padding ->
         var dragX by remember { mutableStateOf(0f) }
         var newestFirst by remember { mutableStateOf(true) }
@@ -153,9 +148,9 @@ fun NotesScreen(
                 .padding(padding)
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
-                        onDragEnd = { if (dragX > 100f) onSwipeRight(); dragX = 0f }
+                        onDragEnd = { if (dragX > 100f) onSwipeRight(); dragX = 0f },
                     ) { _, dragAmount -> if (dragAmount > 0) dragX += dragAmount }
-                }
+                },
         ) {
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(160.dp),
@@ -163,40 +158,39 @@ fun NotesScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
             ) {
-                // Header (Sort/Filter)
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 8.dp),
                         horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box {
                             TextButton(onClick = { filterExpanded = true }) {
                                 Text(
                                     text = categoryFilter?.name ?: "All Categories",
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Medium,
                                 )
                                 Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             DropdownMenu(
                                 expanded = filterExpanded,
                                 onDismissRequest = { filterExpanded = false },
-                                containerColor = MaterialTheme.colorScheme.surface
+                                containerColor = MaterialTheme.colorScheme.surface,
                             ) {
                                 DropdownMenuItem(
                                     text = { Text("All", color = MaterialTheme.colorScheme.onSurface) },
-                                    onClick = { categoryFilter = null; filterExpanded = false }
+                                    onClick = { categoryFilter = null; filterExpanded = false },
                                 )
                                 settings.categories.forEach { cat ->
                                     DropdownMenuItem(
                                         text = { Text(cat.name, color = MaterialTheme.colorScheme.onSurface) },
                                         trailingIcon = { Box(Modifier.size(10.dp).background(Color(cat.color), CircleShape)) },
-                                        onClick = { categoryFilter = cat; filterExpanded = false }
+                                        onClick = { categoryFilter = cat; filterExpanded = false },
                                     )
                                 }
                             }
@@ -224,7 +218,7 @@ fun NotesScreen(
                             val newSet = if (isSelected) selectedNotes - note else selectedNotes + note
                             onSelect(newSet)
                         },
-                        settings = settings
+                        settings = settings,
                     )
                 }
             }
