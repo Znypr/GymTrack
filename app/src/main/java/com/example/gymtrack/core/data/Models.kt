@@ -41,7 +41,8 @@ data class NoteLine(
     val timestamp: Long,
     val categoryName: String? = null,
     val categoryColor: Long? = null,
-    val learnings: String = ""
+    val learnings: String = "",
+    val rowMetadata: String = "",
 )
 
 /**
