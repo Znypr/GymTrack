@@ -16,13 +16,16 @@ The old phone export is a folder of individual CSV files:
 C:\Users\znypr\Downloads\gymtrack-exports
 ```
 
-Current count:
+Current preflight result:
 
 ```text
-736 CSV files
+Total CSV files: 736
+Unique file contents: 631
+Unique timestamps: 23
+Smallest file: 144 bytes
 ```
 
-The smallest observed file is 144 bytes.
+The low timestamp count is expected for this export set and must not be treated as only 23 workouts. Many distinct CSV files share the same minute-level timestamp. The bulk importer preserves distinct timestamp collisions by assigning a free one-second offset near the original timestamp.
 
 Representative structure:
 
@@ -51,6 +54,49 @@ Compress-Archive `
 Get-Item "C:\Users\znypr\Downloads\gymtrack-old-phone-exports-backup.zip"
 ```
 
+## Preflight uniqueness check
+
+From Windows PowerShell:
+
+```powershell
+$dir = "C:\Users\znypr\Downloads\gymtrack-exports"
+$files = Get-ChildItem $dir -Filter *.csv
+
+"Total CSV files: $($files.Count)"
+"Unique file contents: $((Get-FileHash $files.FullName -Algorithm SHA256 | Select-Object -ExpandProperty Hash -Unique).Count)"
+
+$rows = foreach ($file in $files) {
+  $firstTwoLines = Get-Content $file.FullName -TotalCount 2
+  $meta = $firstTwoLines | ConvertFrom-Csv
+  [pscustomobject]@{
+    File = $file.Name
+    Hash = (Get-FileHash $file.FullName -Algorithm SHA256).Hash
+    Timestamp = $meta.Timestamp
+    Category = $meta.Category
+    Title = $meta.Title
+    Size = $file.Length
+  }
+}
+
+"Unique timestamps: $(($rows | Select-Object -ExpandProperty Timestamp -Unique).Count)"
+```
+
+## Import behavior
+
+- Exact duplicate records are skipped.
+- Distinct records with the same parsed timestamp are preserved.
+- Timestamp-collision imports receive a deterministic one-second offset near the original timestamp.
+- The import summary reports imported count, exact duplicate count, adjusted timestamp-collision count, and failed count.
+- Individual file failures do not delete already imported records.
+
+Expected first clean import shape for the known export folder is roughly:
+
+```text
+CSV import: 631/736 imported, 105 exact duplicates skipped, 608 timestamp collisions preserved, 0 failed
+```
+
+The exact duplicate and timestamp-collision numbers may differ if the export folder changes.
+
 ## Emulator validation first
 
 1. Install the new app on an emulator.
@@ -59,7 +105,7 @@ Get-Item "C:\Users\znypr\Downloads\gymtrack-old-phone-exports-backup.zip"
 4. Use the import button on the notes screen.
 5. Select all legacy CSV files in one operation.
 6. Wait for the import summary toast.
-7. Confirm the toast reports all selected files as imported, or records explicit duplicate/failed counts.
+7. Confirm the toast reports an import count close to the unique file-content count, not just the unique timestamp count.
 8. Open representative old workouts and verify category, timestamp, main exercises, sub entries, row times, and unilateral/bilateral flags.
 9. Open statistics and verify imported workouts are included.
 
@@ -80,7 +126,7 @@ Only after emulator validation:
 
 ## Repeated import behavior
 
-Bulk import skips records whose timestamp already exists in the current app. This prevents silently creating duplicates when the same legacy CSV folder is imported more than once.
+Bulk import skips exact duplicate records. If a record was previously imported with an adjusted timestamp because of a same-timestamp collision, a later import of the same CSV is detected by content fingerprint when the original timestamp is already occupied.
 
 ## Failure handling
 
