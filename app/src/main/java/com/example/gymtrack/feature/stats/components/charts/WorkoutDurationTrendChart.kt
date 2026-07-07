@@ -39,11 +39,10 @@ fun WorkoutDurationTrendChart(
     }
 
     fun noteMin(n: NoteLine): Float? =
-        parseNoteText(n.text).second
+        parseNoteText(n.text, n.rowMetadata).second
             .mapNotNull { if (it.isBlank()) null else parseDurationSeconds(it) }
             .maxOrNull()?.div(60f)
 
-    // Aggregate Data
     val weekly = notes
         .groupBy { isoWeekStart(it.timestamp) }
         .toSortedMap()
@@ -76,20 +75,17 @@ fun WorkoutDurationTrendChart(
             val x0 = layout.originX()
             val y0 = layout.originY(size.height)
 
-            // Draw Grid
             drawYGridAndLabels(scaleY, theme, layout, textPaint)
 
             val n = weekly.size
             val dx = if (n <= 1) chartW else chartW / (n - 1).toFloat()
 
-            // Calculate Points
             val points = weekly.mapIndexed { i, pair ->
                 val x = x0 + dx * i
                 val y = scaleY.yToPx(pair.second, y0, layout.topPad)
                 x to y
             }
 
-            // Draw Fill (Gradient)
             val linePath = createSmoothPath(points)
             val fillPath = createFillPath(linePath, size.width, y0)
 
@@ -102,14 +98,12 @@ fun WorkoutDurationTrendChart(
                 )
             )
 
-            // Draw Line
             drawPath(
                 path = linePath,
                 color = theme.primary,
                 style = Stroke(width = 6f)
             )
 
-            // Draw X Labels (First and Last)
             drawXTickLabel(df.format(weekly.first().first), x0, y0, textPaint)
             if (n > 1) {
                 drawXTickLabel(df.format(weekly.last().first), x0 + chartW, y0, textPaint)
