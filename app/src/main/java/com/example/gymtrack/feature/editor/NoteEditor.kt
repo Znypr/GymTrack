@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowInsetsControllerCompat
@@ -25,6 +26,9 @@ import com.example.gymtrack.feature.editor.components.EditorHeroHeader
 import com.example.gymtrack.feature.editor.components.EditorListSection
 import com.example.gymtrack.feature.editor.components.LearningsPopup
 import com.example.gymtrack.feature.editor.components.NoteTimer
+
+internal const val NOTE_EDITOR_FINISH_ACTION_TEST_TAG = "note-editor-finish-action"
+internal const val NOTE_EDITOR_TIMER_CONTROLS_TEST_TAG = "note-editor-timer-controls"
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -116,19 +120,16 @@ fun NoteEditor(
                     }
                 },
                 actions = {
-                    if (isLastNote) {
-                        TextButton(
-                            onClick = {
-                                state.saveNote(
-                                    isLastNote = true,
-                                    exit = true,
-                                    finishWorkout = true,
-                                )
-                            },
-                        ) {
-                            Text("Finish")
-                        }
-                    }
+                    NoteEditorFinishAction(
+                        isVisible = isLastNote,
+                        onFinish = {
+                            state.saveNote(
+                                isLastNote = true,
+                                exit = true,
+                                finishWorkout = true,
+                            )
+                        },
+                    )
                     IconButton(onClick = { showLearnings = true }) {
                         Icon(
                             Icons.Default.Menu,
@@ -154,15 +155,14 @@ fun NoteEditor(
                     topPadding = padding.calculateTopPadding(),
                 )
 
-                if (isLastNote) {
-                    NoteTimer(
-                        noteTimestamp = noteTimestamp,
-                        startOnOpen = startTimerOnOpen,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                }
+                NoteEditorTimerControls(
+                    isVisible = isLastNote,
+                    noteTimestamp = noteTimestamp,
+                    startTimerOnOpen = startTimerOnOpen,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                )
 
                 Column(
                     modifier = Modifier
@@ -187,4 +187,39 @@ fun NoteEditor(
             )
         }
     }
+}
+
+@Composable
+internal fun NoteEditorFinishAction(
+    isVisible: Boolean,
+    onFinish: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (!isVisible) return
+
+    TextButton(
+        modifier = modifier.testTag(NOTE_EDITOR_FINISH_ACTION_TEST_TAG),
+        onClick = onFinish,
+    ) {
+        Text("Finish")
+    }
+}
+
+@Composable
+internal fun NoteEditorTimerControls(
+    isVisible: Boolean,
+    noteTimestamp: Long,
+    startTimerOnOpen: Boolean,
+    modifier: Modifier = Modifier,
+    timerContent: @Composable (Modifier) -> Unit = { timerModifier ->
+        NoteTimer(
+            noteTimestamp = noteTimestamp,
+            startOnOpen = startTimerOnOpen,
+            modifier = timerModifier,
+        )
+    },
+) {
+    if (!isVisible) return
+
+    timerContent(modifier.testTag(NOTE_EDITOR_TIMER_CONTROLS_TEST_TAG))
 }
