@@ -1,6 +1,7 @@
 package com.example.gymtrack.core.data
 
 import android.content.Context
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Delete
@@ -65,6 +66,25 @@ data class SetEntity(
     val relativeTime: String? = null,
     val absoluteTime: String? = null,
     val weightUnit: String = WeightUnit.KG.storageValue,
+)
+
+@Entity(
+    tableName = "training_summary_outbox",
+    primaryKeys = ["workout_id", "schema_version"],
+    indices = [
+        Index(value = ["state"]),
+        Index(value = ["updated_at"]),
+    ],
+)
+data class TrainingSummaryOutboxEntity(
+    @ColumnInfo(name = "workout_id") val workoutId: String,
+    @ColumnInfo(name = "schema_version") val schemaVersion: Int,
+    @ColumnInfo(name = "summary_json") val summaryJson: String,
+    val state: String,
+    @ColumnInfo(name = "attempt_count") val attemptCount: Int,
+    @ColumnInfo(name = "last_error") val lastError: String?,
+    @ColumnInfo(name = "created_at") val createdAt: Long,
+    @ColumnInfo(name = "updated_at") val updatedAt: Long,
 )
 
 data class GraphPoint(val originTimestamp: Long, val avgVal: Float)
@@ -191,11 +211,27 @@ interface SetDao {
     }
 }
 
+@Dao
+interface TrainingSummaryOutboxDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: TrainingSummaryOutboxEntity)
+
+    @Query("SELECT * FROM training_summary_outbox WHERE workout_id = :workoutId AND schema_version = :schemaVersion LIMIT 1")
+    suspend fun get(workoutId: String, schemaVersion: Int): TrainingSummaryOutboxEntity?
+
+    @Query("SELECT * FROM training_summary_outbox WHERE state = 'PENDING' ORDER BY updated_at ASC, workout_id ASC")
+    suspend fun getPending(): List<TrainingSummaryOutboxEntity>
+
+    @Query("SELECT COUNT(*) FROM training_summary_outbox")
+    suspend fun getCount(): Int
+}
+
 @Database(
     entities = [
         NoteEntity::class,
         ExerciseEntity::class,
         SetEntity::class,
+        TrainingSummaryOutboxEntity::class,
         CanonicalCategoryEntity::class,
         CanonicalExerciseEntity::class,
         CanonicalExerciseAliasEntity::class,
@@ -203,12 +239,13 @@ interface SetDao {
         CanonicalWorkoutExerciseEntity::class,
         CanonicalWorkoutSetEntity::class,
     ],
-    version = 10,
+    version = 11,
 )
 abstract class NoteDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun exerciseDao(): ExerciseDao
     abstract fun setDao(): SetDao
+    abstract fun trainingSummaryOutboxDao(): TrainingSummaryOutboxDao
     abstract fun canonicalCategoryDao(): CanonicalCategoryDao
     abstract fun canonicalExerciseDao(): CanonicalExerciseDao
     abstract fun canonicalWorkoutDao(): CanonicalWorkoutDao
