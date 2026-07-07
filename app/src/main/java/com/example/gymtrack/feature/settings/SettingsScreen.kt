@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.Settings
+import com.example.gymtrack.core.data.WeightUnit
 
 private val CardDeepDark = Color(0xFF181818)
 
@@ -76,6 +77,11 @@ fun SettingsScreen(
                     SettingsSwitchRow("Dark Mode", settings.darkMode) { update { copy(darkMode = it) } }
                     HorizontalDivider(color = textColor.copy(alpha = 0.1f))
                     SettingsSwitchRow("24-Hour Time", settings.is24Hour) { update { copy(is24Hour = it) } }
+                    HorizontalDivider(color = textColor.copy(alpha = 0.1f))
+                    SettingsWeightUnitRow(
+                        selected = settings.defaultWeightUnit,
+                        onSelected = { unit -> update { copy(defaultWeightUnit = unit) } },
+                    )
                 }
             }
 
@@ -182,6 +188,36 @@ private fun SettingsActionRow(
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (enabled) 1f else 0.5f),
             style = MaterialTheme.typography.bodySmall,
         )
+    }
+}
+
+@Composable
+private fun SettingsWeightUnitRow(
+    selected: WeightUnit,
+    onSelected: (WeightUnit) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        Text(
+            text = "Default weight unit",
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Medium,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "Used when new set lines omit kg/lb. Existing workouts are not reinterpreted.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            WeightUnit.values().forEach { unit ->
+                FilterChip(
+                    selected = selected == unit,
+                    onClick = { onSelected(unit) },
+                    label = { Text(unit.displayLabel) },
+                )
+            }
+        }
     }
 }
 

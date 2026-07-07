@@ -29,6 +29,7 @@ import com.example.gymtrack.feature.editor.components.NoteTimer
 
 internal const val NOTE_EDITOR_FINISH_ACTION_TEST_TAG = "note-editor-finish-action"
 internal const val NOTE_EDITOR_TIMER_CONTROLS_TEST_TAG = "note-editor-timer-controls"
+internal const val NOTE_EDITOR_WEIGHT_UNIT_INDICATOR_TEST_TAG = "note-editor-weight-unit-indicator"
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,6 +55,10 @@ fun NoteEditor(
 
     val state = rememberNoteEditorState(viewModel, settings, note, onSaveSuccess)
     val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(settings.defaultWeightUnit) {
+        viewModel.currentDefaultWeightUnit = settings.defaultWeightUnit
+    }
 
     LaunchedEffect(saveError) {
         saveError?.let { message ->
@@ -164,6 +169,13 @@ fun NoteEditor(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 )
 
+                NoteEditorWeightUnitIndicator(
+                    unitLabel = settings.defaultWeightUnit.displayLabel,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                )
+
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -187,6 +199,19 @@ fun NoteEditor(
             )
         }
     }
+}
+
+@Composable
+internal fun NoteEditorWeightUnitIndicator(
+    unitLabel: String,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text = "Default weight unit: $unitLabel",
+        modifier = modifier.testTag(NOTE_EDITOR_WEIGHT_UNIT_INDICATOR_TEST_TAG),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
+    )
 }
 
 @Composable

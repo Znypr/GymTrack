@@ -7,20 +7,21 @@ import kotlin.math.min
 data class ParsedSetDTO(
     val exerciseName: String,
     var weight: Float,
+    val weightUnit: String = "KG",
     val reps: Int,
     val isUnilateral: Boolean,
     val modifier: String?,
     val brand: String?,
     val relativeTime: String?,
     val absoluteTime: String?,
-    val workoutId: Long = 0L
+    val workoutId: Long = 0L,
 )
 
 class WorkoutParser {
 
     companion object {
 
-        private val weightRegex = Pattern.compile("(?i)(?:^|\\s)(\\d+(?:\\.\\d+)?)(?:\\s*(kg|lbs))?(?![xX]|[':]|\\d)")
+        private val weightRegex = Pattern.compile("(?i)(?:^|\\s)(\\d+(?:\\.\\d+)?)(?:\\s*(kg|kgs|lb|lbs))?(?![xX]|[':]|\\d)")
         private val repsRegex = Pattern.compile("(?i)(?:x\\s*([0-9+]+)|([0-9+]+)\\s*x|([0-9+]+)\\s*reps?)")
         private val repsCaptureRegex = Pattern.compile("([0-9+]+)\\s*x", Pattern.CASE_INSENSITIVE)
         private val metadataStartRegex = Regex("""\s*\(?\d+\s*['’":]\s*\d+""")
@@ -28,22 +29,26 @@ class WorkoutParser {
         private val isolatedNumberRegex = Regex("""\b\d+\b""")
         private val parenNumberRegex = Regex("""\(\s*\d+\s*\)""")
 
+        fun normalizeWeightUnit(raw: String?): String = when (raw?.trim()?.lowercase()) {
+            "lb", "lbs" -> "LB"
+            "kg", "kgs" -> "KG"
+            else -> "KG"
+        }
     }
-
 
     // --- DICTIONARIES & LISTS ---
 
     private val BODYWEIGHT_EXERCISES = setOf(
         "pullup", "chinup", "dip", "situp", "pushup", "crunch", "hanging leg raise",
         "leg raise", "air squat", "lunge", "hyperextension", "back extension", "muscle up",
-        "burpee", "box jump"
+        "burpee", "box jump",
     )
 
     private val CARDIO_EXERCISES = setOf(
         "cycling", "cycle", "bike", "spinning",
         "stairmaster", "stair master", "stairs",
         "treadmill", "running", "jogging", "run",
-        "elliptical", "rowing machine", "ergometer", "rowing"
+        "elliptical", "rowing machine", "ergometer", "rowing",
     )
 
     private val GYM_TERMS = setOf(
@@ -53,7 +58,7 @@ class WorkoutParser {
         "bench", "incline", "decline", "fly", "butterfly", "crunch", "situp",
         "adductor", "abductor", "calf", "glute", "hamstring", "quad",
         "deadlift", "romanian", "stiff", "lunge", "step", "stairmaster", "lat",
-        "hack", "seated", "lying", "standing", "assisted", "hanging", "hyperextension"
+        "hack", "seated", "lying", "standing", "assisted", "hanging", "hyperextension",
     ) + BODYWEIGHT_EXERCISES + CARDIO_EXERCISES
 
     private val BRAND_ALIASES = mapOf(
@@ -64,23 +69,21 @@ class WorkoutParser {
         "lf" to "Life Fitness", "lifefitness" to "Life Fitness",
         "atlantis" to "Atlantis", "prime" to "Prime", "technogym" to "Technogym",
         "matrix" to "Matrix", "precor" to "Precor", "nautilus" to "Nautilus",
-        "panatta" to "Panatta", "watson" to "Watson", "rogers" to "Rogers"
+        "panatta" to "Panatta", "watson" to "Watson", "rogers" to "Rogers",
     )
 
-    // User's Restricted Modifier List
     private val MODIFIER_ALIASES = mapOf(
         "db" to "Dumbbell", "dbs" to "Dumbbell", "dumbell" to "Dumbbell",
         "bb" to "Barbell", "oh" to "Overgrip",
-        "ug" to "Undergrip", "og" to "Overgrip"
+        "ug" to "Undergrip", "og" to "Overgrip",
     )
 
-    // User's Explicitly Allowed Modifiers
     private val KNOWN_MODIFIERS = setOf(
         "wide", "narrow", "medium", "close", "neutral",
         "undergrip", "overgrip", "ug", "og", "n", "oh",
         "single", "arm", "alternating", "standing",
         "high", "low", "iso", "spt",
-        "rope", "cable", "smith", "incline", "decline", "dumbbell", "db", "dbs", "barbell", "bb", "supported"
+        "rope", "cable", "smith", "incline", "decline", "dumbbell", "db", "dbs", "barbell", "bb", "supported",
     )
 
     private val CORE_MAPPINGS = mapOf(
@@ -99,20 +102,16 @@ class WorkoutParser {
         "legraise" to "leg raise",
         "ad abductor" to "adductor",
         "buttferfli" to "butterfly",
-        "cycle" to "cycling", "bike" to "cycling"
+        "cycle" to "cycling", "bike" to "cycling",
     )
 
     private val NOISE_WORDS = setOf("uni", "ss", "u", "b", "l", "r", "with", "on", "no", "v")
     private val VOCABULARY = GYM_TERMS + BRAND_ALIASES.keys + BRAND_ALIASES.values + MODIFIER_ALIASES.keys + MODIFIER_ALIASES.values + KNOWN_MODIFIERS
 
-    // --- NEW HELPER: Calculate Reps from String (handles "5+5") ---
     private fun calculateReps(raw: String?): Int {
         if (raw == null) return 0
-        // Split by '+' and sum (e.g. "5+5" -> 10)
         return raw.split("+").sumOf { it.trim().toIntOrNull() ?: 0 }
     }
-
-    // --- ALGORITHMS ---
 
     private fun levenshtein(lhs: CharSequence, rhs: CharSequence): Int {
         val lhsLen = lhs.length
@@ -160,22 +159,17 @@ class WorkoutParser {
         }
     }
 
-    // --- PIPELINE LOGIC ---
-
     private fun extractDetails(rawLine: String, rawMetadata: String): Triple<String, String?, String?> {
-        // Step 0: Pre-cleaning
         var cleanedLine = rawLine.lowercase()
             .replace(parenNumberRegex, "")
             .replace(isolatedNumberRegex, "")
             .replace(plusNumberRegex, "")
             .trim()
 
-        // Step 1: Tokenize & Autocorrect
         var tokens = cleanedLine.split("\\s+".toRegex()).toMutableList()
         val correctedTokens = tokens.map { autocorrect(it) }.toMutableList()
         tokens = correctedTokens
 
-        // Step 2: Extract Brands
         val foundBrands = mutableSetOf<String>()
         val remainingTokensStep2 = mutableListOf<String>()
         for (token in tokens) {
@@ -189,7 +183,6 @@ class WorkoutParser {
         }
         tokens = remainingTokensStep2
 
-        // Step 3: Extract Modifiers
         val foundModifiers = mutableSetOf<String>()
         val remainingTokensStep3 = mutableListOf<String>()
         for (token in tokens) {
@@ -204,7 +197,6 @@ class WorkoutParser {
         }
         tokens = remainingTokensStep3
 
-        // Step 4: Core Name Normalization
         var coreName = tokens.joinToString(" ")
             .replace(Regex("[-/.,]"), " ")
             .replace(Regex("\\s+"), " ")
@@ -236,8 +228,9 @@ class WorkoutParser {
         return Pair(relativeTime, absoluteTime)
     }
 
-    fun parseWorkout(rawText: String): List<ParsedSetDTO> {
+    fun parseWorkout(rawText: String, defaultWeightUnit: String = "KG"): List<ParsedSetDTO> {
         val results = mutableListOf<ParsedSetDTO>()
+        val fallbackWeightUnit = normalizeWeightUnit(defaultWeightUnit)
 
         var currentExerciseName = "Unknown"
         var currentModifier: String? = null
@@ -245,6 +238,7 @@ class WorkoutParser {
         var currentRelTime: String? = null
         var currentAbsTime: String? = null
         var currentWeight = 0f
+        var currentWeightUnit = fallbackWeightUnit
 
         val lines = rawText.split("\n")
 
@@ -257,16 +251,15 @@ class WorkoutParser {
 
             val cleanLine = rawNamePart.trim()
 
-            // Set Detection Logic
             val looksLikeSet = cleanLine.matches(Regex("(?i)^[\\d+]+\\s*x.*")) ||
-                    cleanLine.matches(Regex("(?i)^x\\s*[\\d+]+.*")) ||
-                    repsRegex.matcher(cleanLine).find() ||
-                    cleanLine.matches(Regex("^\\d+$")) ||
-                    line.startsWith("    ")
+                cleanLine.matches(Regex("(?i)^x\\s*[\\d+]+.*")) ||
+                repsRegex.matcher(cleanLine).find() ||
+                cleanLine.matches(Regex("^\\d+$")) ||
+                line.startsWith("    ")
 
             if (!looksLikeSet) {
-                // --- HEADER LINE ---
                 currentWeight = 0f
+                currentWeightUnit = fallbackWeightUnit
 
                 val (rel, abs) = extractTimes(rawMetadataPart)
                 currentRelTime = rel
@@ -276,56 +269,52 @@ class WorkoutParser {
                 currentExerciseName = name
                 currentModifier = mod
                 currentBrand = brand
-
             } else {
-                // --- SET LINE ---
                 val isCardio = CARDIO_EXERCISES.contains(currentExerciseName.lowercase())
                 val isBodyweight = BODYWEIGHT_EXERCISES.contains(currentExerciseName.lowercase())
 
                 var weight = 0f
+                var weightUnit = fallbackWeightUnit
                 var reps = 0
 
-                val lineContent = cleanLine // Start with the full text
-                var remainder = cleanLine // Will hold the weight part
+                val lineContent = cleanLine
+                var remainder = cleanLine
 
-                // --- Step A: Extract Reps (Primary Action) ---
                 val repsMatcher = repsCaptureRegex.matcher(lineContent)
 
                 if (repsMatcher.find()) {
-                    // 1. Get the raw rep string (e.g., "50+50")
                     val rawRepString = repsMatcher.group(1)
-
-                    // 2. Calculate the sum (e.g., 100)
                     reps = calculateReps(rawRepString)
-
-                    // 3. FIX: Use the standard String.replaceFirst to remove the matched text.
-                    // The matched text includes the final 'x' (e.g., "50+50x").
-                    // We get the exact text matched by the entire expression using match.group(0).
                     val matchedRepExpression = repsMatcher.group(0)
                     remainder = lineContent.replaceFirst(matchedRepExpression, "").trim()
                 }
 
-                // --- Step B: Extract Weight from Remainder ---
                 if (reps > 0) {
                     val weightMatcher = weightRegex.matcher(remainder)
                     if (weightMatcher.find()) {
                         val found = weightMatcher.group(1)?.toFloatOrNull()
-                        if (found != null) weight = found
+                        val explicitUnit = weightMatcher.group(2)
+                        if (found != null) {
+                            weight = found
+                            weightUnit = explicitUnit?.let(::normalizeWeightUnit) ?: fallbackWeightUnit
+                        }
                     }
                 }
 
-                // --- Cardio Logic ---
                 if (isCardio) {
                     if (reps == 0 && weight > 0) {
-                        reps = weight.toInt() // Weight is duration
+                        reps = weight.toInt()
                         weight = 0f
                     }
                 }
 
-                // --- Carry-Over Logic ---
-                if (weight > 0f) currentWeight = weight
+                if (weight > 0f) {
+                    currentWeight = weight
+                    currentWeightUnit = weightUnit
+                }
 
                 val finalWeight = if (isBodyweight && weight == 0f) 0f else currentWeight
+                val finalWeightUnit = if (finalWeight > 0f) currentWeightUnit else fallbackWeightUnit
 
                 val isValidSet = if (isBodyweight || isCardio) {
                     reps > 0
@@ -338,13 +327,14 @@ class WorkoutParser {
                         ParsedSetDTO(
                             exerciseName = currentExerciseName,
                             weight = finalWeight,
+                            weightUnit = finalWeightUnit,
                             reps = reps,
                             isUnilateral = line.contains("\u200Cu") || line.lowercase().contains("uni"),
                             modifier = currentModifier,
                             brand = currentBrand,
                             relativeTime = currentRelTime,
-                            absoluteTime = currentAbsTime
-                        )
+                            absoluteTime = currentAbsTime,
+                        ),
                     )
                 }
             }

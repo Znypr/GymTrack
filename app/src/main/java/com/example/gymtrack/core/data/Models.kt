@@ -14,11 +14,25 @@ val DEFAULT_CATEGORIES = listOf(
 
 val DEFAULT_CATEGORY_NAMES = DEFAULT_CATEGORIES.map { it.name }.toSet()
 
+enum class WeightUnit(val storageValue: String, val displayLabel: String) {
+    KG("KG", "kg"),
+    LB("LB", "lb");
+
+    companion object {
+        fun fromStorage(value: String?): WeightUnit = when (value?.trim()?.uppercase()) {
+            "LB", "LBS" -> LB
+            "KG", "KGS" -> KG
+            else -> KG
+        }
+    }
+}
+
 data class Settings(
     val is24Hour: Boolean = true,
     val roundingSeconds: Int = 5,
     val darkMode: Boolean = true,
-    val categories: List<Category> = DEFAULT_CATEGORIES
+    val categories: List<Category> = DEFAULT_CATEGORIES,
+    val defaultWeightUnit: WeightUnit = WeightUnit.KG,
 )
 
 data class NoteLine(
