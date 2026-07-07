@@ -2,12 +2,14 @@ package com.example.gymtrack.core.backup
 
 import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.Settings
+import com.example.gymtrack.core.data.WeightUnit
 import org.json.JSONObject
 
 internal fun Settings.asBackupJson(): JSONObject = JSONObject()
     .put("is24Hour", is24Hour)
     .put("roundingSeconds", roundingSeconds)
     .put("darkMode", darkMode)
+    .put("defaultWeightUnit", defaultWeightUnit.storageValue)
     .put("categories", categories.asJsonArray { value ->
         JSONObject().put("name", value.name).put("color", value.color)
     })
@@ -19,4 +21,5 @@ internal fun JSONObject.asBackupSettings(): Settings = Settings(
     categories = getJSONArray("categories").mapJsonObjects { value ->
         Category(value.getString("name"), value.getLong("color"))
     },
+    defaultWeightUnit = WeightUnit.fromStorage(optString("defaultWeightUnit", "KG")),
 )
