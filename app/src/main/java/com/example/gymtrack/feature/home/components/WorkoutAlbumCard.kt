@@ -33,18 +33,14 @@ fun WorkoutAlbumCard(
     onLongClick: () -> Unit,
     settings: Settings
 ) {
-    // [FIX] Dynamic Color Lookup
-    // Find the category in settings that matches the note's category name.
-    // If not found, default to Gray.
     val categoryColor = remember(note.categoryName, settings.categories) {
         val found = settings.categories.find { it.name == note.categoryName }
-        if (found != null) Color(found.color) else Color(0xFF666666) // Default Gray
+        if (found != null) Color(found.color) else Color(0xFF666666)
     }
 
     val cardBaseColor = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.background
     val textColor = MaterialTheme.colorScheme.onSurface
 
-    // Gradient using the dynamic color
     val fadeGradient = remember(categoryColor, cardBaseColor) {
         Brush.verticalGradient(
             colors = listOf(
@@ -54,9 +50,8 @@ fun WorkoutAlbumCard(
         )
     }
 
-    // ... (Rest of UI remains identical) ...
-    val totalMinutes = remember(note.text) {
-        val seconds = parseNoteText(note.text).second.mapNotNull {
+    val totalMinutes = remember(note.text, note.rowMetadata) {
+        val seconds = parseNoteText(note.text, note.rowMetadata).second.mapNotNull {
             if (it.isBlank()) null else parseDurationSeconds(it)
         }.maxOrNull()
         seconds?.div(60) ?: 0
