@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.NoteLine
+import com.example.gymtrack.core.data.WeightUnit
 import com.example.gymtrack.core.data.WorkoutRepository
 import com.example.gymtrack.core.data.repository.NoteRepository
 import com.example.gymtrack.core.data.repository.toEntity
@@ -27,9 +28,13 @@ class EditorViewModel(
     private val _saveError = MutableStateFlow<String?>(null)
     val saveError = _saveError.asStateFlow()
 
+    var currentDefaultWeightUnit: WeightUnit = WeightUnit.KG
+
     private val saveCoordinator = EditorSaveCoordinator(
         persistDraft = noteRepo::saveNote,
-        finalizeWorkout = { note -> workoutRepo.saveCompletedWorkout(note.toEntity()) },
+        finalizeWorkout = { note ->
+            workoutRepo.saveCompletedWorkout(note.toEntity(), currentDefaultWeightUnit)
+        },
     )
 
     private val idLock = Any()
