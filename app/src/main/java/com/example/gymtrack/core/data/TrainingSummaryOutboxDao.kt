@@ -15,4 +15,7 @@ interface TrainingSummaryOutboxDao {
 
     @Query("SELECT * FROM training_summary_outbox WHERE status = 'PENDING' ORDER BY updated_at ASC, summary_key ASC")
     suspend fun getPending(): List<TrainingSummaryOutboxEntity>
+
+    @Query("DELETE FROM training_summary_outbox WHERE workout_id = :workoutId")
+    suspend fun deleteForWorkout(workoutId: String)
 }
