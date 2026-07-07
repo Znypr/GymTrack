@@ -17,7 +17,9 @@
   "issue_info": {
     "required_sections": ["Outcome", "Context", "Scope", "Non-scope", "Acceptance criteria", "Validation", "Intended tracking"],
     "required_sidebar": ["Assignee", "Labels", "Project", "Milestone when tied to a finite checkpoint", "Development link for implementation"],
-    "tracking_labels": ["one status:*", "one type:*", "one priority:*", "one or more area:*", "optional rank:NNN", "optional energy:*", "optional confidence:*", "optional risk:*", "optional flag:*"]
+    "tracking_labels": ["one status:*", "one type:*", "one priority:*", "one or more area:*", "one energy:*", "one confidence:*", "optional rank:NNN", "optional risk:*", "optional flag:*"],
+    "invalid_metadata_label": "flag:metadata-invalid",
+    "invalid_metadata_status": "status:needs-manual-review"
   },
   "labels": [
     {"name":"status:ideas","color":"d4c5f9","description":"Raw, unclear, unclassified, or decision-needed work"},
@@ -79,7 +81,8 @@
     {"name":"risk:performance","color":"e99695","description":"Requires performance measurement or has performance risk"},
     {"name":"risk:breaking-change","color":"e99695","description":"May break compatibility or existing behavior"},
     {"name":"flag:blocked","color":"b60205","description":"Blocked by an explicit dependency"},
-    {"name":"flag:decision-needed","color":"fbca04","description":"Needs a decision before execution"}
+    {"name":"flag:decision-needed","color":"fbca04","description":"Needs a decision before execution"},
+    {"name":"flag:metadata-invalid","color":"b60205","description":"Issue is missing required metadata labels or assignee"}
   ],
   "milestones": [
     {"title":"M0 Governance Baseline","description":"Shared labels, colors, Project fields, issue metadata, sync workflows, and milestone rules are consistent across registered repositories."},
