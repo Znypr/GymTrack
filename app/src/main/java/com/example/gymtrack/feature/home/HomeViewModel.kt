@@ -2,6 +2,7 @@ package com.example.gymtrack.feature.home
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -16,10 +17,34 @@ import java.io.File
 import java.io.IOException
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+data class LegacyCsvImportSummary(
+    val selected: Int,
+    val imported: Int,
+    val skippedDuplicates: Int,
+    val failed: Int,
+    val failedNames: List<String> = emptyList(),
+) {
+    fun toUserMessage(): String = buildString {
+        append("CSV import: $imported/$selected imported")
+        if (skippedDuplicates > 0) {
+            append(", $skippedDuplicates duplicates skipped")
+        }
+        if (failed > 0) {
+            append(", $failed failed")
+            failedNames.take(3).takeIf { it.isNotEmpty() }?.let { names ->
+                append(". First failed: ")
+                append(names.joinToString())
+            }
+        }
+    }
+}
 
 class HomeViewModel(
     private val repository: NoteRepository,
@@ -28,6 +53,13 @@ class HomeViewModel(
 
     val notes = repository.getAllNotes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val _legacyCsvImportSummary = MutableStateFlow<LegacyCsvImportSummary?>(null)
+    val legacyCsvImportSummary = _legacyCsvImportSummary.asStateFlow()
+
+    fun clearLegacyCsvImportSummary() {
+        _legacyCsvImportSummary.value = null
+    }
 
     fun deleteNotes(notes: Set<NoteLine>) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -54,27 +86,74 @@ class HomeViewModel(
 
     fun importNotesFromUris(context: Context, uris: List<Uri>, settings: Settings) {
         viewModelScope.launch(Dispatchers.IO) {
+            val knownTimestamps = notes.value.mapTo(mutableSetOf()) { it.timestamp }
+            var imported = 0
+            var skippedDuplicates = 0
+            var failed = 0
+            val failedNames = mutableListOf<String>()
+
             uris.forEach { uri ->
+                val displayName = displayName(context, uri)
                 val uniqueName = "temp_import_${UUID.randomUUID()}.csv"
                 val tempFile = File(context.cacheDir, uniqueName)
 
                 try {
-                    context.contentResolver.openInputStream(uri)?.use { input ->
+                    val copied = context.contentResolver.openInputStream(uri)?.use { input ->
                         tempFile.outputStream().use { output ->
                             input.copyTo(output)
                         }
+                        true
+                    } ?: false
+                    if (!copied) {
+                        throw IOException("Could not read $displayName")
                     }
 
-                    importNote(tempFile, settings)?.let { note ->
+                    val note = importNote(tempFile, settings)
+                        ?: throw IOException("Could not parse $displayName")
+                    if (note.timestamp <= 0L) {
+                        throw IOException("Invalid timestamp in $displayName")
+                    }
+                    if (!knownTimestamps.add(note.timestamp)) {
+                        skippedDuplicates++
+                    } else {
                         workoutRepository.saveCompletedWorkout(note.toEntity())
+                        imported++
                     }
                 } catch (error: Exception) {
                     error.printStackTrace()
+                    failed++
+                    failedNames += displayName
                 } finally {
                     tempFile.delete()
                 }
             }
+
+            _legacyCsvImportSummary.value = LegacyCsvImportSummary(
+                selected = uris.size,
+                imported = imported,
+                skippedDuplicates = skippedDuplicates,
+                failed = failed,
+                failedNames = failedNames,
+            )
         }
+    }
+
+    private fun displayName(context: Context, uri: Uri): String {
+        return runCatching {
+            context.contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
+            }
+        }.getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: uri.lastPathSegment
+            ?: uri.toString()
     }
 
     class Factory(
