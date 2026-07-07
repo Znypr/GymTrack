@@ -224,6 +224,9 @@ interface TrainingSummaryOutboxDao {
 
     @Query("SELECT COUNT(*) FROM training_summary_outbox")
     suspend fun getCount(): Int
+
+    @Query("DELETE FROM training_summary_outbox")
+    suspend fun deleteAll()
 }
 
 @Database(
