@@ -4,7 +4,7 @@
 
 Rules:
 
-- Read typed data through `CanonicalWorkoutRepository`.
+- Read typed data through `CanonicalWorkoutRepository` or an equivalent canonical `WorkoutDetails` projection inside the completion transaction.
 - Use stable `workout_id` for external upsert.
 - Keep unavailable values null.
 - Never infer weight units, energy, recovery notes, or completion state.
@@ -33,3 +33,19 @@ JSON fields:
 `top_lifts` contains at most three representatives in workout-exercise order. Per occurrence, selection prefers highest weight, then highest reps; otherwise highest reps, duration, or distance. Ties use the earliest set. Unknown units are rendered as `[unit unknown]`.
 
 Serialization uses fixed snake-case keys, explicit nulls, deterministic ordering, and standard JSON escaping.
+
+## Local outbox
+
+Explicit workout completion writes one durable row into `training_summary_outbox` keyed by `(workout_id, schema_version)`.
+
+The row stores:
+
+- the serialized `TrainingSummary` JSON;
+- `PENDING` delivery state;
+- retry metadata for future transport;
+- stable creation time;
+- update time from the latest completed workout edit.
+
+Draft autosave must not write an outbox row. Editing a completed workout rewrites the same `(workout_id, schema_version)` row instead of appending duplicates. External Creator OS or Google Sheets transport can poll pending rows later without changing workout storage.
+
+The outbox is local and durable across app restart. Delivery failure handling belongs to the future transport layer and must not change workout persistence semantics.
