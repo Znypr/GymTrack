@@ -13,6 +13,7 @@ internal fun NoteEntity.asBackupJson(): JSONObject = JSONObject()
     .putOptional("categoryName", categoryName)
     .putOptional("categoryColor", categoryColor)
     .putOptional("learnings", learnings)
+    .putOptional("rowMetadata", rowMetadata)
 
 internal fun JSONObject.asBackupNoteEntity(): NoteEntity = NoteEntity(
     timestamp = getLong("timestamp"),
@@ -21,6 +22,7 @@ internal fun JSONObject.asBackupNoteEntity(): NoteEntity = NoteEntity(
     categoryName = optionalString("categoryName"),
     categoryColor = optionalLong("categoryColor"),
     learnings = optionalString("learnings"),
+    rowMetadata = optionalString("rowMetadata"),
 )
 
 internal fun ExerciseEntity.asBackupJson(): JSONObject = JSONObject()
