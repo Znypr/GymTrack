@@ -1,6 +1,5 @@
 package com.example.gymtrack.core.data
 
-import com.example.gymtrack.domain.summary.TRAINING_SUMMARY_SCHEMA_VERSION
 import com.example.gymtrack.domain.summary.TrainingSummary
 import com.example.gymtrack.domain.summary.TrainingSummaryJson
 import com.example.gymtrack.domain.summary.TrainingSummaryOutboxEntry
@@ -11,13 +10,12 @@ class RoomTrainingSummaryOutboxRepository(
     private val dao: TrainingSummaryOutboxDao,
 ) : TrainingSummaryOutboxRepository {
     override suspend fun upsertPending(summary: TrainingSummary, nowEpochMillis: Long) {
-        dao.upsert(
-            TrainingSummaryOutboxEntry.pending(
-                summary = summary,
-                payloadJson = TrainingSummaryJson.encode(summary),
-                nowEpochMillis = nowEpochMillis,
-            ).toEntity(),
+        val entry = TrainingSummaryOutboxEntry.pending(
+            summary = summary,
+            payloadJson = TrainingSummaryJson.encode(summary),
+            nowEpochMillis = nowEpochMillis,
         )
+        dao.upsert(entry.toEntity())
     }
 
     override suspend fun get(
@@ -27,5 +25,7 @@ class RoomTrainingSummaryOutboxRepository(
         trainingSummaryOutboxKey(workoutId, schemaVersion),
     )?.toDomain()
 
-    override suspend fun pending(): List<TrainingSummaryOutboxEntry> = dao.getByStatus().map { it.toDomain() }
+    override suspend fun pending(): List<TrainingSummaryOutboxEntry> = dao.getPending().map { entity ->
+        entity.toDomain()
+    }
 }
