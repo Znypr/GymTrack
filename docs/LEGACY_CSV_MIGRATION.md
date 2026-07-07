@@ -7,25 +7,24 @@ This runbook covers the one-time migration from an old real-phone GymTrack insta
 - Do not uninstall or clear data from the old `com.example.gymtrack` app until the new app has imported and verified all workouts.
 - Keep the exported CSV folder backed up outside the phone.
 - Install and validate on an emulator before changing the real phone.
+- Use a clean export folder. Do not mix new exports with older CSV files already present in Downloads.
 
 ## Known source export
 
-The old phone export is a folder of individual CSV files:
+Use the clean export folder:
 
 ```text
-C:\Users\znypr\Downloads\gymtrack-exports
+C:\Users\znypr\Downloads\gymtrack-exports-2
 ```
 
-Current preflight result:
+Current clean export result:
 
 ```text
-Total CSV files: 736
-Unique file contents: 631
-Unique timestamps: 23
-Smallest file: 144 bytes
+Total CSV files: 38
+Expected imported workouts: 38
 ```
 
-The low timestamp count means this folder contains many repeated/snapshot exports for the same workout timestamps. The importer must not import every distinct file payload as a separate workout. It groups CSVs by parsed timestamp and imports the most complete snapshot from each timestamp group.
+An earlier folder, `C:\Users\znypr\Downloads\gymtrack-exports`, contained old overlapping exports and produced misleading counts. Do not use it for migration.
 
 Representative structure:
 
@@ -47,11 +46,11 @@ From Windows PowerShell:
 
 ```powershell
 Compress-Archive `
-  -Path "C:\Users\znypr\Downloads\gymtrack-exports\*.csv" `
-  -DestinationPath "C:\Users\znypr\Downloads\gymtrack-old-phone-exports-backup.zip" `
+  -Path "C:\Users\znypr\Downloads\gymtrack-exports-2\*.csv" `
+  -DestinationPath "C:\Users\znypr\Downloads\gymtrack-clean-phone-exports-backup.zip" `
   -Force
 
-Get-Item "C:\Users\znypr\Downloads\gymtrack-old-phone-exports-backup.zip"
+Get-Item "C:\Users\znypr\Downloads\gymtrack-clean-phone-exports-backup.zip"
 ```
 
 ## Preflight uniqueness check
@@ -59,7 +58,7 @@ Get-Item "C:\Users\znypr\Downloads\gymtrack-old-phone-exports-backup.zip"
 From Windows PowerShell:
 
 ```powershell
-$dir = "C:\Users\znypr\Downloads\gymtrack-exports"
+$dir = "C:\Users\znypr\Downloads\gymtrack-exports-2"
 $files = Get-ChildItem $dir -Filter *.csv
 
 "Total CSV files: $($files.Count)"
@@ -87,29 +86,36 @@ $rows = foreach ($file in $files) {
 - CSVs are grouped by parsed timestamp.
 - From each timestamp group, the importer keeps the most complete snapshot by note length, set-like line count, row metadata length, and file size.
 - Older/incomplete snapshots in the same timestamp group are skipped.
-- If a selected complete snapshot collides with an already-existing local note timestamp but is not the same content, the importer assigns a deterministic one-second offset near the original timestamp.
-- The import summary reports imported count, exact duplicate count, older snapshot count, adjusted timestamp-collision count, and failed count.
+- If a selected CSV timestamp already exists locally, it is skipped to prevent re-import duplicates.
+- The import summary reports imported count, exact duplicate count, older snapshot count, existing timestamp count, and failed count.
 - Individual file failures do not delete already imported records.
 
-Expected first clean import shape for the known export folder is roughly:
+Expected first clean import shape for the known clean export folder:
 
 ```text
-CSV import: 23/736 imported, 105 exact duplicates skipped, 608 older snapshots skipped, 0 failed
+CSV import: 38/38 imported, 0 failed
 ```
 
-The exact duplicate and older snapshot numbers may differ if the export folder changes.
+Expected second import of the same folder:
+
+```text
+CSV import: 0/38 imported, 38 existing timestamps skipped, 0 failed
+```
+
+The exact duplicate and existing timestamp wording may differ slightly if the folder changes.
 
 ## Emulator validation first
 
 1. Install the new app on an emulator.
-2. Copy the `gymtrack-exports` folder or ZIP contents into a document-provider location visible to the emulator.
+2. Copy the clean `gymtrack-exports-2` folder or ZIP contents into a document-provider location visible to the emulator.
 3. Open GymTrack.
 4. Use the import button on the notes screen.
 5. Select all legacy CSV files in one operation.
 6. Wait for the import summary toast.
-7. Confirm the toast reports an import count close to the unique timestamp count, not the unique file-content count.
-8. Open representative old workouts and verify category, timestamp, main exercises, sub entries, row times, and unilateral/bilateral flags.
-9. Open statistics and verify imported workouts are included.
+7. Confirm the first import reports 38 imported and 0 failed.
+8. Confirm a second import reports 0 imported.
+9. Open representative old workouts and verify category, timestamp, main exercises, sub entries, row times, and unilateral/bilateral flags.
+10. Open statistics and verify imported workouts are included.
 
 ## Real phone migration
 
@@ -117,18 +123,18 @@ Only after emulator validation:
 
 1. Keep the old `com.example.gymtrack` app installed.
 2. Install the permanent-ID app `app.znypr.gymtrack` as a separate app.
-3. Copy the protected export folder or ZIP contents to the phone.
+3. Copy the protected clean export folder or ZIP contents to the phone.
 4. Use the import button on the notes screen.
-5. Select all 736 CSV files in one operation.
+5. Select all 38 CSV files in one operation.
 6. Record the import summary.
 7. Verify the note/workout count.
-8. Open several representative workouts from different years/categories.
+8. Open several representative workouts from different categories.
 9. Verify statistics/canonical data after import.
 10. Create a new `.gymtrack-backup` from the new app after verification.
 
 ## Repeated import behavior
 
-Bulk import skips exact duplicate records and already-imported complete snapshots. Re-importing the same folder should import zero additional workouts after a clean successful import.
+Bulk import skips exact duplicate records and already-imported timestamps. Re-importing the same clean folder should import zero additional workouts after a successful import.
 
 ## Failure handling
 
