@@ -37,12 +37,10 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(Unit) {
                 settingsState.value = SettingsStore.load(context)
                 withContext(Dispatchers.IO) {
-                    runCatching {
-                        workoutRepository.forceUpdateStats()
-                        workoutRepository.cleanUpOrphans()
-                    }.onFailure { error ->
-                        Log.e("LegacyStats", "Legacy workout statistics rebuild failed", error)
-                    }
+                    runCatching { workoutRepository.checkAndMigrate() }
+                        .onFailure { error ->
+                            Log.e("LegacyStats", "Legacy workout statistics compatibility repair failed", error)
+                        }
 
                     runCatching { canonicalImportRunner.run() }
                         .onFailure { error ->
