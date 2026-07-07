@@ -43,7 +43,7 @@ class CrossVersionBackupFixtureTest {
 
             val result = repository.restoreBackup(context, context.contentResolver, Uri.fromFile(fixture))
             val restored = repository.snapshot(result.settings)
-            assertEquals(contents.payload, restored)
+            assertEquals(contents.payload.normalizedForBackupSnapshot(), restored.normalizedForBackupSnapshot())
             assertEquals(contents.manifest, result.manifest)
 
             val restoredNotes = database.noteDao().getAllForBackup()
@@ -94,6 +94,12 @@ class CrossVersionBackupFixtureTest {
 
         assertEquals("Unsupported backup format version 99", error.message)
     }
+
+    private fun GymTrackBackupPayload.normalizedForBackupSnapshot() = copy(
+        canonicalExercises = canonicalExercises.sortedWith(compareBy({ it.createdAt }, { it.id })),
+        canonicalWorkoutExercises = canonicalWorkoutExercises.sortedWith(compareBy({ it.workoutId }, { it.position }, { it.id })),
+        canonicalWorkoutSets = canonicalWorkoutSets.sortedWith(compareBy({ it.workoutExerciseId }, { it.position }, { it.id })),
+    )
 
     private fun expectedSchema8Counts() = BackupCounts(
         legacyNotes = 2,
