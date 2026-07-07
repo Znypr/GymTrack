@@ -5,11 +5,15 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.repository.NoteRepository
+import com.example.gymtrack.core.util.WorkoutParser
 import com.example.gymtrack.core.util.parseDurationSeconds
 import com.example.gymtrack.core.util.parseNoteText
-import com.example.gymtrack.core.util.WorkoutParser
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
@@ -17,7 +21,7 @@ import java.util.concurrent.TimeUnit
 enum class TimeRange(val label: String, val days: Int) {
     LAST_WEEK("Last Week", 7),
     LAST_MONTH("Last Month", 30),
-    LAST_3_MONTHS("Last 3 Months", 90), // [FIX] Added missing option
+    LAST_3_MONTHS("Last 3 Months", 90),
     LAST_6_MONTHS("Last 6 Months", 180),
     LAST_YEAR("Last Year", 365),
     ALL_TIME("All Time", -1)
@@ -53,8 +57,6 @@ class StatsViewModel(
     }
 
     private suspend fun calculateStats(allNotes: List<NoteLine>, range: TimeRange): StatsState = withContext(Dispatchers.Default) {
-        // [FIX] Strict math using TimeUnit.
-        // "Last Month" = Exact last 30 days relative to NOW.
         val cutoff = if (range.days > 0) {
             System.currentTimeMillis() - TimeUnit.DAYS.toMillis(range.days.toLong())
         } else 0L
@@ -65,9 +67,8 @@ class StatsViewModel(
 
         val parser = WorkoutParser()
 
-        // 1. Overview Stats
         val (mainCount, subCount) = notes.fold(0 to 0) { acc, note ->
-            val lines = parseNoteText(note.text).first
+            val lines = parseNoteText(note.text, note.rowMetadata).first
             var main = 0
             var sub = 0
             for (l in lines) {
@@ -78,11 +79,9 @@ class StatsViewModel(
         }
         val avgSets = if (mainCount > 0) subCount.toFloat() / mainCount else 0f
 
-        // 2. Weekly Avg
         val minTime = notes.minOf { it.timestamp }
         val maxTime = notes.maxOf { it.timestamp }
 
-        // Calculate exact weeks in the selected range (or actual data span if All Time)
         val durationWeeks = if (range == TimeRange.ALL_TIME) {
             val diff = (maxTime - minTime).coerceAtLeast(1L)
             diff.toFloat() / TimeUnit.DAYS.toMillis(7)
@@ -92,20 +91,18 @@ class StatsViewModel(
 
         val avgWeekly = if (durationWeeks > 0) notes.size / durationWeeks else 0f
 
-        // 3. Category Counts & Durations
         val counts = notes.groupingBy { it.categoryName ?: "Other" }.eachCount()
 
         val durationAvgs = notes.groupBy { it.categoryName ?: "Other" }
             .mapValues { entry ->
                 val durations = entry.value.mapNotNull { note ->
-                    parseNoteText(note.text).second.mapNotNull {
+                    parseNoteText(note.text, note.rowMetadata).second.mapNotNull {
                         if (it.isBlank()) null else parseDurationSeconds(it)
                     }.maxOrNull()
                 }
                 if (durations.isEmpty()) 0f else durations.average().toFloat() / 60f
             }
 
-        // 4. Heatmap
         val heatmap = Array(7) { IntArray(24) }
         notes.forEach { n ->
             val c = Calendar.getInstance().apply { timeInMillis = n.timestamp }
@@ -114,9 +111,8 @@ class StatsViewModel(
             heatmap[day][hour]++
         }
 
-        // 5. Top Exercises
         val exerciseCounts = notes.flatMap { note ->
-            val sets = parser.parseWorkout(note.text)
+            val sets = parser.parseWorkout(note.text, rowMetadata = note.rowMetadata)
             sets.map { it.exerciseName }
         }
             .groupingBy { it }
