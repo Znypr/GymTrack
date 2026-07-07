@@ -51,10 +51,14 @@ Required metadata:
 - one `type:*` label
 - one `priority:*` label
 - one or more `area:*` labels
-- `energy:*` when useful for workload planning
-- `confidence:*` when uncertainty affects scheduling
+- one `energy:*` label
+- one `confidence:*` label
 - milestone when the issue advances a finite checkpoint
 - linked pull request through `Closes #N` when implementation completes the issue
+
+Issues missing required metadata are marked with `flag:metadata-invalid` and moved to `status:needs-manual-review` by the issue metadata lint workflow.
+
+ChatGPT, Jarvis, and other API automations must complete the issue creation checklist in `docs/issue-creation-policy.md` before creating an issue.
 
 ## Standard milestones
 
@@ -67,7 +71,3 @@ Use the same milestone names in every registered repo:
 | M2 First Production Loop | Each repo has one complete useful production loop working end to end in its domain. |
 | M3 Automation Hardening | Automation, validation, quality gates, and recovery workflows reduce manual supervision without hiding risk. |
 | M4 Beta Readiness | Release, privacy, permissions, documentation, support, and operational recovery are ready for broader external use. |
-
-## Applying metadata
-
-The workflow in `.github/workflows/*metadata*.yml` reads `.github/repository-metadata.json` and creates or updates labels and milestones. It can be run manually and also runs when the metadata contract changes on the default branch.
