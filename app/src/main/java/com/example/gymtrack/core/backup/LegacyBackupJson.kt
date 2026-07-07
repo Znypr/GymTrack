@@ -3,6 +3,7 @@ package com.example.gymtrack.core.backup
 import com.example.gymtrack.core.data.ExerciseEntity
 import com.example.gymtrack.core.data.NoteEntity
 import com.example.gymtrack.core.data.SetEntity
+import com.example.gymtrack.core.data.WeightUnit
 import org.json.JSONObject
 
 internal fun NoteEntity.asBackupJson(): JSONObject = JSONObject()
@@ -42,6 +43,7 @@ internal fun SetEntity.asBackupJson(): JSONObject = JSONObject()
     .put("workoutId", workoutId)
     .put("exerciseId", exerciseId)
     .put("weight", weight.toDouble())
+    .put("weightUnit", WeightUnit.fromStorage(weightUnit).storageValue)
     .put("reps", reps)
     .put("isUnilateral", isUnilateral)
     .putOptional("modifier", modifier)
@@ -60,4 +62,5 @@ internal fun JSONObject.asBackupSetEntity(): SetEntity = SetEntity(
     brand = optionalString("brand"),
     relativeTime = optionalString("relativeTime"),
     absoluteTime = optionalString("absoluteTime"),
+    weightUnit = WeightUnit.fromStorage(optString("weightUnit", WeightUnit.KG.storageValue)).storageValue,
 )
