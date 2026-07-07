@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,33 +7,65 @@ plugins {
     id("kotlin-kapt")
 }
 
+val releaseApplicationId = "app.znypr.gymtrack"
+val debugApplicationIdSuffix = ".debug"
+val releaseVersionCode = 2026070701
+val releaseVersionName = "0.1.0"
+val releaseSigningPropertiesFile = rootProject.file("release-signing.properties")
+val releaseSigningProperties = Properties().apply {
+    if (releaseSigningPropertiesFile.exists()) {
+        releaseSigningPropertiesFile.inputStream().use(::load)
+    }
+}
+val releaseSigningKeys = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+fun releaseSigningProperty(name: String): String? = releaseSigningProperties.getProperty(name)
+fun hasCompleteReleaseSigningConfig(): Boolean = releaseSigningKeys.all { key ->
+    !releaseSigningProperty(key).isNullOrBlank()
+}
+
 android {
     namespace = "com.example.gymtrack"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.gymtrack"
+        applicationId = releaseApplicationId
         minSdk = 26
         //noinspection OldTargetApi
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.8"
+        versionCode = releaseVersionCode
+        versionName = releaseVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "PERMANENT_APPLICATION_ID", "\"$releaseApplicationId\"")
+    }
+
+    signingConfigs {
+        if (hasCompleteReleaseSigningConfig()) {
+            create("release") {
+                storeFile = rootProject.file(releaseSigningProperty("storeFile")!!)
+                storePassword = releaseSigningProperty("storePassword")!!
+                keyAlias = releaseSigningProperty("keyAlias")!!
+                keyPassword = releaseSigningProperty("keyPassword")!!
+            }
+        }
     }
 
     buildTypes {
         debug {
+            applicationIdSuffix = debugApplicationIdSuffix
+            versionNameSuffix = "-debug"
             isMinifyEnabled = false
             isDebuggable = true
         }
         release {
             isMinifyEnabled = false
+            isShrinkResources = false
+            isDebuggable = false
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
         }
 
     }
@@ -46,6 +80,55 @@ android {
         compose = true
         buildConfig = true
     }
+}
+
+tasks.register("validateReleaseConfig") {
+    group = "verification"
+    description = "Validates release identity, versioning, signing, and debug/release separation."
+
+    doLast {
+        check(releaseApplicationId == "app.znypr.gymtrack") {
+            "Release application ID must stay permanent unless an explicit migration issue approves a change."
+        }
+        check(android.defaultConfig.applicationId == releaseApplicationId) {
+            "defaultConfig.applicationId must be $releaseApplicationId."
+        }
+        check(!releaseApplicationId.startsWith("com.example.")) {
+            "Release application ID must not use the template com.example namespace."
+        }
+        check(android.defaultConfig.versionCode == releaseVersionCode) {
+            "Version code must use the documented releaseVersionCode constant."
+        }
+        check(releaseVersionCode >= 2026070701) {
+            "Version code must not go below the first permanent-ID release baseline."
+        }
+        check(!android.defaultConfig.versionName.isNullOrBlank()) {
+            "Version name must be set for release builds."
+        }
+
+        val debug = android.buildTypes.getByName("debug")
+        check(debug.applicationIdSuffix == debugApplicationIdSuffix) {
+            "Debug builds must use $debugApplicationIdSuffix so debug and release data cannot be confused."
+        }
+
+        val release = android.buildTypes.getByName("release")
+        check(!release.isDebuggable) { "Release builds must not be debuggable." }
+        check(release.signingConfig?.name != "debug") {
+            "Release builds must never use the debug signing configuration."
+        }
+        if (releaseSigningPropertiesFile.exists()) {
+            check(hasCompleteReleaseSigningConfig()) {
+                "release-signing.properties exists but is missing one of: ${releaseSigningKeys.joinToString()}."
+            }
+            check(release.signingConfig?.name == "release") {
+                "Complete release signing properties must produce the release signing config."
+            }
+        }
+    }
+}
+
+tasks.named("check") {
+    dependsOn("validateReleaseConfig")
 }
 
 dependencies {
@@ -79,4 +162,3 @@ dependencies {
     // Extended Icons (Fixes 'Icons.Default.FitnessCenter')
     implementation("androidx.compose.material:material-icons-extended:1.5.4")
 }
-
