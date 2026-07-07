@@ -15,6 +15,7 @@ object SettingsStore {
     private val ROUNDING_SECONDS = intPreferencesKey("rounding_seconds")
     private val DARK_MODE = booleanPreferencesKey("dark_mode")
     private val CATEGORIES = stringPreferencesKey("categories")
+    private val DEFAULT_WEIGHT_UNIT = stringPreferencesKey("default_weight_unit")
 
     suspend fun load(context: Context): Settings {
         val prefs = context.settingsDataStore.data.first()
@@ -30,7 +31,8 @@ object SettingsStore {
             is24Hour = prefs[IS_24_HOUR] ?: true,
             roundingSeconds = prefs[ROUNDING_SECONDS] ?: 5,
             darkMode = prefs[DARK_MODE] ?: false,
-            categories = cats
+            categories = cats,
+            defaultWeightUnit = WeightUnit.fromStorage(prefs[DEFAULT_WEIGHT_UNIT]),
         )
     }
 
@@ -41,7 +43,7 @@ object SettingsStore {
             prefs[ROUNDING_SECONDS] = settings.roundingSeconds
             prefs[DARK_MODE] = settings.darkMode
             prefs[CATEGORIES] = custom.joinToString("|") { "${it.name}:${it.color}" }
+            prefs[DEFAULT_WEIGHT_UNIT] = settings.defaultWeightUnit.storageValue
         }
     }
 }
-
