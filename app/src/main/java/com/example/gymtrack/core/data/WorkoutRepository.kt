@@ -93,7 +93,7 @@ class WorkoutRepository(
         note: NoteEntity,
         defaultWeightUnit: WeightUnit = WeightUnit.KG,
     ) {
-        val completedAt = System.currentTimeMillis()
+        val completedAt = maxOf(System.currentTimeMillis(), note.timestamp)
         database.withTransaction {
             noteDao.insert(note)
             val parsedSets = parser.parseWorkout(
