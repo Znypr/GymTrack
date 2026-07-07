@@ -24,6 +24,7 @@ data class NoteEntity(
     val categoryName: String?,
     val categoryColor: Long?,
     val learnings: String?,
+    val rowMetadata: String? = null,
 )
 
 data class ExerciseWithCount(
@@ -203,7 +204,7 @@ interface SetDao {
         CanonicalWorkoutExerciseEntity::class,
         CanonicalWorkoutSetEntity::class,
     ],
-    version = 10,
+    version = 11,
 )
 abstract class NoteDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
