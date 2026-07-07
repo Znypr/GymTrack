@@ -12,7 +12,7 @@ import com.example.gymtrack.core.data.ExerciseFlag
 import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.timer.NoteTimerStore
-import com.example.gymtrack.core.util.combineTextAndTimes
+import com.example.gymtrack.core.util.buildNoteRowMetadata
 import com.example.gymtrack.core.util.formatElapsedMinutesSeconds
 import com.example.gymtrack.core.util.formatSecondsToMinutesSeconds
 import com.example.gymtrack.core.util.parseDurationSeconds
@@ -55,7 +55,7 @@ class NoteEditorState(
         private set
 
     init {
-        val parsed = parseNoteText(initialNote?.text ?: "")
+        val parsed = parseNoteText(initialNote?.text ?: "", initialNote?.rowMetadata)
         if (parsed.first.isEmpty()) {
             addLine(NoteRow(nextId++, mutableStateOf(TextFieldValue(""))))
             timestamps.add("")
@@ -168,9 +168,9 @@ class NoteEditorState(
         val plainContent = range.joinToString("\n") { lines[it].text.value.text }
         val validTimestamps = range.map { timestamps.getOrElse(it) { "" } }
         val validFlags = range.map { flags.getOrElse(it) { ExerciseFlag.BILATERAL } }
-        val combined = combineTextAndTimes(plainContent, validTimestamps, validFlags)
+        val rowMetadata = buildNoteRowMetadata(validTimestamps, validFlags)
         val isNew = viewModel.currentId == -1L
-        val isEmpty = combined.isBlank() && viewModel.currentTitle.isBlank() && viewModel.currentLearnings.isBlank()
+        val isEmpty = plainContent.isBlank() && viewModel.currentTitle.isBlank() && viewModel.currentLearnings.isBlank()
         if (isNew && isEmpty) {
             if (exit) finishExit(isLastNote, finishWorkout = true)
             return
@@ -186,9 +186,9 @@ class NoteEditorState(
             if (exit) finishing = false
         }
         if (finishWorkout) {
-            viewModel.finalizeWorkout(combined, noteTimestamp, onPersisted, onFailure)
+            viewModel.finalizeWorkout(plainContent, rowMetadata, noteTimestamp, onPersisted, onFailure)
         } else {
-            viewModel.saveDraft(combined, noteTimestamp, onPersisted, onFailure)
+            viewModel.saveDraft(plainContent, rowMetadata, noteTimestamp, onPersisted, onFailure)
         }
     }
 
