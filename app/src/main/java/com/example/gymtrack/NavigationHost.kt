@@ -42,6 +42,8 @@ import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.launch
 
+private const val CURRENT_DATABASE_SCHEMA_VERSION = 10
+
 @Composable
 fun NavigationHost(
     navController: NavHostController,
@@ -208,7 +210,7 @@ fun NavigationHost(
                             destination = destination,
                             settings = settings,
                             appVersion = BuildConfig.VERSION_NAME,
-                            databaseSchemaVersion = 9,
+                            databaseSchemaVersion = CURRENT_DATABASE_SCHEMA_VERSION,
                         )
                         Toast.makeText(
                             context,
@@ -241,7 +243,7 @@ fun NavigationHost(
                             destination = destination,
                             settings = settings,
                             appVersion = BuildConfig.VERSION_NAME,
-                            databaseSchemaVersion = 9,
+                            databaseSchemaVersion = CURRENT_DATABASE_SCHEMA_VERSION,
                         )
                         val restoreResult = backupRepository.restoreBackup(
                             context = context.applicationContext,
