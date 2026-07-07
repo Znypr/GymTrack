@@ -29,7 +29,7 @@ data class LegacyCsvImportSummary(
     val imported: Int,
     val skippedExactDuplicates: Int,
     val skippedSupersededSnapshots: Int,
-    val adjustedTimestampCollisions: Int,
+    val skippedExistingTimestamps: Int,
     val failed: Int,
     val failedNames: List<String> = emptyList(),
 ) {
@@ -41,8 +41,8 @@ data class LegacyCsvImportSummary(
         if (skippedSupersededSnapshots > 0) {
             append(", $skippedSupersededSnapshots older snapshots skipped")
         }
-        if (adjustedTimestampCollisions > 0) {
-            append(", $adjustedTimestampCollisions existing timestamp collisions preserved")
+        if (skippedExistingTimestamps > 0) {
+            append(", $skippedExistingTimestamps existing timestamps skipped")
         }
         if (failed > 0) {
             append(", $failed failed")
@@ -147,7 +147,7 @@ class HomeViewModel(
             val selection = selectBestLegacyCsvCandidates(candidates)
             var imported = 0
             var skippedExistingDuplicates = 0
-            var adjustedTimestampCollisions = 0
+            var skippedExistingTimestamps = 0
 
             selection.selected.forEach { candidate ->
                 val parsedNote = candidate.note
@@ -155,28 +155,24 @@ class HomeViewModel(
                 val contentFingerprint = legacyCsvContentFingerprint(parsedNote)
                 val timestampAlreadyUsed = parsedNote.timestamp in usedTimestamps
 
-                if (fullFingerprint in knownFullFingerprints ||
-                    timestampAlreadyUsed && contentFingerprint in knownContentFingerprints
-                ) {
-                    skippedExistingDuplicates++
-                } else {
-                    val timestampAllocation = allocateLegacyCsvTimestamp(
-                        originalTimestamp = parsedNote.timestamp,
-                        usedTimestamps = usedTimestamps,
-                    )
-                    val note = if (timestampAllocation.adjusted) {
-                        adjustedTimestampCollisions++
-                        parsedNote.copy(timestamp = timestampAllocation.timestamp)
-                    } else {
-                        parsedNote
+                when {
+                    fullFingerprint in knownFullFingerprints ||
+                        contentFingerprint in knownContentFingerprints -> {
+                        skippedExistingDuplicates++
                     }
-                    workoutRepository.saveCompletedWorkout(
-                        note = note.toEntity(),
-                        defaultWeightUnit = settings.defaultWeightUnit,
-                    )
-                    knownFullFingerprints += legacyCsvFullFingerprint(note)
-                    knownContentFingerprints += legacyCsvContentFingerprint(note)
-                    imported++
+                    timestampAlreadyUsed -> {
+                        skippedExistingTimestamps++
+                    }
+                    else -> {
+                        workoutRepository.saveCompletedWorkout(
+                            note = parsedNote.toEntity(),
+                            defaultWeightUnit = settings.defaultWeightUnit,
+                        )
+                        usedTimestamps += parsedNote.timestamp
+                        knownFullFingerprints += legacyCsvFullFingerprint(parsedNote)
+                        knownContentFingerprints += legacyCsvContentFingerprint(parsedNote)
+                        imported++
+                    }
                 }
             }
 
@@ -185,7 +181,7 @@ class HomeViewModel(
                 imported = imported,
                 skippedExactDuplicates = selection.exactDuplicates + skippedExistingDuplicates,
                 skippedSupersededSnapshots = selection.supersededSnapshots,
-                adjustedTimestampCollisions = adjustedTimestampCollisions,
+                skippedExistingTimestamps = skippedExistingTimestamps,
                 failed = failed,
                 failedNames = failedNames,
             )
