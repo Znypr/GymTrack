@@ -108,6 +108,7 @@ class BackupRepository(
         BackupValidator.check(payload)
         database.withTransaction {
             val backupDao = database.backupDao()
+            database.trainingSummaryOutboxDao().deleteAll()
             backupDao.deleteCanonicalWorkoutSets()
             backupDao.deleteCanonicalWorkoutExercises()
             backupDao.deleteCanonicalWorkouts()
