@@ -68,13 +68,20 @@ class WorkoutRepository(
     ) {
         database.withTransaction {
             noteDao.insert(note)
-            val parsedSets = parser.parseWorkout(note.text, defaultWeightUnit.storageValue)
+            val parsedSets = parser.parseWorkout(
+                rawText = note.text,
+                defaultWeightUnit = defaultWeightUnit.storageValue,
+                rowMetadata = note.rowMetadata,
+            )
             saveParsedSets(parsedSets, note.timestamp)
         }
     }
 
     suspend fun syncNoteToWorkout(note: NoteEntity) {
-        val parsedSets = parser.parseWorkout(note.text)
+        val parsedSets = parser.parseWorkout(
+            rawText = note.text,
+            rowMetadata = note.rowMetadata,
+        )
         saveParsedSets(parsedSets, note.timestamp)
     }
 
