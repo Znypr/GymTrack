@@ -45,6 +45,8 @@ At minimum, tests must:
 
 Destructive migration fallback is not acceptable in production.
 
+Risky schema changes must also follow `docs/PRE_MIGRATION_BACKUP_POLICY.md`. The PR must document whether the migration is safe or risky, the backup-reminder text for testers or release notes when risky, and why ordinary migration tests are enough when a reminder is not required.
+
 ### Compose UI tests
 
 Prioritize:
@@ -118,6 +120,8 @@ Runtime pull requests should record:
 - screenshots or video when UI changes.
 
 Manual validation does not replace automated tests.
+
+Risky migration pull requests should additionally record that a `.gymtrack-backup` was created from the pre-upgrade build before installing or opening the risky build.
 
 ## Failure policy
 

@@ -135,6 +135,8 @@ Restore behavior:
 
 The safety backup is a separate user-selected file. It protects against user regret, later manual recovery needs, or failures outside the ordinary in-process rollback path. If safety backup creation fails, restore does not start.
 
+Before risky schema-changing test builds or releases, users and testers should create a `.gymtrack-backup` from the currently installed build before installing or opening the risky build. See `docs/PRE_MIGRATION_BACKUP_POLICY.md`.
+
 Merge restore, selective restore, encryption, cloud upload, and automatic backups are intentionally out of scope for v1.
 
 ## Privacy and storage
