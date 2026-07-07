@@ -64,6 +64,7 @@ data class SetEntity(
     val brand: String? = null,
     val relativeTime: String? = null,
     val absoluteTime: String? = null,
+    val weightUnit: String = WeightUnit.KG.storageValue,
 )
 
 data class GraphPoint(val originTimestamp: Long, val avgVal: Float)
@@ -202,7 +203,7 @@ interface SetDao {
         CanonicalWorkoutExerciseEntity::class,
         CanonicalWorkoutSetEntity::class,
     ],
-    version = 9,
+    version = 10,
 )
 abstract class NoteDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao

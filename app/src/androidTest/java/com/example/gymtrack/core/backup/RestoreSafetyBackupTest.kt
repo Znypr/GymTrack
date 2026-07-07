@@ -39,7 +39,7 @@ class RestoreSafetyBackupTest {
                 destination = Uri.fromFile(safetyBackup),
                 settings = original.settings,
                 appVersion = "test",
-                databaseSchemaVersion = 9,
+                databaseSchemaVersion = 10,
             )
 
             repository.restoreBackup(context, context.contentResolver, archive(context, "replacement", replacement))
@@ -55,7 +55,7 @@ class RestoreSafetyBackupTest {
 
     private fun archive(context: Context, name: String, payload: GymTrackBackupPayload): Uri {
         val file = File(context.cacheDir, "backup-test-$name-${System.nanoTime()}.gymtrack-backup")
-        file.outputStream().use { BackupArchive.write(it, payload, "test", 9, 1_000L) }
+        file.outputStream().use { BackupArchive.write(it, payload, "test", 10, 1_000L) }
         return Uri.fromFile(file)
     }
 }

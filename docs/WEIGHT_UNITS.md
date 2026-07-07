@@ -31,9 +31,14 @@ This allows rare mixed-unit workouts without changing the global setting.
 
 ## Stored source unit
 
-Every future typed/canonical weighted set should store the unit that was actually used for that set. Changing the global default must not reinterpret existing history.
+Every finalized weighted set stores the unit that was actually used for that set.
 
-Current compatibility note: the legacy `sets` table stores numeric weights but does not yet have a unit column. This first implementation adds the setting, visible editor default, parser defaulting, explicit override recognition, and parser DTO unit output. Persisting source units for compatibility rows requires a schema-backed follow-up or the typed editor-state work tracked separately.
+- Legacy compatibility rows store this in `sets.weightUnit`.
+- Canonical rows store this in `workout_sets.weight_unit`.
+- Parser DTOs carry the source unit from input into persistence.
+- Existing legacy rows from schema 8 or 9 migrate to explicit `KG` because old compatibility rows had no source-unit column and GymTrack must not guess silently.
+
+Changing the global default must not reinterpret existing history. It only affects new set input that omits an explicit unit.
 
 ## Display conversion
 
