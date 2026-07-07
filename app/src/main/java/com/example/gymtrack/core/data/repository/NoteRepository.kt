@@ -27,5 +27,22 @@ class NoteRepository(private val dao: NoteDao) {
 }
 
 // Mappers
-fun NoteEntity.toDomainModel() = NoteLine(title, text, timestamp, categoryName, categoryColor, learnings ?: "")
-fun NoteLine.toEntity() = NoteEntity(timestamp, title, text, categoryName, categoryColor, learnings)
+fun NoteEntity.toDomainModel() = NoteLine(
+    title = title,
+    text = text,
+    timestamp = timestamp,
+    categoryName = categoryName,
+    categoryColor = categoryColor,
+    learnings = learnings ?: "",
+    rowMetadata = rowMetadata.orEmpty(),
+)
+
+fun NoteLine.toEntity() = NoteEntity(
+    timestamp = timestamp,
+    title = title,
+    text = text,
+    categoryName = categoryName,
+    categoryColor = categoryColor,
+    learnings = learnings,
+    rowMetadata = rowMetadata,
+)
