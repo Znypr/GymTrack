@@ -25,7 +25,7 @@ Unique timestamps: 23
 Smallest file: 144 bytes
 ```
 
-The low timestamp count is expected for this export set and must not be treated as only 23 workouts. Many distinct CSV files share the same minute-level timestamp. The bulk importer preserves distinct timestamp collisions by assigning a free one-second offset near the original timestamp.
+The low timestamp count means this folder contains many repeated/snapshot exports for the same workout timestamps. The importer must not import every distinct file payload as a separate workout. It groups CSVs by parsed timestamp and imports the most complete snapshot from each timestamp group.
 
 Representative structure:
 
@@ -84,18 +84,20 @@ $rows = foreach ($file in $files) {
 ## Import behavior
 
 - Exact duplicate records are skipped.
-- Distinct records with the same parsed timestamp are preserved.
-- Timestamp-collision imports receive a deterministic one-second offset near the original timestamp.
-- The import summary reports imported count, exact duplicate count, adjusted timestamp-collision count, and failed count.
+- CSVs are grouped by parsed timestamp.
+- From each timestamp group, the importer keeps the most complete snapshot by note length, set-like line count, row metadata length, and file size.
+- Older/incomplete snapshots in the same timestamp group are skipped.
+- If a selected complete snapshot collides with an already-existing local note timestamp but is not the same content, the importer assigns a deterministic one-second offset near the original timestamp.
+- The import summary reports imported count, exact duplicate count, older snapshot count, adjusted timestamp-collision count, and failed count.
 - Individual file failures do not delete already imported records.
 
 Expected first clean import shape for the known export folder is roughly:
 
 ```text
-CSV import: 631/736 imported, 105 exact duplicates skipped, 608 timestamp collisions preserved, 0 failed
+CSV import: 23/736 imported, 105 exact duplicates skipped, 608 older snapshots skipped, 0 failed
 ```
 
-The exact duplicate and timestamp-collision numbers may differ if the export folder changes.
+The exact duplicate and older snapshot numbers may differ if the export folder changes.
 
 ## Emulator validation first
 
@@ -105,7 +107,7 @@ The exact duplicate and timestamp-collision numbers may differ if the export fol
 4. Use the import button on the notes screen.
 5. Select all legacy CSV files in one operation.
 6. Wait for the import summary toast.
-7. Confirm the toast reports an import count close to the unique file-content count, not just the unique timestamp count.
+7. Confirm the toast reports an import count close to the unique timestamp count, not the unique file-content count.
 8. Open representative old workouts and verify category, timestamp, main exercises, sub entries, row times, and unilateral/bilateral flags.
 9. Open statistics and verify imported workouts are included.
 
@@ -126,7 +128,7 @@ Only after emulator validation:
 
 ## Repeated import behavior
 
-Bulk import skips exact duplicate records. If a record was previously imported with an adjusted timestamp because of a same-timestamp collision, a later import of the same CSV is detected by content fingerprint when the original timestamp is already occupied.
+Bulk import skips exact duplicate records and already-imported complete snapshots. Re-importing the same folder should import zero additional workouts after a clean successful import.
 
 ## Failure handling
 
