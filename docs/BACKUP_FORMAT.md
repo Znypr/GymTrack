@@ -125,11 +125,15 @@ Restore behavior:
 
 1. Inspect and validate the selected backup.
 2. Show a confirmation dialog with the validated record count.
-3. If confirmed, snapshot the current database and settings.
-4. Replace all backed-up database tables inside a transaction.
-5. Save backed-up settings.
-6. Stop any active timer state after successful restore.
-7. If ordinary restore work fails, restore the previous database and settings snapshot.
+3. If the current install has restorable local records, offer to create a safety backup before restore.
+4. If the user chooses a safety backup, write the current app state to a user-selected `.gymtrack-backup` destination before replacement starts.
+5. If confirmed, snapshot the current database and settings in memory for ordinary rollback.
+6. Replace all backed-up database tables inside a transaction.
+7. Save backed-up settings.
+8. Stop any active timer state after successful restore.
+9. If ordinary restore work fails, restore the previous database and settings snapshot.
+
+The safety backup is a separate user-selected file. It protects against user regret, later manual recovery needs, or failures outside the ordinary in-process rollback path. If safety backup creation fails, restore does not start.
 
 Merge restore, selective restore, encryption, cloud upload, and automatic backups are intentionally out of scope for v1.
 
@@ -166,6 +170,7 @@ Database or restore behavior changes also require emulator-backed validation, in
 - checksum mismatch rejection;
 - failed restore rollback preserving previous database and settings;
 - cross-version fixture restore into the current schema;
+- safety backup creation before replace-all restore;
 - verification that restored history, settings, statistics, and export-visible data remain coherent.
 
 ## API 36 manual validation checklist
@@ -176,8 +181,9 @@ Use this checklist before marking PR #182 ready for review:
 2. Create a representative local dataset with settings, categories, at least one completed workout, exercises, sets, notes, and canonical records.
 3. Create a `.gymtrack-backup` file through Settings.
 4. Restore the backup into the same populated install and confirm the replace-all warning appears before data changes.
-5. Restore the same backup into a fresh empty install.
-6. Confirm history, editor reopen, statistics, settings, selected-workout export, and timer state are coherent after restore.
-7. Select a malformed or unsupported backup file and confirm restore is rejected before local data changes.
-8. Interrupt or force a restore failure where possible and confirm previous database and settings are preserved.
-9. Record device/API level, app version, backup file name, and result in the PR validation section.
+5. Restore again while choosing **Create safety backup first** and confirm the current data is written before replacement starts.
+6. Restore the same backup into a fresh empty install.
+7. Confirm history, editor reopen, statistics, settings, selected-workout export, and timer state are coherent after restore.
+8. Select a malformed or unsupported backup file and confirm restore is rejected before local data changes.
+9. Interrupt or force a restore failure where possible and confirm previous database and settings are preserved.
+10. Record device/API level, app version, backup file name, and result in the PR validation section.

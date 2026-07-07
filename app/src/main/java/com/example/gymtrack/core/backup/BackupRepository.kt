@@ -48,6 +48,10 @@ class BackupRepository(
         } ?: throw InvalidBackupException("Unable to open the selected backup")
     }
 
+    suspend fun hasRestorableLocalData(settings: Settings): Boolean = withContext(Dispatchers.IO) {
+        BackupCounts.from(snapshot(settings)).totalRecords > 0
+    }
+
     suspend fun restoreBackup(
         context: Context,
         contentResolver: ContentResolver,
