@@ -64,6 +64,15 @@ The second operation is tracked separately and must retain every legacy row duri
 - `fallbackToDestructiveMigration()` is prohibited in production.
 - Unsupported or corrupt databases remain on disk for diagnosis or future recovery.
 - Data parsing and backfill do not run inside the schema-only `8 -> 9` migration.
+- Risky schema upgrades must follow the pre-migration backup reminder policy in `docs/PRE_MIGRATION_BACKUP_POLICY.md`.
+
+## Risky schema upgrades
+
+A migration is risky when it deletes, renames, merges, splits, rewrites, deduplicates, normalizes, re-keys, or converts durable user data, or when it changes backup/restore compatibility behavior.
+
+Risky migration pull requests must define the user-facing reminder text before merge. The baseline requirement is to tell testers or users to create a `.gymtrack-backup` from the currently installed build before installing or opening the risky build. GymTrack must not silently upload backup data.
+
+An in-app reminder is only feasible after the migrated app launches, so it cannot replace pre-install release notes or tester handoff instructions for migrations that run during database open.
 
 ## Automated validation
 
