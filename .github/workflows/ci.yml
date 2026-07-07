@@ -26,6 +26,7 @@ jobs:
           - testDebugUnitTest
           - lintDebug
           - assembleDebug
+          - assembleDebugAndroidTest
 
     steps:
       - name: Check out repository
