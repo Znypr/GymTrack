@@ -116,7 +116,10 @@ class HomeViewModel(
                     if (!knownTimestamps.add(note.timestamp)) {
                         skippedDuplicates++
                     } else {
-                        workoutRepository.saveCompletedWorkout(note.toEntity())
+                        workoutRepository.saveCompletedWorkout(
+                            note = note.toEntity(),
+                            defaultWeightUnit = settings.defaultWeightUnit,
+                        )
                         imported++
                     }
                 } catch (error: Exception) {
