@@ -1,0 +1,61 @@
+name: Sync repository metadata
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - .github/repository-metadata.json
+      - .github/workflows/sync-repo-metadata.yml
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sync-repository-metadata:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Apply labels and milestones
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const metadata = JSON.parse(fs.readFileSync('.github/repository-metadata.json', 'utf8'));
+            const { owner, repo } = context.repo;
+
+            for (const label of metadata.labels || []) {
+              const name = String(label.name);
+              const color = String(label.color || '').replace(/^#/, '').toLowerCase();
+              const description = String(label.description || '').slice(0, 100);
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name });
+                await github.rest.issues.updateLabel({ owner, repo, name, color, description });
+                core.info(`Updated label ${name}`);
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                await github.rest.issues.createLabel({ owner, repo, name, color, description });
+                core.info(`Created label ${name}`);
+              }
+            }
+
+            const milestones = await github.paginate(github.rest.issues.listMilestones, { owner, repo, state: 'all', per_page: 100 });
+            const byTitle = new Map(milestones.map(m => [m.title, m]));
+            for (const item of metadata.milestones || []) {
+              const title = String(item.title);
+              const description = String(item.description || '');
+              const existing = byTitle.get(title);
+              if (existing) {
+                await github.rest.issues.updateMilestone({ owner, repo, milestone_number: existing.number, title, description, state: 'open' });
+                core.info(`Updated milestone ${title}`);
+              } else {
+                await github.rest.issues.createMilestone({ owner, repo, title, description });
+                core.info(`Created milestone ${title}`);
+              }
+            }

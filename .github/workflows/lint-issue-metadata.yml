@@ -1,0 +1,78 @@
+name: Lint issue metadata
+
+on:
+  issues:
+    types: [opened, edited, assigned, unassigned, labeled, unlabeled, milestoned, demilestoned, reopened]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  lint-issue-metadata:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Validate issue metadata
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            if (!issue || issue.pull_request) return;
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = issue.number;
+            const labels = (issue.labels || []).map(label => typeof label === 'string' ? label : label.name);
+            const has = prefix => labels.some(name => name && name.startsWith(prefix));
+            const missing = [];
+
+            if (!issue.assignees || issue.assignees.length === 0) missing.push('assignee');
+            if (!has('status:')) missing.push('one status:* label');
+            if (!has('type:')) missing.push('one type:* label');
+            if (!has('priority:')) missing.push('one priority:* label');
+            if (!has('area:')) missing.push('one or more area:* labels');
+            if (!has('energy:')) missing.push('one energy:* label');
+            if (!has('confidence:')) missing.push('one confidence:* label');
+
+            const invalidLabel = 'flag:metadata-invalid';
+            const manualReviewLabel = 'status:needs-manual-review';
+            const statusLabels = labels.filter(name => name && name.startsWith('status:'));
+
+            if (missing.length === 0) {
+              if (labels.includes(invalidLabel)) {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number, name: invalidLabel }).catch(error => {
+                  if (error.status !== 404) throw error;
+                });
+              }
+              return;
+            }
+
+            const labelsToAdd = [invalidLabel];
+            if (!labels.includes(manualReviewLabel)) labelsToAdd.push(manualReviewLabel);
+
+            for (const label of labelsToAdd) {
+              await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [label] }).catch(error => {
+                if (error.status !== 404) throw error;
+              });
+            }
+
+            for (const label of statusLabels) {
+              if (label !== manualReviewLabel) {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number, name: label }).catch(error => {
+                  if (error.status !== 404) throw error;
+                });
+              }
+            }
+
+            const marker = '<!-- issue-metadata-lint -->';
+            const body = `${marker}\nIssue metadata is incomplete. Missing:\n\n${missing.map(item => `- ${item}`).join('\n')}\n\nRequired metadata for non-trivial issues: assignee, one status label, one type label, one priority label, one or more area labels, one energy label, and one confidence label.`;
+
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
+            const existing = comments.find(comment => comment.body && comment.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
