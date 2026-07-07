@@ -5,9 +5,9 @@ import android.content.Context
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import com.example.gymtrack.core.data.ExerciseFlag
 import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
-import com.example.gymtrack.core.data.ExerciseFlag
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -44,7 +44,7 @@ private fun parseFlag(value: String?): ExerciseFlag = when (value?.lowercase()) 
 }
 
 fun exportNote(context: Context, note: NoteLine, settings: Settings): File {
-    val parsed = parseNoteText(note.text)
+    val parsed = parseNoteText(note.text, note.rowMetadata)
 
     val main = mutableListOf<Triple<String, String, ExerciseFlag>>()
     val subs = mutableListOf<SubEntry>()
@@ -102,7 +102,7 @@ fun exportNote(context: Context, note: NoteLine, settings: Settings): File {
         val time = SimpleDateFormat("HH-mm", Locale.getDefault()).format(Date(note.timestamp))
 
         val file = File(dir, "${safeTitle}-$date-$time.csv")
-        file.writeText(builder.toString()) // 'builder' is from your existing code
+        file.writeText(builder.toString())
 
         // Copy to public Downloads directory
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -249,8 +249,8 @@ fun importNote(file: File, settings: Settings): NoteLine? {
         }
     }
 
-    val fullText = combineTextAndTimes(bodyLines.joinToString("\n"), times, flags)
+    val bodyText = bodyLines.joinToString("\n")
+    val rowMetadata = buildNoteRowMetadata(times, flags)
     val time = parseFullDateTime(timestampStr)
-    return NoteLine(title, fullText, time, category, null, learnings)
+    return NoteLine(title, bodyText, time, category, null, learnings, rowMetadata)
 }
-
