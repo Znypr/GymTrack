@@ -51,6 +51,19 @@ class WorkoutRepository(
         setDao.deleteSetsForWorkout(timestamp)
     }
 
+    suspend fun deleteWorkout(note: NoteEntity) {
+        database.withTransaction {
+            setDao.deleteSetsForWorkout(note.timestamp)
+            database.canonicalWorkoutDao()
+                .getByLegacyTimestamp(note.timestamp)
+                ?.let { workout ->
+                    database.trainingSummaryOutboxDao().deleteForWorkout(workout.id)
+                    database.canonicalWorkoutDao().deleteById(workout.id)
+                }
+            noteDao.delete(note)
+        }
+    }
+
     suspend fun saveParsedSets(sets: List<ParsedSetDTO>, workoutId: Long) {
         val setEntities = sets.map { set ->
             val exerciseId = resolveExerciseId(set.exerciseName)
@@ -80,7 +93,7 @@ class WorkoutRepository(
         note: NoteEntity,
         defaultWeightUnit: WeightUnit = WeightUnit.KG,
     ) {
-        val completedAt = System.currentTimeMillis()
+        val completedAt = maxOf(System.currentTimeMillis(), note.timestamp)
         database.withTransaction {
             noteDao.insert(note)
             val parsedSets = parser.parseWorkout(
@@ -110,6 +123,10 @@ class WorkoutRepository(
         saveParsedSets(parsedSets, note.timestamp)
     }
 
+    /**
+     * Manual compatibility repair for legacy rows. Normal startup must not call this
+     * unconditionally because it reparses every stored workout.
+     */
     suspend fun forceUpdateStats() {
         val allNotes = noteDao.getAll().first()
         allNotes.forEach { note ->
@@ -117,6 +134,10 @@ class WorkoutRepository(
         }
     }
 
+    /**
+     * One-time compatibility repair for old databases where notes exist but derived
+     * set rows were never created. This keeps normal startup cheap after the repair.
+     */
     suspend fun checkAndMigrate() {
         val noteCount = noteDao.getCount()
         val setCount = setDao.getCount()

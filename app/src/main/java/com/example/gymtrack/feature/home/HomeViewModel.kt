@@ -30,10 +30,9 @@ class HomeViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun deleteNotes(notes: Set<NoteLine>) {
-        viewModelScope.launch {
-            repository.deleteNotes(notes)
+        viewModelScope.launch(Dispatchers.IO) {
             notes.forEach { note ->
-                workoutRepository.deleteWorkout(note.timestamp)
+                workoutRepository.deleteWorkout(note.toEntity())
             }
         }
     }
