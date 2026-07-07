@@ -27,14 +27,18 @@ import kotlinx.coroutines.withContext
 data class LegacyCsvImportSummary(
     val selected: Int,
     val imported: Int,
-    val skippedDuplicates: Int,
+    val skippedExactDuplicates: Int,
+    val adjustedTimestampCollisions: Int,
     val failed: Int,
     val failedNames: List<String> = emptyList(),
 ) {
     fun toUserMessage(): String = buildString {
         append("CSV import: $imported/$selected imported")
-        if (skippedDuplicates > 0) {
-            append(", $skippedDuplicates duplicates skipped")
+        if (skippedExactDuplicates > 0) {
+            append(", $skippedExactDuplicates exact duplicates skipped")
+        }
+        if (adjustedTimestampCollisions > 0) {
+            append(", $adjustedTimestampCollisions timestamp collisions preserved")
         }
         if (failed > 0) {
             append(", $failed failed")
@@ -86,55 +90,85 @@ class HomeViewModel(
 
     fun importNotesFromUris(context: Context, uris: List<Uri>, settings: Settings) {
         viewModelScope.launch(Dispatchers.IO) {
-            val knownTimestamps = notes.value.mapTo(mutableSetOf()) { it.timestamp }
+            val existingNotes = notes.value
+            val usedTimestamps = existingNotes.mapTo(mutableSetOf()) { it.timestamp }
+            val knownFullFingerprints = existingNotes.mapTo(mutableSetOf()) { note ->
+                legacyCsvFullFingerprint(note)
+            }
+            val knownContentFingerprints = existingNotes.mapTo(mutableSetOf()) { note ->
+                legacyCsvContentFingerprint(note)
+            }
             var imported = 0
-            var skippedDuplicates = 0
+            var skippedExactDuplicates = 0
+            var adjustedTimestampCollisions = 0
             var failed = 0
             val failedNames = mutableListOf<String>()
 
-            uris.forEach { uri ->
-                val displayName = displayName(context, uri)
-                val uniqueName = "temp_import_${UUID.randomUUID()}.csv"
-                val tempFile = File(context.cacheDir, uniqueName)
+            uris
+                .map { uri -> displayName(context, uri) to uri }
+                .sortedBy { (displayName, _) -> displayName.lowercase() }
+                .forEach { (displayName, uri) ->
+                    val uniqueName = "temp_import_${UUID.randomUUID()}.csv"
+                    val tempFile = File(context.cacheDir, uniqueName)
 
-                try {
-                    val copied = context.contentResolver.openInputStream(uri)?.use { input ->
-                        tempFile.outputStream().use { output ->
-                            input.copyTo(output)
+                    try {
+                        val copied = context.contentResolver.openInputStream(uri)?.use { input ->
+                            tempFile.outputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                            true
+                        } ?: false
+                        if (!copied) {
+                            throw IOException("Could not read $displayName")
                         }
-                        true
-                    } ?: false
-                    if (!copied) {
-                        throw IOException("Could not read $displayName")
-                    }
 
-                    val note = importNote(tempFile, settings)
-                        ?: throw IOException("Could not parse $displayName")
-                    if (note.timestamp <= 0L) {
-                        throw IOException("Invalid timestamp in $displayName")
+                        val parsedNote = importNote(tempFile, settings)
+                            ?: throw IOException("Could not parse $displayName")
+                        if (parsedNote.timestamp <= 0L) {
+                            throw IOException("Invalid timestamp in $displayName")
+                        }
+
+                        val fullFingerprint = legacyCsvFullFingerprint(parsedNote)
+                        val contentFingerprint = legacyCsvContentFingerprint(parsedNote)
+                        val timestampAlreadyUsed = parsedNote.timestamp in usedTimestamps
+
+                        if (fullFingerprint in knownFullFingerprints ||
+                            timestampAlreadyUsed && contentFingerprint in knownContentFingerprints
+                        ) {
+                            skippedExactDuplicates++
+                        } else {
+                            val timestampAllocation = allocateLegacyCsvTimestamp(
+                                originalTimestamp = parsedNote.timestamp,
+                                usedTimestamps = usedTimestamps,
+                            )
+                            val note = if (timestampAllocation.adjusted) {
+                                adjustedTimestampCollisions++
+                                parsedNote.copy(timestamp = timestampAllocation.timestamp)
+                            } else {
+                                parsedNote
+                            }
+                            workoutRepository.saveCompletedWorkout(
+                                note = note.toEntity(),
+                                defaultWeightUnit = settings.defaultWeightUnit,
+                            )
+                            knownFullFingerprints += legacyCsvFullFingerprint(note)
+                            knownContentFingerprints += legacyCsvContentFingerprint(note)
+                            imported++
+                        }
+                    } catch (error: Exception) {
+                        error.printStackTrace()
+                        failed++
+                        failedNames += displayName
+                    } finally {
+                        tempFile.delete()
                     }
-                    if (!knownTimestamps.add(note.timestamp)) {
-                        skippedDuplicates++
-                    } else {
-                        workoutRepository.saveCompletedWorkout(
-                            note = note.toEntity(),
-                            defaultWeightUnit = settings.defaultWeightUnit,
-                        )
-                        imported++
-                    }
-                } catch (error: Exception) {
-                    error.printStackTrace()
-                    failed++
-                    failedNames += displayName
-                } finally {
-                    tempFile.delete()
                 }
-            }
 
             _legacyCsvImportSummary.value = LegacyCsvImportSummary(
                 selected = uris.size,
                 imported = imported,
-                skippedDuplicates = skippedDuplicates,
+                skippedExactDuplicates = skippedExactDuplicates,
+                adjustedTimestampCollisions = adjustedTimestampCollisions,
                 failed = failed,
                 failedNames = failedNames,
             )
