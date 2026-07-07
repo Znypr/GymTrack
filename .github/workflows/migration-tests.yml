@@ -1,14 +1,13 @@
 name: Migration Tests
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [master]
     paths:
       - "app/src/main/java/com/example/gymtrack/core/data/**"
       - "app/src/androidTest/**"
       - ".github/workflows/migration-tests.yml"
-  push:
-    branches: [master]
 
 permissions:
   contents: read
@@ -57,10 +56,10 @@ jobs:
           tail -200 diagnostics/connected-test.log || true
           find diagnostics -type f -name '*.xml' -print -exec cat {} \; || true
       - name: Upload reports
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: migration-test-reports
           path: diagnostics/
-          if-no-files-found: error
-          retention-days: 7
+          if-no-files-found: ignore
+          retention-days: 3

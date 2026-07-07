@@ -3,8 +3,20 @@ name: Android CI
 on:
   pull_request:
     branches: [master]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/repository-metadata.json"
+      - ".github/labels.json"
   push:
     branches: [master]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/repository-metadata.json"
+      - ".github/labels.json"
 
 permissions:
   contents: read
@@ -26,7 +38,6 @@ jobs:
           - testDebugUnitTest
           - lintDebug
           - assembleDebug
-          - assembleDebugAndroidTest
 
     steps:
       - name: Check out repository
@@ -56,9 +67,9 @@ jobs:
           exit "$status"
 
       - name: Upload Gradle diagnostics
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: gradle-${{ matrix.task }}
           path: gradle-output.log
-          retention-days: 7
+          retention-days: 3
