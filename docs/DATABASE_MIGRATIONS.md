@@ -4,7 +4,7 @@ GymTrack stores workout history locally. Production database upgrades must never
 
 ## Current schema
 
-The current Room schema is version 10.
+The current Room schema is version 11.
 
 Legacy compatibility tables remain available:
 
@@ -23,6 +23,8 @@ Version 9 adds empty canonical tables beside the legacy tables:
 
 Version 10 adds `sets.weightUnit` to the legacy compatibility set table. Existing rows from schemas 8 and 9 migrate to explicit `KG` because old rows did not store a source unit and GymTrack must not guess silently.
 
+Version 11 adds `training_summary_outbox`, a local durable queue for compact Creator OS / Google Sheets summary payloads after explicit workout completion.
+
 The canonical exercise and set tables use non-conflicting names because v8 already owns `exercises` and `sets`. Version 9 does not rename, delete, backfill, or switch reads away from legacy tables.
 
 ## Supported historical versions
@@ -38,11 +40,12 @@ Repository history provides complete schemas for these versions:
 | 8 | Adds legacy exercises, sets, timing columns, foreign key, and indices |
 | 9 | Adds empty canonical workout tables, relationships, and ordering constraints |
 | 10 | Adds explicit source-unit storage to legacy `sets.weightUnit` |
+| 11 | Adds durable `training_summary_outbox` rows keyed by workout ID and summary schema version |
 
 The supported upgrade chain is:
 
 ```text
-1 -> 2 -> 3 -> 4 -> 8 -> 9 -> 10
+1 -> 2 -> 3 -> 4 -> 8 -> 9 -> 10 -> 11
 ```
 
 Versions 5, 6, and 7 do not exist in committed schema history. GymTrack does not guess their structure. Opening one of those databases fails without deleting or replacing the database file.
@@ -67,6 +70,20 @@ ALTER TABLE sets ADD COLUMN weightUnit TEXT NOT NULL DEFAULT 'KG'
 ```
 
 This is a preservation migration. It does not convert numeric weights, parse note text, or reinterpret history. Rows that existed before source-unit storage become explicit `KG`, while new completed-workout parsing writes the selected default unit or an explicit typed `kg`/`lb` override.
+
+## Version 10 to 11 boundary
+
+The `10 -> 11` migration creates `training_summary_outbox`:
+
+```text
+primary key: workout_id + schema_version
+payload: summary_json
+state: PENDING / future transport states
+retry metadata: attempt_count, last_error
+timestamps: created_at, updated_at
+```
+
+The migration creates an empty outbox. It does not backfill summaries for existing workouts; regeneration from canonical data can be added as a separate idempotent repair or transport task.
 
 ## Migration policy
 
@@ -98,6 +115,7 @@ The suite creates real SQLite databases at versions 1, 2, 3, 4, 8, and an unsupp
 - creation of legacy and canonical tables and indices;
 - legacy row preservation during `8 -> 9`;
 - explicit source-unit defaulting during `9 -> 10`;
+- summary outbox creation during `10 -> 11`;
 - canonical foreign-key cascade behavior;
 - exercise-to-set cascade behavior in the legacy schema;
 - unsupported upgrades fail without erasing sentinel data.
