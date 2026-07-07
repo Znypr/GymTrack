@@ -1,8 +1,6 @@
 name: Create branch and draft pull request
 
 on:
-  issues:
-    types: [labeled]
   workflow_dispatch:
     inputs:
       issue_number:
