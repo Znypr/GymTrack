@@ -6,6 +6,7 @@ import com.example.gymtrack.core.data.CanonicalWorkoutExerciseEntity
 import com.example.gymtrack.core.data.CanonicalWorkoutSetEntity
 import com.example.gymtrack.core.data.ExerciseFlag
 import com.example.gymtrack.core.data.NoteEntity
+import com.example.gymtrack.core.data.WeightUnit
 import com.example.gymtrack.core.util.WorkoutParser
 import com.example.gymtrack.core.util.parseNoteText
 
@@ -24,6 +25,7 @@ internal class LegacyWorkoutProjector(
         note: NoteEntity,
         category: CanonicalCategoryEntity?,
         exercises: CanonicalExerciseCatalog,
+        defaultWeightUnit: WeightUnit = WeightUnit.KG,
     ): CanonicalWorkoutProjection {
         val parsedNote = parseNoteText(note.text)
         val sourceLines = parsedNote.first.mapIndexed { index, text ->
@@ -46,7 +48,10 @@ internal class LegacyWorkoutProjector(
         val elapsedOffsets = mutableListOf<Int>()
 
         blocks.forEachIndexed { blockPosition, block ->
-            val parsedSets = parser.parseWorkout(block.asParserText())
+            val parsedSets = parser.parseWorkout(
+                rawText = block.asParserText(),
+                defaultWeightUnit = defaultWeightUnit.storageValue,
+            )
             val sourceSetLines = block.setLines.filter { it.text.isNotBlank() }
             if (parsedSets.size != sourceSetLines.size) {
                 reviewReasons += "exercise ${blockPosition + 1} parsed ${parsedSets.size}/${sourceSetLines.size} sets"
@@ -104,7 +109,9 @@ internal class LegacyWorkoutProjector(
                     position = setPosition,
                     repetitions = parsedSet.reps.takeIf { it > 0 },
                     weight = parsedSet.weight.toDouble().takeIf { it > 0.0 },
-                    weightUnit = source?.text?.let(::explicitWeightUnit),
+                    weightUnit = parsedSet.weight.toDouble().takeIf { it > 0.0 }?.let {
+                        canonicalWeightUnit(parsedSet.weightUnit)
+                    },
                     durationSeconds = null,
                     distanceMeters = null,
                     performedAtOffsetSeconds = performedOffset,
@@ -186,10 +193,9 @@ internal class LegacyWorkoutProjector(
         return minutes * 60 + seconds
     }
 
-    private fun explicitWeightUnit(raw: String): String? = when {
-        Regex("(?i)(?:^|[^a-z])lbs?\\b").containsMatchIn(raw) -> "POUND"
-        Regex("(?i)(?:^|[^a-z])kg\\b").containsMatchIn(raw) -> "KILOGRAM"
-        else -> null
+    private fun canonicalWeightUnit(raw: String): String = when (WorkoutParser.normalizeWeightUnit(raw)) {
+        WeightUnit.LB.storageValue -> "POUND"
+        else -> "KILOGRAM"
     }
 
     private data class SourceLine(
