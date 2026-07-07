@@ -73,12 +73,13 @@ class EditorViewModel(
 
     fun saveDraft(
         finalText: String,
+        rowMetadata: String = "",
         newNoteTimestamp: Long? = null,
         onComplete: () -> Unit = {},
         onError: (String) -> Unit = {},
     ) {
         requestSave(
-            note = snapshot(finalText, newNoteTimestamp),
+            note = snapshot(finalText, rowMetadata, newNoteTimestamp),
             kind = EditorSaveKind.DRAFT,
             onComplete = onComplete,
             onError = onError,
@@ -87,12 +88,13 @@ class EditorViewModel(
 
     fun finalizeWorkout(
         finalText: String,
+        rowMetadata: String = "",
         newNoteTimestamp: Long? = null,
         onComplete: () -> Unit = {},
         onError: (String) -> Unit = {},
     ) {
         requestSave(
-            note = snapshot(finalText, newNoteTimestamp),
+            note = snapshot(finalText, rowMetadata, newNoteTimestamp),
             kind = EditorSaveKind.FINALIZE,
             onComplete = onComplete,
             onError = onError,
@@ -103,7 +105,11 @@ class EditorViewModel(
         _saveError.value = null
     }
 
-    private fun snapshot(finalText: String, newNoteTimestamp: Long?): NoteLine {
+    private fun snapshot(
+        finalText: String,
+        rowMetadata: String,
+        newNoteTimestamp: Long?,
+    ): NoteLine {
         val timestamp = synchronized(idLock) {
             if (currentId == -1L) {
                 currentId = newNoteTimestamp ?: System.currentTimeMillis()
@@ -118,6 +124,7 @@ class EditorViewModel(
             categoryName = currentCategory?.name,
             categoryColor = currentCategory?.color,
             learnings = currentLearnings,
+            rowMetadata = rowMetadata,
         )
     }
 
