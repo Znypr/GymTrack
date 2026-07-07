@@ -59,7 +59,7 @@ Example shape:
   "formatVersion": 1,
   "createdAtEpochMillis": 1783286400000,
   "appVersion": "1.8",
-  "databaseSchemaVersion": 10,
+  "databaseSchemaVersion": 11,
   "payloadSha256": "...",
   "counts": {
     "legacyNotes": 12,
@@ -95,6 +95,8 @@ Top-level fields:
 Legacy set records include `weightUnit` when available. Older v1 backup files that do not contain this field are still readable and default missing legacy set units to `KG` during decode because previous legacy rows had no source-unit column.
 
 The canonical records are the long-term source for workout history. Legacy records remain in the backup while the app still needs them for compatibility with existing note-based storage and migration paths.
+
+`training_summary_outbox` is intentionally not part of backup format v1. It is regenerable from canonical workout data and belongs to the Creator OS / Google Sheets transport boundary rather than full workout-history recovery.
 
 ## Validation rules
 
