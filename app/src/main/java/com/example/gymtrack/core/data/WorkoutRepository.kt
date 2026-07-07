@@ -60,11 +60,18 @@ class WorkoutRepository(
      * Persists the completed compatibility workout and its derived statistics
      * rows as one Room transaction. Draft autosave intentionally does not call
      * this method.
+     *
+     * The compatibility `sets` table does not yet have a unit column. The parser
+     * still receives the selected default so the derived DTOs already model the
+     * correct unit boundary before typed set persistence is introduced.
      */
-    suspend fun saveCompletedWorkout(note: NoteEntity) {
+    suspend fun saveCompletedWorkout(
+        note: NoteEntity,
+        defaultWeightUnit: WeightUnit = WeightUnit.KG,
+    ) {
         database.withTransaction {
             noteDao.insert(note)
-            val parsedSets = parser.parseWorkout(note.text)
+            val parsedSets = parser.parseWorkout(note.text, defaultWeightUnit.storageValue)
             saveParsedSets(parsedSets, note.timestamp)
         }
     }
