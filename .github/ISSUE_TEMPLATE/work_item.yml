@@ -1,0 +1,93 @@
+name: Work item
+description: Create a structured issue with required metadata.
+title: "[Type] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Apply the required labels before or immediately after creation: one `status:*`, one `type:*`, one `priority:*`, one or more `area:*`, one `energy:*`, and one `confidence:*`. Assign an owner. The lint workflow flags incomplete metadata.
+  - type: dropdown
+    id: status
+    attributes:
+      label: Status
+      options: [status:ideas, status:planned, status:ready, status:in-progress, status:needs-manual-review]
+    validations:
+      required: true
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      options: [type:action, type:review, type:decision, type:initiative, type:alert, type:bug, type:feature, type:refactor, type:chore, type:docs, type:spike]
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options: [priority:p0, priority:p1, priority:p2, priority:p3]
+    validations:
+      required: true
+  - type: dropdown
+    id: energy
+    attributes:
+      label: Energy
+      options: [energy:low, energy:medium, energy:high]
+    validations:
+      required: true
+  - type: dropdown
+    id: confidence
+    attributes:
+      label: Confidence
+      options: [confidence:low, confidence:medium, confidence:high]
+    validations:
+      required: true
+  - type: input
+    id: area
+    attributes:
+      label: Area label(s)
+      description: Example: area:content or area:data, area:import-export
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+    validations:
+      required: true
+  - type: textarea
+    id: non_scope
+    attributes:
+      label: Non-scope
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      placeholder: "- [ ] ..."
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation
+    validations:
+      required: true
+  - type: textarea
+    id: intended_tracking
+    attributes:
+      label: Intended tracking
+    validations:
+      required: true
