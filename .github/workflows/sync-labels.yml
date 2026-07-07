@@ -1,55 +1,14 @@
-name: Sync repository labels
+name: Sync repository labels (disabled)
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - master
-    paths:
-      - .github/labels.json
-      - .github/workflows/sync-labels.yml
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
-  sync-labels:
-    name: sync-labels
+  disabled:
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Create or update labels
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const labels = JSON.parse(fs.readFileSync('.github/labels.json', 'utf8'));
-            const { owner, repo } = context.repo;
-
-            for (const label of labels) {
-              try {
-                await github.rest.issues.getLabel({ owner, repo, name: label.name });
-                await github.rest.issues.updateLabel({
-                  owner,
-                  repo,
-                  name: label.name,
-                  new_name: label.name,
-                  color: label.color,
-                  description: label.description
-                });
-                core.info(`Updated ${label.name}`);
-              } catch (error) {
-                if (error.status !== 404) throw error;
-                await github.rest.issues.createLabel({
-                  owner,
-                  repo,
-                  name: label.name,
-                  color: label.color,
-                  description: label.description
-                });
-                core.info(`Created ${label.name}`);
-              }
-            }
+      - run: echo "Disabled. Use sync-repo-metadata.yml instead; repository-metadata.json is now the canonical label and milestone source."
