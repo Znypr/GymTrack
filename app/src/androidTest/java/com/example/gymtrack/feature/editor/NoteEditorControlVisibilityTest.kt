@@ -5,9 +5,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.test.assertDoesNotExist
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import org.junit.Rule
 import org.junit.Test
@@ -73,7 +74,7 @@ class NoteEditorControlVisibilityTest {
     }
 
     private fun assertWorkoutControlsDoNotExist() {
-        composeTestRule.onNodeWithTag(NOTE_EDITOR_FINISH_ACTION_TEST_TAG).assertDoesNotExist()
-        composeTestRule.onNodeWithTag(NOTE_EDITOR_TIMER_CONTROLS_TEST_TAG).assertDoesNotExist()
+        composeTestRule.onAllNodesWithTag(NOTE_EDITOR_FINISH_ACTION_TEST_TAG).assertCountEquals(0)
+        composeTestRule.onAllNodesWithTag(NOTE_EDITOR_TIMER_CONTROLS_TEST_TAG).assertCountEquals(0)
     }
 }
