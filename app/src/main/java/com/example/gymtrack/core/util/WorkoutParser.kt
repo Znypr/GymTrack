@@ -1,5 +1,6 @@
 package com.example.gymtrack.core.util
 
+import com.example.gymtrack.core.data.ExerciseFlag
 import java.util.regex.Pattern
 import kotlin.math.min
 
@@ -228,7 +229,17 @@ class WorkoutParser {
         return Pair(relativeTime, absoluteTime)
     }
 
-    fun parseWorkout(rawText: String, defaultWeightUnit: String = "KG"): List<ParsedSetDTO> {
+    private fun mergeMetadata(visibleMetadata: String, absoluteTime: String): String = when {
+        visibleMetadata.isBlank() -> absoluteTime
+        absoluteTime.isBlank() -> visibleMetadata
+        else -> "$visibleMetadata $absoluteTime"
+    }
+
+    fun parseWorkout(
+        rawText: String,
+        defaultWeightUnit: String = "KG",
+        rowMetadata: String? = null,
+    ): List<ParsedSetDTO> {
         val results = mutableListOf<ParsedSetDTO>()
         val fallbackWeightUnit = normalizeWeightUnit(defaultWeightUnit)
 
@@ -240,14 +251,19 @@ class WorkoutParser {
         var currentWeight = 0f
         var currentWeightUnit = fallbackWeightUnit
 
-        val lines = rawText.split("\n")
+        val parsed = parseNoteText(rawText, rowMetadata)
+        val lines = parsed.first
+        val absoluteTimes = parsed.second
+        val flags = parsed.third
 
-        for (line in lines) {
+        for ((index, line) in lines.withIndex()) {
             if (line.isBlank()) continue
 
             val matchResult = metadataStartRegex.find(line)
             val rawNamePart = if (matchResult != null) line.substring(0, matchResult.range.first) else line
-            val rawMetadataPart = if (matchResult != null) line.substring(matchResult.range.first) else ""
+            val visibleMetadataPart = if (matchResult != null) line.substring(matchResult.range.first) else ""
+            val rawMetadataPart = mergeMetadata(visibleMetadataPart, absoluteTimes.getOrNull(index).orEmpty())
+            val rowFlag = flags.getOrNull(index) ?: ExerciseFlag.BILATERAL
 
             val cleanLine = rawNamePart.trim()
 
@@ -329,7 +345,7 @@ class WorkoutParser {
                             weight = finalWeight,
                             weightUnit = finalWeightUnit,
                             reps = reps,
-                            isUnilateral = line.contains("\u200Cu") || line.lowercase().contains("uni"),
+                            isUnilateral = rowFlag == ExerciseFlag.UNILATERAL || line.lowercase().contains("uni"),
                             modifier = currentModifier,
                             brand = currentBrand,
                             relativeTime = currentRelTime,
