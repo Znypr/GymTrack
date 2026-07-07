@@ -41,14 +41,13 @@ fun ModernNoteCard(
     val categoryColor = DEFAULT_CATEGORIES.find { it.name.equals(note.categoryName, ignoreCase = true) }
         ?.let { Color(it.color) } ?: MaterialTheme.colorScheme.onSurface
 
-    val totalMinutes = remember(note.text) {
-        val seconds = parseNoteText(note.text).second.mapNotNull {
+    val totalMinutes = remember(note.text, note.rowMetadata) {
+        val seconds = parseNoteText(note.text, note.rowMetadata).second.mapNotNull {
             if (it.isBlank()) null else parseDurationSeconds(it)
         }.maxOrNull()
         seconds?.div(60)
     }
 
-    // Use Theme Surface
     val containerColor = if (isSelected) categoryColor.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface
     val borderColor = if (isSelected) categoryColor else Color.Transparent
 
@@ -90,7 +89,7 @@ fun ModernNoteCard(
 
                 if (totalMinutes != null && totalMinutes > 0) {
                     Surface(
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), // Subtle badge
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
