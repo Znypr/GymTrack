@@ -4,15 +4,15 @@ GymTrack stores workout history locally. Production database upgrades must never
 
 ## Current schema
 
-The current Room schema is version 9.
+The current Room schema is version 10.
 
-Legacy compatibility tables remain unchanged:
+Legacy compatibility tables remain available:
 
 - `notes` for the original note-like workout record;
 - `exercises` for the current derived exercise names and aliases;
-- `sets` for the current derived set records.
+- `sets` for the current derived set records, including explicit `weightUnit` source-unit storage.
 
-Version 9 adds empty canonical tables beside them:
+Version 9 adds empty canonical tables beside the legacy tables:
 
 - `categories`;
 - `canonical_exercises`;
@@ -21,7 +21,9 @@ Version 9 adds empty canonical tables beside them:
 - `workout_exercises`;
 - `workout_sets`.
 
-The canonical exercise and set tables use non-conflicting names because v8 already owns `exercises` and `sets`. This stage does not rename, delete, backfill, or switch reads away from legacy tables.
+Version 10 adds `sets.weightUnit` to the legacy compatibility set table. Existing rows from schemas 8 and 9 migrate to explicit `KG` because old rows did not store a source unit and GymTrack must not guess silently.
+
+The canonical exercise and set tables use non-conflicting names because v8 already owns `exercises` and `sets`. Version 9 does not rename, delete, backfill, or switch reads away from legacy tables.
 
 ## Supported historical versions
 
@@ -35,11 +37,12 @@ Repository history provides complete schemas for these versions:
 | 4 | Adds nullable learnings |
 | 8 | Adds legacy exercises, sets, timing columns, foreign key, and indices |
 | 9 | Adds empty canonical workout tables, relationships, and ordering constraints |
+| 10 | Adds explicit source-unit storage to legacy `sets.weightUnit` |
 
 The supported upgrade chain is:
 
 ```text
-1 -> 2 -> 3 -> 4 -> 8 -> 9
+1 -> 2 -> 3 -> 4 -> 8 -> 9 -> 10
 ```
 
 Versions 5, 6, and 7 do not exist in committed schema history. GymTrack does not guess their structure. Opening one of those databases fails without deleting or replacing the database file.
@@ -54,6 +57,16 @@ This keeps two separately reviewable operations:
 2. idempotent legacy backfill with ambiguity reporting.
 
 The second operation is tracked separately and must retain every legacy row during compatibility.
+
+## Version 9 to 10 boundary
+
+The `9 -> 10` migration adds source-unit storage to the legacy `sets` table:
+
+```sql
+ALTER TABLE sets ADD COLUMN weightUnit TEXT NOT NULL DEFAULT 'KG'
+```
+
+This is a preservation migration. It does not convert numeric weights, parse note text, or reinterpret history. Rows that existed before source-unit storage become explicit `KG`, while new completed-workout parsing writes the selected default unit or an explicit typed `kg`/`lb` override.
 
 ## Migration policy
 
@@ -84,6 +97,7 @@ The suite creates real SQLite databases at versions 1, 2, 3, 4, 8, and an unsupp
 - ordering by workout timestamp;
 - creation of legacy and canonical tables and indices;
 - legacy row preservation during `8 -> 9`;
+- explicit source-unit defaulting during `9 -> 10`;
 - canonical foreign-key cascade behavior;
 - exercise-to-set cascade behavior in the legacy schema;
 - unsupported upgrades fail without erasing sentinel data.
