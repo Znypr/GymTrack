@@ -57,6 +57,24 @@ This answers: "Am I stronger on this exact comparable setup?" It must separate l
 
 The Exercise Progress dropdown should still select the base exercise, then show available progress variants underneath. The chart should plot the variants as overlapping individual graph lines. Clicking one variant pill focuses that line and fades the other lines instead of removing context.
 
+## Exercise Progress UI policy
+
+The dropdown is for selecting the base exercise, not fully explaining every variant. It should therefore use a compact summary only:
+
+- show canonical base exercise name and total set count
+- show at most a few tiny summary chips
+- hide side-mode labels such as `Unilateral` in dropdown summaries when they create clutter
+- avoid long combined chips like `Hammer Strength · Unilateral` in the dropdown
+- use the main chart area variant pills for detailed variant selection
+
+The chart area is where variants are meaningful:
+
+- show each load-compatible variant as its own pill
+- use distinct colors per variant, not only semantic colors, so adjacent lines/pills are visually separable
+- show overlapping graph lines by default
+- if one variant pill is selected, emphasize that line and fade the others
+- only show anomaly warnings automatically for a single visible series or a focused variant; do not run anomaly detection across mixed variants
+
 ## Display policy
 
 GymTrack should let users type fast during workouts while displaying a cleaner interpretation later.
@@ -98,13 +116,15 @@ not as both raw and canonical names.
 
 ## Label colors
 
-Use semantic label colors across the app:
+Use semantic label colors in the note editor:
 
 - brand / machine line: green, e.g. `Prime`, `Atlantis`, `Hammer Strength`
 - attachment: purple, e.g. `Straight bar`, `Rope`, `Handle`
 - equipment class: blue, e.g. `Cable`, `Machine`, `Dumbbell`
 - side mode: red where needed, but do not show `Unilateral` in the editor because the row flag already shows it
 - warning/review labels: error color
+
+Use distinct series colors in Exercise Progress so multiple visible graph lines are distinguishable even when the variants are from the same semantic label family.
 
 ## Grouping examples
 
@@ -165,8 +185,10 @@ Run:
 Manual check after a local force statistics repair or new completed workout:
 
 - exercise dropdown should show canonical base names, not raw legacy spellings
+- progress dropdown summary chips should be small and sparse, not overflowing
 - progress graph should show overlapping individual lines for variants like DB vs machine lateral raise, or straight-bar pushdown vs cable/no-attachment pushdown
 - clicking a variant pill should focus that line and fade the others
+- anomaly warning should not appear for mixed-variant charts unless a single variant is focused or only one variant exists
 - editor exercise headers should show only the canonical name visually, with outlined color-coded variant chips underneath
 - editor should not duplicate `Unilateral` as a chip when the row already has a Uni flag
 - canonical projection should store alias rows for non-canonical user wording
