@@ -33,6 +33,19 @@ enum class ExerciseSideMode {
     UNKNOWN,
 }
 
+enum class ExerciseVariantLabelKind {
+    BRAND,
+    ATTACHMENT,
+    EQUIPMENT,
+    SIDE,
+    WARNING,
+}
+
+data class ExerciseVariantLabel(
+    val text: String,
+    val kind: ExerciseVariantLabelKind,
+)
+
 data class ExerciseIdentity(
     val rawName: String,
     val canonicalName: String,
@@ -78,26 +91,36 @@ data class ExerciseIdentity(
     }
 }
 
-fun ExerciseIdentity.variantLabels(): List<String> = buildList {
-    brand?.takeIf(String::isNotBlank)?.let(::add)
-    attachment?.displayLabel()?.let(::add)
+fun ExerciseIdentity.variantLabels(): List<String> = variantLabelSpecs().map { it.text }
+
+fun ExerciseIdentity.variantLabelSpecs(): List<ExerciseVariantLabel> = buildList {
+    brand?.takeIf(String::isNotBlank)?.let { label ->
+        add(ExerciseVariantLabel(label, ExerciseVariantLabelKind.BRAND))
+    }
+    attachment?.displayLabel()?.let { label ->
+        add(ExerciseVariantLabel(label, ExerciseVariantLabelKind.ATTACHMENT))
+    }
     when (equipment) {
-        ExerciseEquipment.CABLE -> add("Cable")
-        ExerciseEquipment.DUMBBELL -> add("Dumbbell")
-        ExerciseEquipment.BARBELL -> add("Barbell")
-        ExerciseEquipment.SMITH_MACHINE -> add("Smith")
-        ExerciseEquipment.MACHINE -> if (brand.isNullOrBlank()) add("Machine")
-        ExerciseEquipment.BODYWEIGHT -> add("Bodyweight")
+        ExerciseEquipment.CABLE -> add(ExerciseVariantLabel("Cable", ExerciseVariantLabelKind.EQUIPMENT))
+        ExerciseEquipment.DUMBBELL -> add(ExerciseVariantLabel("Dumbbell", ExerciseVariantLabelKind.EQUIPMENT))
+        ExerciseEquipment.BARBELL -> add(ExerciseVariantLabel("Barbell", ExerciseVariantLabelKind.EQUIPMENT))
+        ExerciseEquipment.SMITH_MACHINE -> add(ExerciseVariantLabel("Smith", ExerciseVariantLabelKind.EQUIPMENT))
+        ExerciseEquipment.MACHINE -> if (brand.isNullOrBlank()) {
+            add(ExerciseVariantLabel("Machine", ExerciseVariantLabelKind.EQUIPMENT))
+        }
+        ExerciseEquipment.BODYWEIGHT -> add(ExerciseVariantLabel("Bodyweight", ExerciseVariantLabelKind.EQUIPMENT))
         ExerciseEquipment.UNKNOWN -> Unit
     }
     when (sideMode) {
-        ExerciseSideMode.UNILATERAL -> add("Unilateral")
-        ExerciseSideMode.ALTERNATING -> add("Alternating")
+        ExerciseSideMode.UNILATERAL -> add(ExerciseVariantLabel("Unilateral", ExerciseVariantLabelKind.SIDE))
+        ExerciseSideMode.ALTERNATING -> add(ExerciseVariantLabel("Alternating", ExerciseVariantLabelKind.SIDE))
         ExerciseSideMode.BILATERAL,
         ExerciseSideMode.UNKNOWN -> Unit
     }
-    if (confidence == ExerciseIdentityConfidence.AMBIGUOUS) add("Review")
-}.distinct()
+    if (confidence == ExerciseIdentityConfidence.AMBIGUOUS) {
+        add(ExerciseVariantLabel("Review", ExerciseVariantLabelKind.WARNING))
+    }
+}.distinctBy { it.text to it.kind }
 
 private fun ExerciseAttachment.displayLabel(): String = when (this) {
     ExerciseAttachment.ROPE -> "Rope"
