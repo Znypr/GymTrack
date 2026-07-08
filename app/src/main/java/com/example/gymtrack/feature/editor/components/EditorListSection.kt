@@ -46,6 +46,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.ExerciseFlag
@@ -97,7 +98,11 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
             val rowIsUnilateral = row.flag.value == ExerciseFlag.UNILATERAL
 
             val visualTransformation = if (isMain) {
-                remember(rowIsUnilateral) { CanonicalExerciseVisualTransformation(rowIsUnilateral) }
+                if (isFocused) {
+                    VisualTransformation.None
+                } else {
+                    remember(rowIsUnilateral) { CanonicalExerciseVisualTransformation(rowIsUnilateral) }
+                }
             } else {
                 rememberRelativeTimeVisualTransformation(fontSize)
             }
