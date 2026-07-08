@@ -118,7 +118,11 @@ fun StatsScreen(
             }
 
             item {
-                ExerciseProgressCard(repository = workoutRepository, timeRange = state.currentRange)
+                ExerciseProgressCard(
+                    repository = workoutRepository,
+                    timeRange = state.currentRange,
+                    weightUnitLabel = settings.defaultWeightUnit.displayLabel
+                )
             }
 
             item {
