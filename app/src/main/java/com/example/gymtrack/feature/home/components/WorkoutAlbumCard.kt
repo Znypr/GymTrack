@@ -20,13 +20,16 @@ import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.util.formatTime
 import com.example.gymtrack.core.util.formatWeekRelativeTime
-import com.example.gymtrack.core.util.parseDurationSeconds
-import com.example.gymtrack.core.util.parseNoteText
+import com.example.gymtrack.feature.home.HomeWorkoutStats
+import com.example.gymtrack.feature.home.cardMetricLabel
+import com.example.gymtrack.feature.home.flameText
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun WorkoutAlbumCard(
     note: NoteLine,
+    stats: HomeWorkoutStats,
+    flames: Int,
     isSelected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -43,24 +46,13 @@ fun WorkoutAlbumCard(
     val mutedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
     val cardShape = MaterialTheme.shapes.large
 
-    val parsedWorkout = remember(note.text, note.rowMetadata) {
-        parseNoteText(note.text, note.rowMetadata)
-    }
-    val totalMinutes = remember(parsedWorkout) {
-        val seconds = parsedWorkout.second.mapNotNull {
-            if (it.isBlank()) null else parseDurationSeconds(it)
-        }.maxOrNull()
-        seconds?.div(60) ?: 0
-    }
-    val exerciseCount = remember(parsedWorkout) {
-        parsedWorkout.first.count { it.isNotBlank() }
-    }
-
     val displayTitle = note.title.ifBlank {
         val full = formatWeekRelativeTime(note.timestamp, settings)
         if (full.contains(" ")) full.substringBeforeLast(" ") else full
     }
     val displaySubtitle = if (note.title.isNotBlank()) formatWeekRelativeTime(note.timestamp, settings) else formatTime(note.timestamp, settings)
+    val cardMetric = stats.cardMetricLabel(settings.homeCardMetric)
+    val flameLabel = flameText(flames)
 
     Card(
         modifier = Modifier
@@ -93,13 +85,25 @@ fun WorkoutAlbumCard(
 
             Spacer(Modifier.height(14.dp))
 
-            Text(
-                text = (note.categoryName ?: "Workout").uppercase(),
-                style = MaterialTheme.typography.labelSmall,
-                color = categoryColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = (note.categoryName ?: "Workout").uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = categoryColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (flameLabel.isNotBlank()) {
+                    Text(
+                        text = flameLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+            }
 
             Spacer(Modifier.height(8.dp))
 
@@ -130,15 +134,15 @@ fun WorkoutAlbumCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = if (exerciseCount == 1) "1 exercise" else "$exerciseCount exercises",
+                    text = cardMetric,
                     color = mutedTextColor,
                     style = MaterialTheme.typography.labelSmall,
                     maxLines = 1,
                 )
 
-                if (totalMinutes > 0) {
+                if (stats.durationMinutes > 0) {
                     Text(
-                        text = "${totalMinutes} min",
+                        text = "${stats.durationMinutes} min",
                         color = mutedTextColor,
                         style = MaterialTheme.typography.labelSmall,
                     )
