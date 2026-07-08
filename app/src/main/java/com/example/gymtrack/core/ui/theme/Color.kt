@@ -24,6 +24,7 @@ val GymAccentStrong = Color(0xFFD99A00)
 val GymDanger = Color(0xFFFF5A4F)
 val GymRecoveryBlue = Color(0xFF6BA6FF)
 val GymEffortOrange = Color(0xFFE8753A)
+val SupersetBlue = GymRecoveryBlue
 
 // Category gradients for workout groups
 val PushGradient = listOf(Color(0xFFE4503D), Color(0xFF8E241C))
