@@ -32,9 +32,10 @@ fun WorkoutAlbumCard(
     onLongClick: () -> Unit,
     settings: Settings
 ) {
-    val categoryColor = remember(note.categoryName, settings.categories) {
+    val fallbackCategoryColor = MaterialTheme.colorScheme.primary
+    val categoryColor = remember(note.categoryName, settings.categories, fallbackCategoryColor) {
         val found = settings.categories.find { it.name == note.categoryName }
-        if (found != null) Color(found.color) else MaterialTheme.colorScheme.primary
+        if (found != null) Color(found.color) else fallbackCategoryColor
     }
 
     val cardBaseColor = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
