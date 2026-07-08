@@ -44,7 +44,7 @@ This answers: "What exercise is this generally?" It should group things like lat
 
 ### Progress / PR / weight charts
 
-Use `progressComparisonKey` / strict load context.
+Use `progressComparisonKey` / strict load context for the individual plotted series.
 
 This answers: "Am I stronger on this exact comparable setup?" It must separate load-incompatible variants:
 
@@ -54,6 +54,8 @@ This answers: "Am I stronger on this exact comparable setup?" It must separate l
 - unilateral vs bilateral variants when the stored load is not directly comparable
 - Prime vs Atlantis or other brand-specific machine variants when the machine changes the load curve or stack/lever mechanics
 - attachment variants when they materially change loading or setup, such as rope vs straight bar pushdown
+
+The Exercise Progress dropdown should still select the base exercise, then show available progress variants underneath. The chart should plot the variants as overlapping individual graph lines. Clicking one variant pill focuses that line and fades the other lines instead of removing context.
 
 ## Display policy
 
@@ -82,7 +84,7 @@ Triceps Pushdown
 
 This is now applied in two places:
 
-- **Stats exercise-progress selector:** grouped by load-compatible progress identity, with variant chips under the option.
+- **Stats exercise-progress selector:** selected by base exercise, with load-compatible variant pills controlling individual chart lines.
 - **Note editor exercise headers:** raw text remains stored, but the header visually renders as the canonical name with outlined pill chips underneath.
 
 For example, `Tbar Rows Prime` should visually render as:
@@ -94,17 +96,27 @@ T-Bar Row
 
 not as both raw and canonical names.
 
+## Label colors
+
+Use semantic label colors across the app:
+
+- brand / machine line: green, e.g. `Prime`, `Atlantis`, `Hammer Strength`
+- attachment: purple, e.g. `Straight bar`, `Rope`, `Handle`
+- equipment class: blue, e.g. `Cable`, `Machine`, `Dumbbell`
+- side mode: red where needed, but do not show `Unilateral` in the editor because the row flag already shows it
+- warning/review labels: error color
+
 ## Grouping examples
 
 | Raw wording | Canonical name | Variant fields | Prediction grouping | Progress grouping |
 | --- | --- | --- | --- | --- |
-| `lateral raise db` | Lateral Raise | dumbbell | same as lateral raise | separate from machine/cable |
-| `lateral raise machine` | Lateral Raise | machine | same as lateral raise | separate from dumbbell/cable |
-| `tricep pushdown bar` | Triceps Pushdown | cable + straight bar | same as pushdown | separate from rope/V-bar |
-| `tricep extension prime` | Triceps Extension | machine + Prime | same base movement | separate from Atlantis |
-| `tricep extension at` | Triceps Extension | machine + Atlantis | same base movement | separate from Prime |
-| `leg extension rl` | Leg Extension | unilateral | same base movement | separate from bilateral |
-| `latpulldown rl` | Lat Pulldown | unilateral | same base movement | separate from bilateral |
+| `lateral raise db` | Lateral Raise | dumbbell | same as lateral raise | separate line from machine/cable |
+| `lateral raise machine` | Lateral Raise | machine | same as lateral raise | separate line from dumbbell/cable |
+| `tricep pushdown bar` | Triceps Pushdown | cable + straight bar | same as pushdown | separate line from rope/no-attachment cable |
+| `tricep extension prime` | Triceps Extension | machine + Prime | same base movement | separate line from Atlantis |
+| `tricep extension at` | Triceps Extension | machine + Atlantis | same base movement | separate line from Prime |
+| `leg extension rl` | Leg Extension | unilateral | same base movement | separate line from bilateral |
+| `latpulldown rl` | Lat Pulldown | unilateral | same base movement | separate line from bilateral |
 | `seated hamstring` | Seated Leg Curl | machine/brand if known | grouped with leg curl | strict by machine when known |
 
 ## Important ambiguity
@@ -138,7 +150,7 @@ The first implementation covers the most obvious current backup patterns:
 - No user-facing alias-management UI
 - No automatic merge restore changes
 - No broad muscle-group taxonomy
-- No chart redesign
+- No chart redesign beyond multi-series progress display
 
 ## Validation target
 
@@ -152,8 +164,10 @@ Run:
 
 Manual check after a local force statistics repair or new completed workout:
 
-- exercise dropdown should show canonical grouped names, not raw legacy spellings
-- progress graph should separate load-incompatible variants like DB vs machine lateral raises
-- editor exercise headers should show only the canonical name visually, with outlined variant chips underneath
+- exercise dropdown should show canonical base names, not raw legacy spellings
+- progress graph should show overlapping individual lines for variants like DB vs machine lateral raise, or straight-bar pushdown vs cable/no-attachment pushdown
+- clicking a variant pill should focus that line and fade the others
+- editor exercise headers should show only the canonical name visually, with outlined color-coded variant chips underneath
+- editor should not duplicate `Unilateral` as a chip when the row already has a Uni flag
 - canonical projection should store alias rows for non-canonical user wording
 - raw workout note text should remain unchanged
