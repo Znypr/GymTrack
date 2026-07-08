@@ -118,19 +118,19 @@ fun StatsScreen(
             }
 
             item {
-                ExerciseProgressCard(
-                    repository = workoutRepository,
-                    timeRange = state.currentRange,
-                    weightUnitLabel = settings.defaultWeightUnit.displayLabel
-                )
-            }
-
-            item {
                 AdaptiveCard {
                     Column(Modifier.padding(16.dp)) {
                         TrainingInsightsPanel(data = state.trainingInsights)
                     }
                 }
+            }
+
+            item {
+                ExerciseProgressCard(
+                    repository = workoutRepository,
+                    timeRange = state.currentRange,
+                    weightUnitLabel = settings.defaultWeightUnit.displayLabel
+                )
             }
 
             item {
