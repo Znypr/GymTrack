@@ -268,6 +268,7 @@ object ExerciseIdentityResolver {
     }
 
     private fun detectAttachment(combined: String): ExerciseAttachment? = when {
+        combined.contains("t bar row") || combined.contains("t bar machine") -> null
         combined.contains("rope") -> ExerciseAttachment.ROPE
         combined.contains("v bar") || combined.contains("vbar") -> ExerciseAttachment.V_BAR
         combined.contains("ez bar") || combined.contains("ezbar") -> ExerciseAttachment.EZ_BAR
