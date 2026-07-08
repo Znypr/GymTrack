@@ -31,16 +31,16 @@ fun calculateExerciseOutliers(data: List<GraphPoint>): List<GraphPoint> {
 }
 
 fun extractReasonableWorkoutDurationMinutes(note: NoteLine): WorkoutDurationSample? {
-    val minutes = parseNoteText(note.text, note.rowMetadata).second
-        .mapNotNull { rawDuration ->
-            if (rawDuration.isBlank()) null else parseDurationSeconds(rawDuration)
-        }
-        .maxOrNull()
-        ?.div(60f)
-        ?: return null
-
-    if (minutes <= 0f || minutes > MAX_REASONABLE_WORKOUT_DURATION_MINUTES) return null
+    val minutes = extractWorkoutDurationMinutes(note) ?: return null
+    if (!isReasonableWorkoutDuration(minutes)) return null
     return WorkoutDurationSample(timestamp = note.timestamp, minutes = minutes)
+}
+
+fun countUnreasonableWorkoutDurations(notes: List<NoteLine>): Int {
+    return notes.count { note ->
+        val minutes = extractWorkoutDurationMinutes(note)
+        minutes != null && !isReasonableWorkoutDuration(minutes)
+    }
 }
 
 fun buildWeeklyAverageWorkoutDurations(notes: List<NoteLine>): List<Pair<Long, Float>> {
@@ -66,6 +66,19 @@ fun isoWeekStart(timestamp: Long): Long {
     calendar.set(Calendar.SECOND, 0)
     calendar.set(Calendar.MILLISECOND, 0)
     return calendar.timeInMillis
+}
+
+private fun extractWorkoutDurationMinutes(note: NoteLine): Float? {
+    return parseNoteText(note.text, note.rowMetadata).second
+        .mapNotNull { rawDuration ->
+            if (rawDuration.isBlank()) null else parseDurationSeconds(rawDuration)
+        }
+        .maxOrNull()
+        ?.div(60f)
+}
+
+private fun isReasonableWorkoutDuration(minutes: Float): Boolean {
+    return minutes > 0f && minutes <= MAX_REASONABLE_WORKOUT_DURATION_MINUTES
 }
 
 private fun percentile(sortedValues: List<Float>, percentile: Float): Float {
