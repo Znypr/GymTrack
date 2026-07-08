@@ -32,7 +32,7 @@ fun WorkoutDurationTrendChart(
     if (weekly.isEmpty()) {
         Box(modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
             Text(
-                "No duration data",
+                "No duration data in this period",
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
             )
         }
@@ -47,10 +47,16 @@ fun WorkoutDurationTrendChart(
 
     Column(modifier.fillMaxWidth()) {
         Text(
-            "Workout Duration (Weekly)",
+            "Workout Duration",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            if (showRollingAvg) "Weekly average · minutes" else "Workout duration · minutes",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
         )
         if (filteredOutliers > 0) {
             Spacer(Modifier.height(4.dp))
@@ -63,12 +69,14 @@ fun WorkoutDurationTrendChart(
         Spacer(Modifier.height(16.dp))
 
         Canvas(modifier = Modifier.fillMaxWidth().height(200.dp)) {
-            val layout = ChartLayout()
+            val layout = ChartLayout(leftPad = 64f)
             val chartW = layout.width(size.width)
             val x0 = layout.originX()
             val y0 = layout.originY(size.height)
 
-            drawYGridAndLabels(scaleY, theme, layout, textPaint)
+            drawYGridAndLabels(scaleY, theme, layout, textPaint) { value ->
+                if (value % 1.0f == 0f) "${value.toInt()}m" else String.format(Locale.getDefault(), "%.1fm", value)
+            }
 
             val n = weekly.size
             val dx = if (n <= 1) chartW else chartW / (n - 1).toFloat()

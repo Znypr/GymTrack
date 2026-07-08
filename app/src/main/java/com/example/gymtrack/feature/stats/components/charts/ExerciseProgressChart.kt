@@ -6,7 +6,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -28,13 +27,13 @@ import java.util.concurrent.TimeUnit
 @Composable
 private fun ExerciseProgressChartGraph(
     dataPoints: List<GraphPoint>,
-    anomalies: List<GraphPoint>,
+    weightUnitLabel: String,
     modifier: Modifier = Modifier
 ) {
     if (dataPoints.isEmpty()) {
         Box(modifier.height(200.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
             Text(
-                "No data for this period",
+                "No exercise data in this period",
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
             )
         }
@@ -52,17 +51,21 @@ private fun ExerciseProgressChartGraph(
     val dateFormatter = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
     val density = LocalDensity.current
     val textPaint = makeTextPaint(theme.label, with(density) { 10.sp.toPx() })
-    val anomalyColor = MaterialTheme.colorScheme.error
-    val anomalyInnerColor = MaterialTheme.colorScheme.surface
 
     Column(modifier.fillMaxWidth()) {
         Canvas(modifier = modifier) {
-            val layout = ChartLayout()
+            val layout = ChartLayout(leftPad = 72f)
             val chartW = layout.width(size.width)
             val x0 = layout.originX()
             val y0 = layout.originY(size.height)
 
-            drawYGridAndLabels(scaleY, theme, layout, textPaint)
+            drawYGridAndLabels(scaleY, theme, layout, textPaint) { value ->
+                if (value % 1.0f == 0f) {
+                    "${value.toInt()} $weightUnitLabel"
+                } else {
+                    String.format(Locale.getDefault(), "%.1f %s", value, weightUnitLabel)
+                }
+            }
 
             val points = dataPoints.map { point ->
                 val fractionX = (point.originTimestamp - minTime) / timeRange.toFloat()
@@ -89,14 +92,6 @@ private fun ExerciseProgressChartGraph(
                 style = Stroke(width = 5f)
             )
 
-            val anomalySet = anomalies.map { it.originTimestamp }.toSet()
-            points.zip(dataPoints).forEach { (coord, raw) ->
-                if (raw.originTimestamp in anomalySet) {
-                    drawCircle(anomalyColor, radius = 8f, center = Offset(coord.first, coord.second))
-                    drawCircle(anomalyInnerColor, radius = 4f, center = Offset(coord.first, coord.second))
-                }
-            }
-
             drawXTickLabel(dateFormatter.format(Date(minTime)), x0, y0, textPaint)
             drawXTickLabel(dateFormatter.format(Date(maxTime)), x0 + chartW, y0, textPaint)
         }
@@ -108,6 +103,7 @@ private fun ExerciseProgressChartGraph(
 fun ExerciseProgressCard(
     repository: WorkoutRepository?,
     timeRange: TimeRange,
+    weightUnitLabel: String,
     modifier: Modifier = Modifier,
 ) {
     val cutoffTimestamp = remember(timeRange) {
@@ -147,6 +143,10 @@ fun ExerciseProgressCard(
     }
 
     val anomalies = remember(filteredGraphData) { calculateExerciseOutliers(filteredGraphData) }
+    val cleanedGraphData = remember(filteredGraphData, anomalies) {
+        val anomalyKeys = anomalies.map { it.originTimestamp to it.avgVal }.toSet()
+        filteredGraphData.filterNot { (it.originTimestamp to it.avgVal) in anomalyKeys }
+    }
 
     AdaptiveCard(modifier = modifier) {
         Column(Modifier.padding(16.dp)) {
@@ -155,6 +155,12 @@ fun ExerciseProgressCard(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Weighted avg working weight · $weightUnitLabel",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
             )
             Spacer(Modifier.height(12.dp))
 
@@ -198,7 +204,7 @@ fun ExerciseProgressCard(
             if (anomalies.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "⚠ ${anomalies.size} conservative anomaly${if (anomalies.size == 1) "" else "ies"} detected",
+                    "Ignoring ${anomalies.size} conservative outlier${if (anomalies.size == 1) "" else "s"}",
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold
@@ -208,8 +214,8 @@ fun ExerciseProgressCard(
             Spacer(Modifier.height(16.dp))
 
             ExerciseProgressChartGraph(
-                dataPoints = filteredGraphData,
-                anomalies = anomalies,
+                dataPoints = cleanedGraphData,
+                weightUnitLabel = weightUnitLabel,
                 modifier = Modifier.fillMaxWidth().height(200.dp)
             )
         }
