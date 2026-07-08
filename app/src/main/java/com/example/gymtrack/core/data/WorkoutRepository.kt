@@ -5,6 +5,7 @@ import com.example.gymtrack.core.data.canonical.toDomain
 import com.example.gymtrack.core.data.transition.CanonicalExerciseCatalog
 import com.example.gymtrack.core.data.transition.CanonicalKeys
 import com.example.gymtrack.core.data.transition.LegacyWorkoutProjector
+import com.example.gymtrack.core.util.ExerciseIdentity
 import com.example.gymtrack.core.util.ExerciseIdentityResolver
 import com.example.gymtrack.core.util.ParsedSetDTO
 import com.example.gymtrack.core.util.WorkoutParser
@@ -44,21 +45,41 @@ class WorkoutRepository(
     }
 
     fun getExerciseGroupsSortedByCount(minTimestamp: Long = 0): Flow<List<ExerciseGroupWithCount>> {
-        return getExercisesSortedByCount(minTimestamp).map { exercises ->
-            exercises
-                .groupBy { exercise -> ExerciseIdentityResolver.resolve(exercise.name).progressComparisonKey }
+        val rowsFlow = if (minTimestamp == 0L) {
+            exerciseDao.getExerciseProgressOptions()
+        } else {
+            exerciseDao.getExerciseProgressOptionsAfter(minTimestamp)
+        }
+
+        return rowsFlow.map { rows ->
+            rows
+                .groupBy { row -> identityFor(row).baseComparisonKey }
                 .values
                 .map { group ->
-                    val identities = group.map { exercise -> exercise to ExerciseIdentityResolver.resolve(exercise.name) }
-                    val primary = identities.maxBy { it.first.setTotalCount }.second
+                    val rowsWithIdentity = group.map { row -> row to identityFor(row) }
+                    val primary = rowsWithIdentity.maxBy { it.first.setTotalCount }.second
+                    val variants = rowsWithIdentity
+                        .groupBy { it.second.progressComparisonKey }
+                        .map { (key, variantRows) ->
+                            val primaryVariant = variantRows.maxBy { it.first.setTotalCount }.second
+                            val labels = primaryVariant.variantLabels()
+                            ExerciseProgressVariant(
+                                key = key,
+                                label = variantDisplayLabel(labels),
+                                labels = labels,
+                                setTotalCount = variantRows.sumOf { it.first.setTotalCount },
+                            )
+                        }
+                        .sortedWith(
+                            compareByDescending<ExerciseProgressVariant> { it.setTotalCount }
+                                .thenBy { it.label },
+                        )
+
                     ExerciseGroupWithCount(
                         exerciseIds = group.map { it.exerciseId }.distinct(),
                         name = primary.canonicalName,
                         setTotalCount = group.sumOf { it.setTotalCount },
-                        variantLabels = identities
-                            .flatMap { it.second.variantLabels() }
-                            .distinct()
-                            .take(4),
+                        variants = variants,
                     )
                 }
                 .sortedWith(
@@ -77,6 +98,39 @@ class WorkoutRepository(
             flowOf(emptyList())
         } else {
             setDao.getAverageWeightHistoryForExercises(exerciseIds)
+        }
+    }
+
+    fun getWeightHistoryForExerciseGroup(group: ExerciseGroupWithCount): Flow<List<ExerciseProgressSeries>> {
+        if (group.exerciseIds.isEmpty()) return flowOf(emptyList())
+        val variantByKey = group.variants.associateBy { it.key }
+        return setDao.getProgressHistoryRowsForExercises(group.exerciseIds).map { rows ->
+            rows
+                .groupBy { row -> identityFor(row).progressComparisonKey }
+                .map { (key, variantRows) ->
+                    val fallbackIdentity = identityFor(variantRows.first())
+                    val variant = variantByKey[key]
+                    ExerciseProgressSeries(
+                        key = key,
+                        label = variant?.label ?: variantDisplayLabel(fallbackIdentity.variantLabels()),
+                        labels = variant?.labels ?: fallbackIdentity.variantLabels(),
+                        points = variantRows
+                            .groupBy { it.originTimestamp }
+                            .map { (timestamp, timestampRows) ->
+                                val totalVolume = timestampRows.sumOf { it.totalVolume.toDouble() }
+                                val totalReps = timestampRows.sumOf { it.totalReps }
+                                GraphPoint(
+                                    originTimestamp = timestamp,
+                                    avgVal = if (totalReps > 0) (totalVolume / totalReps).toFloat() else 0f,
+                                )
+                            }
+                            .sortedBy { it.originTimestamp },
+                    )
+                }
+                .sortedWith(
+                    compareByDescending<ExerciseProgressSeries> { variantByKey[it.key]?.setTotalCount ?: 0 }
+                        .thenBy { it.label },
+                )
         }
     }
 
@@ -322,4 +376,26 @@ class WorkoutRepository(
         )
         return exerciseDao.insert(newExercise)
     }
+
+    private fun identityFor(row: ExerciseProgressOptionRow): ExerciseIdentity = ExerciseIdentityResolver.resolve(
+        rawName = row.name,
+        parsedName = row.name,
+        modifier = row.modifier,
+        brand = row.brand,
+        isUnilateral = row.isUnilateral,
+    )
+
+    private fun identityFor(row: ExerciseProgressHistoryRow): ExerciseIdentity = ExerciseIdentityResolver.resolve(
+        rawName = row.exerciseName,
+        parsedName = row.exerciseName,
+        modifier = row.modifier,
+        brand = row.brand,
+        isUnilateral = row.isUnilateral,
+    )
+
+    private fun variantDisplayLabel(labels: List<String>): String = labels
+        .filter(String::isNotBlank)
+        .takeIf { it.isNotEmpty() }
+        ?.joinToString(" · ")
+        ?: "Default"
 }
