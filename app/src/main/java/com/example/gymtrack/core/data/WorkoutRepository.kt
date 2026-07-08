@@ -66,7 +66,7 @@ class WorkoutRepository(
 
     suspend fun saveParsedSets(sets: List<ParsedSetDTO>, workoutId: Long) {
         val setEntities = sets.map { set ->
-            val exerciseId = resolveExerciseId(set.exerciseName)
+            val exerciseId = resolveExerciseId(set)
             SetEntity(
                 workoutId = workoutId,
                 exerciseId = exerciseId,
@@ -258,16 +258,29 @@ class WorkoutRepository(
         )
     }
 
-    private suspend fun resolveExerciseId(rawName: String): Long {
-        if (rawName.isBlank()) return -1L
-        val normalizedName = rawName.trim()
+    private suspend fun resolveExerciseId(set: ParsedSetDTO): Long {
+        val identity = set.exerciseIdentity
+        val normalizedName = identity.canonicalName.trim().ifBlank { set.exerciseName.trim() }
+        if (normalizedName.isBlank()) return -1L
+
         val existing = exerciseDao.getByName(normalizedName)
         if (existing != null) return existing.exerciseId
-        val aliasMatch = exerciseDao.findByAlias(normalizedName).firstOrNull()
-        if (aliasMatch != null) return aliasMatch.exerciseId
+
+        val aliasCandidates = (identity.aliases + set.exerciseName + identity.rawName)
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .distinctBy { it.lowercase() }
+
+        aliasCandidates.forEach { alias ->
+            val aliasMatch = exerciseDao.findByAlias(alias).firstOrNull()
+            if (aliasMatch != null) return aliasMatch.exerciseId
+        }
+
         val newExercise = ExerciseEntity(
             name = normalizedName,
-            aliases = "",
+            aliases = aliasCandidates
+                .filterNot { it.equals(normalizedName, ignoreCase = true) }
+                .joinToString(","),
             muscleGroup = null,
         )
         return exerciseDao.insert(newExercise)
