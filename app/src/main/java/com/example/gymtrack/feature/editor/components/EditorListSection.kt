@@ -1,12 +1,17 @@
 package com.example.gymtrack.feature.editor.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -17,32 +22,46 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.ExerciseFlag
-import com.example.gymtrack.feature.editor.NoteEditorState
 import com.example.gymtrack.core.util.CapitalizeWordsTransformation
 import com.example.gymtrack.core.util.SmallSecondsVisualTransformation
 import com.example.gymtrack.core.util.rememberRelativeTimeVisualTransformation
+import com.example.gymtrack.feature.editor.NoteEditorState
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+internal const val EDITOR_FIRST_INPUT_TEST_TAG = "editor-first-input"
+internal const val EDITOR_EMPTY_AFFORDANCE_TEST_TAG = "editor-empty-affordance"
 
 // --- COMPONENT: EDITOR LIST SECTION (UPDATED) ---
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
     val coroutineScope = rememberCoroutineScope()
+    val keyboardController = LocalSoftwareKeyboardController.current
     val capitalizeTransformation = remember { CapitalizeWordsTransformation() }
 
     LazyColumn(
@@ -56,6 +75,16 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
             val fr = row.focusRequester
             val bringIntoViewRequester = remember { BringIntoViewRequester() }
             val isMain = index == 0 || state.lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
+            val isFirstEmptyInput = index == 0 && state.lines.size == 1 && row.text.value.text.isBlank()
+            var isFocused by remember(row.id) { mutableStateOf(false) }
+
+            LaunchedEffect(isFirstEmptyInput, row.id) {
+                if (isFirstEmptyInput) {
+                    delay(150L)
+                    fr.requestFocus()
+                    keyboardController?.show()
+                }
+            }
 
             val fontSize = if (isMain) 22.sp else 14.sp
             val fontWeight = if (isMain) FontWeight.Black else FontWeight.Medium
@@ -112,10 +141,27 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                         ),
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         visualTransformation = visualTransformation,
+                        decorationBox = { innerTextField ->
+                            if (isFirstEmptyInput) {
+                                StarterInputAffordance(
+                                    isFocused = isFocused,
+                                    innerTextField = innerTextField,
+                                )
+                            } else {
+                                innerTextField()
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
+                            .then(if (isFirstEmptyInput) Modifier.heightIn(min = 84.dp) else Modifier)
+                            .then(if (index == 0) Modifier.testTag(EDITOR_FIRST_INPUT_TEST_TAG) else Modifier)
+                            .clickable(enabled = isFirstEmptyInput) {
+                                fr.requestFocus()
+                                keyboardController?.show()
+                            }
                             .focusRequester(fr)
                             .onFocusChanged {
+                                isFocused = it.isFocused
                                 if (it.isFocused) {
                                     coroutineScope.launch {
                                         bringIntoViewRequester.bringIntoView()
@@ -137,6 +183,69 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+internal fun StarterInputAffordance(
+    isFocused: Boolean,
+    modifier: Modifier = Modifier,
+    innerTextField: @Composable () -> Unit = {},
+) {
+    val borderColor = if (isFocused) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
+    } else {
+        MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+    }
+    val containerColor = if (isFocused) {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f)
+    }
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(EDITOR_EMPTY_AFFORDANCE_TEST_TAG)
+            .semantics { contentDescription = "Start adding exercises" },
+        shape = MaterialTheme.shapes.medium,
+        color = containerColor,
+        border = BorderStroke(1.dp, borderColor),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 84.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            Text(
+                text = if (isFocused) "First exercise" else "Start your workout",
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 32.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                if (!isFocused) {
+                    Text(
+                        text = "Tap here and type your first exercise",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                innerTextField()
+            }
+            Text(
+                text = "Press Enter after each exercise or set.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }
