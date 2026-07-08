@@ -51,16 +51,34 @@ internal class LegacyWorkoutProjector(
                 reviewReasons += "exercise ${blockPosition + 1} parsed ${parsedSets.size}/${sourceSetLines.size} sets"
             }
 
-            val parsedNames = parsedSets.map { CanonicalKeys.normalize(it.exerciseName) }.filter(String::isNotEmpty).distinct()
+            val parsedNames = parsedSets.map { CanonicalKeys.normalize(it.exerciseIdentity.canonicalName) }
+                .filter(String::isNotEmpty)
+                .distinct()
             if (parsedNames.size > 1) reviewReasons += "exercise ${blockPosition + 1} has inconsistent set names"
 
             val fallbackName = cleanHeader(block.header.text)
-            val exerciseName = parsedSets.firstOrNull()?.exerciseName?.takeIf(String::isNotBlank) ?: fallbackName
-            if (exerciseName.isBlank() || exerciseName.equals("Unknown", ignoreCase = true)) {
+            val firstSet = parsedSets.firstOrNull()
+            val exerciseName = firstSet
+                ?.exerciseIdentity
+                ?.canonicalName
+                ?.takeIf(String::isNotBlank)
+                ?: firstSet?.exerciseName?.takeIf(String::isNotBlank)
+                ?: fallbackName
+            if (exerciseName.isBlank() || exerciseName.equals("Unknown exercise", ignoreCase = true) ||
+                exerciseName.equals("Unknown", ignoreCase = true)
+            ) {
                 reviewReasons += "exercise ${blockPosition + 1} has no reliable name"
             }
+            parsedSets.flatMap { it.exerciseIdentity.warnings }.distinct().forEach { warning ->
+                reviewReasons += "exercise ${blockPosition + 1}: $warning"
+            }
 
-            val canonicalExercise = exercises.resolve(exerciseName)
+            val aliases = parsedSets
+                .flatMap { it.exerciseIdentity.aliases + it.exerciseName + it.exerciseIdentity.rawName }
+                .map(String::trim)
+                .filter(String::isNotEmpty)
+                .distinctBy(CanonicalKeys::normalize)
+            val canonicalExercise = exercises.resolve(exerciseName, aliases)
             val occurrenceKey = CanonicalKeys.workoutExercise(workoutKey, blockPosition)
             val headerOffset = parseElapsedSeconds(block.header.elapsedText)
             if (headerOffset != null) elapsedOffsets += headerOffset
