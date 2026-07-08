@@ -13,14 +13,14 @@ private val DarkColorScheme = darkColorScheme(
     primary = GymAccent,
     background = SpotBlack,
     surface = SpotDarkGray,
-    onPrimary = SpotBlack,
+    onPrimary = AppleBlack,
     onSurface = SpotWhite,
     onBackground = SpotWhite,
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = AppleBlack,
-    onPrimary = TextWhite,
+    primary = GymAccent,
+    onPrimary = TextBlack,
     secondary = GymAccent,
     background = AppleWhite,
     surface = AppleLightCard,
