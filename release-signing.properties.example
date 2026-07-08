@@ -1,0 +1,8 @@
+# Copy this file to release-signing.properties and fill it locally.
+# The real release-signing.properties file is ignored and must not be committed.
+# storeFile is resolved relative to the repository root.
+
+storeFile=keystores/gymtrack-release.jks
+storePassword=change-me
+keyAlias=gymtrack-release
+keyPassword=change-me
