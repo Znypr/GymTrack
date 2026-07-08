@@ -29,7 +29,31 @@ Parser output now carries an `ExerciseIdentity` next to the parsed display name.
 - `sideMode`: bilateral, unilateral, alternating, or unknown
 - `baseComparisonKey`: default stats/prediction grouping
 - `strictComparisonKey`: stricter chart/PR grouping including equipment, attachment, brand, and side mode
+- `progressComparisonKey`: load-compatible grouping for progress charts
 - `variantLabels`: short UI chips such as `Prime`, `Atlantis`, `Straight bar`, `Cable`, or `Unilateral`
+
+## Project-wide grouping decision
+
+Use different grouping keys for different product questions.
+
+### Prediction / suggestions
+
+Use `baseComparisonKey`.
+
+This answers: "What exercise is this generally?" It should group things like lateral raise variants when learning user exercise order and routine patterns.
+
+### Progress / PR / weight charts
+
+Use `progressComparisonKey` / strict load context.
+
+This answers: "Am I stronger on this exact comparable setup?" It must separate load-incompatible variants:
+
+- dumbbell lateral raise vs machine lateral raise vs cable lateral raise
+- dumbbell curl vs cable curl vs machine curl
+- barbell press vs dumbbell press vs machine press
+- unilateral vs bilateral variants when the stored load is not directly comparable
+- Prime vs Atlantis or other brand-specific machine variants when the machine changes the load curve or stack/lever mechanics
+- attachment variants when they materially change loading or setup, such as rope vs straight bar pushdown
 
 ## Display policy
 
@@ -58,19 +82,15 @@ Triceps Pushdown
 
 This is now applied in two places:
 
-- **Stats exercise-progress selector:** grouped by canonical base exercise, with variant chips under the option.
-- **Note editor exercise headers:** raw text remains editable, with a canonical preview and variant chips shown underneath when the clean name differs or useful labels exist.
+- **Stats exercise-progress selector:** grouped by load-compatible progress identity, with variant chips under the option.
+- **Note editor exercise headers:** raw text remains stored, but the header visually renders as the canonical name with outlined pill chips underneath.
 
-## Grouping policy
+## Grouping examples
 
-Default stats and future prediction should generally group by `baseComparisonKey`.
-
-Strict progress views and PR-style comparisons should use `strictComparisonKey` when loading is not directly comparable.
-
-Examples:
-
-| Raw wording | Canonical name | Variant fields | Default grouping | Strict grouping |
+| Raw wording | Canonical name | Variant fields | Prediction grouping | Progress grouping |
 | --- | --- | --- | --- | --- |
+| `lateral raise db` | Lateral Raise | dumbbell | same as lateral raise | separate from machine/cable |
+| `lateral raise machine` | Lateral Raise | machine | same as lateral raise | separate from dumbbell/cable |
 | `tricep pushdown bar` | Triceps Pushdown | cable + straight bar | same as pushdown | separate from rope/V-bar |
 | `tricep extension prime` | Triceps Extension | machine + Prime | same base movement | separate from Atlantis |
 | `tricep extension at` | Triceps Extension | machine + Atlantis | same base movement | separate from Prime |
@@ -124,7 +144,7 @@ Run:
 Manual check after a local force statistics repair or new completed workout:
 
 - exercise dropdown should show canonical grouped names, not raw legacy spellings
-- progress graph should aggregate grouped legacy exercise IDs for the selected canonical exercise
-- editor exercise headers should show canonical preview labels without modifying the text field contents
+- progress graph should separate load-incompatible variants like DB vs machine lateral raises
+- editor exercise headers should show only the canonical name visually, with outlined variant chips underneath
 - canonical projection should store alias rows for non-canonical user wording
 - raw workout note text should remain unchanged
