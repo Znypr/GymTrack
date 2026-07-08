@@ -13,8 +13,6 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import kotlin.math.ceil
 
-val SpotifyGreen = Color(0xFF1DB954)
-
 data class ChartTheme(
     val label: Color,
     val grid: Color,
@@ -35,7 +33,7 @@ fun rememberChartTheme(): ChartTheme {
             label = colorScheme.onSurface.copy(alpha = labelAlpha),
             grid = colorScheme.onSurface.copy(alpha = gridAlpha),
             axis = Color.Transparent,
-            primary = SpotifyGreen,
+            primary = colorScheme.primary,
             background = colorScheme.surface
         )
     }
