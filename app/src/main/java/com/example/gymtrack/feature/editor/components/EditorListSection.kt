@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -47,7 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.ExerciseFlag
-import com.example.gymtrack.core.util.CapitalizeWordsTransformation
+import com.example.gymtrack.core.util.CanonicalExerciseVisualTransformation
 import com.example.gymtrack.core.util.ExerciseIdentityResolver
 import com.example.gymtrack.core.util.SmallSecondsVisualTransformation
 import com.example.gymtrack.core.util.rememberRelativeTimeVisualTransformation
@@ -64,7 +65,6 @@ internal const val EDITOR_EMPTY_AFFORDANCE_TEST_TAG = "editor-empty-affordance"
 fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
     val coroutineScope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
-    val capitalizeTransformation = remember { CapitalizeWordsTransformation() }
 
     LazyColumn(
         state = state.listState,
@@ -91,9 +91,10 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
             val fontSize = if (isMain) 22.sp else 14.sp
             val fontWeight = if (isMain) FontWeight.Black else FontWeight.Medium
             val textColor = if (isMain) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+            val rowIsUnilateral = row.flag.value == ExerciseFlag.UNILATERAL
 
             val visualTransformation = if (isMain) {
-                capitalizeTransformation
+                remember(rowIsUnilateral) { CanonicalExerciseVisualTransformation(rowIsUnilateral) }
             } else {
                 rememberRelativeTimeVisualTransformation(fontSize)
             }
@@ -194,7 +195,7 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                         if (isMain && row.text.value.text.isNotBlank()) {
                             ExerciseIdentityPreview(
                                 rawName = row.text.value.text,
-                                isUnilateral = row.flag.value == ExerciseFlag.UNILATERAL,
+                                isUnilateral = rowIsUnilateral,
                             )
                         }
                     }
@@ -221,39 +222,21 @@ private fun ExerciseIdentityPreview(
     rawName: String,
     isUnilateral: Boolean,
 ) {
-    val identity = remember(rawName, isUnilateral) {
+    val labels = remember(rawName, isUnilateral) {
         ExerciseIdentityResolver.resolve(
             rawName = rawName,
             isUnilateral = isUnilateral,
-        )
+        ).variantLabels()
     }
-    val labels = identity.variantLabels()
-    val showCanonicalName = identity.canonicalName.isNotBlank() &&
-        !identity.canonicalName.equals(rawName.trim(), ignoreCase = true)
-    val shouldShow = showCanonicalName || labels.isNotEmpty()
 
-    if (shouldShow) {
-        Column(
-            modifier = Modifier.padding(top = 3.dp, bottom = 3.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+    if (labels.isNotEmpty()) {
+        Row(
+            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (showCanonicalName) {
-                Text(
-                    text = identity.canonicalName,
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-            if (labels.isNotEmpty()) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    labels.take(4).forEach { label ->
-                        InlineVariantChip(label)
-                    }
-                }
+            labels.take(4).forEach { label ->
+                InlineVariantChip(label)
             }
         }
     }
@@ -261,16 +244,18 @@ private fun ExerciseIdentityPreview(
 
 @Composable
 private fun InlineVariantChip(label: String) {
+    val borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
     Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f),
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        shape = MaterialTheme.shapes.extraSmall,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.0f),
+        contentColor = MaterialTheme.colorScheme.primary,
+        shape = RoundedCornerShape(percent = 50),
+        border = BorderStroke(1.dp, borderColor),
     ) {
         Text(
             text = label,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
             style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.SemiBold,
         )
     }
 }
