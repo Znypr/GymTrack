@@ -43,11 +43,17 @@ fun WorkoutAlbumCard(
     val mutedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
     val cardShape = MaterialTheme.shapes.large
 
-    val totalMinutes = remember(note.text, note.rowMetadata) {
-        val seconds = parseNoteText(note.text, note.rowMetadata).second.mapNotNull {
+    val parsedWorkout = remember(note.text, note.rowMetadata) {
+        parseNoteText(note.text, note.rowMetadata)
+    }
+    val totalMinutes = remember(parsedWorkout) {
+        val seconds = parsedWorkout.second.mapNotNull {
             if (it.isBlank()) null else parseDurationSeconds(it)
         }.maxOrNull()
         seconds?.div(60) ?: 0
+    }
+    val exerciseCount = remember(parsedWorkout) {
+        parsedWorkout.first.count { it.isNotBlank() }
     }
 
     val displayTitle = note.title.ifBlank {
@@ -123,17 +129,12 @@ fun WorkoutAlbumCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(999.dp),
-                ) {
-                    Text(
-                        text = "LOG",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                    )
-                }
+                Text(
+                    text = if (exerciseCount == 1) "1 exercise" else "$exerciseCount exercises",
+                    color = mutedTextColor,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                )
 
                 if (totalMinutes > 0) {
                     Text(
