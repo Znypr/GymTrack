@@ -14,7 +14,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.gymtrack.core.data.ExerciseWithCount
+import com.example.gymtrack.core.data.ExerciseGroupWithCount
 import com.example.gymtrack.core.data.GraphPoint
 import com.example.gymtrack.core.data.WorkoutRepository
 import com.example.gymtrack.feature.stats.AdaptiveCard
@@ -118,15 +118,15 @@ fun ExerciseProgressCard(
         }
     }
 
-    val allExercises by (repository?.getExercisesSortedByCount(cutoffTimestamp)
+    val allExercises by (repository?.getExerciseGroupsSortedByCount(cutoffTimestamp)
         ?: remember { flowOf(emptyList()) })
         .collectAsState(initial = emptyList())
 
-    var selectedExercise by remember { mutableStateOf<ExerciseWithCount?>(null) }
+    var selectedExercise by remember { mutableStateOf<ExerciseGroupWithCount?>(null) }
     var expandedDropdown by remember { mutableStateOf(false) }
 
     LaunchedEffect(allExercises) {
-        val currentInList = allExercises.find { it.exerciseId == selectedExercise?.exerciseId }
+        val currentInList = allExercises.find { it.exerciseIds == selectedExercise?.exerciseIds }
         if (currentInList != null) {
             selectedExercise = currentInList
         } else if (allExercises.isNotEmpty()) {
@@ -137,7 +137,7 @@ fun ExerciseProgressCard(
     }
 
     val fullGraphData by remember(selectedExercise) {
-        selectedExercise?.let { repository?.getWeightHistory(it.exerciseId) }
+        selectedExercise?.let { repository?.getWeightHistory(it.exerciseIds) }
             ?: flowOf(emptyList())
     }.collectAsState(initial = emptyList())
 
@@ -185,7 +185,7 @@ fun ExerciseProgressCard(
                 ) {
                     allExercises.forEach { exercise ->
                         DropdownMenuItem(
-                            text = { Text("${exercise.name} (${exercise.setTotalCount} sets)") },
+                            text = { ExerciseOptionLabel(exercise) },
                             onClick = {
                                 selectedExercise = exercise
                                 expandedDropdown = false
@@ -193,6 +193,11 @@ fun ExerciseProgressCard(
                         )
                     }
                 }
+            }
+
+            selectedExercise?.variantLabels?.takeIf { it.isNotEmpty() }?.let { labels ->
+                Spacer(Modifier.height(8.dp))
+                VariantLabelRow(labels)
             }
 
             if (anomalies.isNotEmpty()) {
@@ -213,5 +218,48 @@ fun ExerciseProgressCard(
                 modifier = Modifier.fillMaxWidth().height(200.dp)
             )
         }
+    }
+}
+
+@Composable
+private fun ExerciseOptionLabel(exercise: ExerciseGroupWithCount) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = "${exercise.name} (${exercise.setTotalCount} sets)",
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+        )
+        if (exercise.variantLabels.isNotEmpty()) {
+            VariantLabelRow(exercise.variantLabels.take(3))
+        }
+    }
+}
+
+@Composable
+private fun VariantLabelRow(labels: List<String>) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        labels.take(4).forEach { label ->
+            VariantLabelChip(label)
+        }
+    }
+}
+
+@Composable
+private fun VariantLabelChip(label: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        shape = MaterialTheme.shapes.extraSmall,
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Medium,
+        )
     }
 }
