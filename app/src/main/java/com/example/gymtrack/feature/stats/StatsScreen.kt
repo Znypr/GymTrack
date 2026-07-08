@@ -1,5 +1,6 @@
 package com.example.gymtrack.feature.stats
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -11,15 +12,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.data.WorkoutRepository
 import com.example.gymtrack.feature.stats.components.charts.*
-
-private val CardDeepDark = Color(0xFF121212)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,7 +28,7 @@ fun StatsScreen(
     onBack: () -> Unit
 ) {
     val backgroundColor = MaterialTheme.colorScheme.background
-    val textColor = MaterialTheme.colorScheme.onSurface
+    val textColor = MaterialTheme.colorScheme.onBackground
     var rangeMenuExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -45,15 +42,13 @@ fun StatsScreen(
                     }
                 },
                 actions = {
-                    // [FIX] Wrap in Box to anchor the Dropdown correctly
                     Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
-
-                        // [FIX] Use Surface(onClick = ...) instead of Row(Modifier.clickable)
-                        // This ensures the button captures clicks properly in the TopBar.
                         Surface(
                             onClick = { rangeMenuExpanded = true },
                             shape = RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            color = MaterialTheme.colorScheme.surface,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            tonalElevation = 1.dp,
                             modifier = Modifier.padding(end = 12.dp)
                         ) {
                             Row(
@@ -63,21 +58,18 @@ fun StatsScreen(
                                 Icon(
                                     imageVector = Icons.Default.CalendarToday,
                                     contentDescription = null,
-                                    modifier = Modifier.size(14.dp),
-                                    tint = textColor
+                                    modifier = Modifier.size(14.dp)
                                 )
                                 Spacer(Modifier.width(6.dp))
                                 Text(
                                     text = state.currentRange.label,
                                     style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = textColor
+                                    fontWeight = FontWeight.SemiBold
                                 )
                                 Spacer(Modifier.width(2.dp))
                                 Icon(
                                     imageVector = Icons.Default.ArrowDropDown,
-                                    contentDescription = null,
-                                    tint = textColor
+                                    contentDescription = null
                                 )
                             }
                         }
@@ -98,7 +90,10 @@ fun StatsScreen(
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = backgroundColor, titleContentColor = textColor)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = backgroundColor,
+                    titleContentColor = textColor
+                )
             )
         }
     ) { padding ->
@@ -109,7 +104,6 @@ fun StatsScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // 1. Quick Stats
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -123,23 +117,20 @@ fun StatsScreen(
                 }
             }
 
-            // 2. Exercise Progress
             item {
-                ExerciseProgressCard(repository = workoutRepository,timeRange = state.currentRange)
+                ExerciseProgressCard(repository = workoutRepository, timeRange = state.currentRange)
             }
 
-            // 3. Duration Trend
             item {
-                AdaptiveCard(height = 280.dp) {
+                AdaptiveCard(height = 300.dp) {
                     Column(Modifier.padding(16.dp)) {
                         WorkoutDurationTrendChart(notes = state.filteredNotes, showRollingAvg = true)
                     }
                 }
             }
 
-            // 7. Heatmap
             item {
-                AdaptiveCard(height = 300.dp) {
+                AdaptiveCard(height = 320.dp) {
                     Column(Modifier.padding(16.dp)) {
                         TimeOfDayHeatmap(data = state.heatmapData)
                     }
@@ -151,14 +142,22 @@ fun StatsScreen(
     }
 }
 
-// --- HELPERS ---
-
 @Composable
-fun AdaptiveCard(modifier: Modifier = Modifier, height: androidx.compose.ui.unit.Dp? = null, content: @Composable () -> Unit) {
+fun AdaptiveCard(
+    modifier: Modifier = Modifier,
+    height: androidx.compose.ui.unit.Dp? = null,
+    content: @Composable () -> Unit
+) {
     var mod = modifier.fillMaxWidth()
     if (height != null) mod = mod.height(height)
+
     Card(
-        colors = CardDefaults.cardColors(containerColor = CardDeepDark),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         shape = RoundedCornerShape(12.dp),
         modifier = mod
     ) { content() }
@@ -168,11 +167,24 @@ fun AdaptiveCard(modifier: Modifier = Modifier, height: androidx.compose.ui.unit
 fun StatBadge(label: String, value: String, modifier: Modifier = Modifier) {
     AdaptiveCard(modifier = modifier) {
         Column(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1)
-            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), maxLines = 1)
+            Text(
+                value,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1
+            )
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                maxLines = 1
+            )
         }
     }
 }
