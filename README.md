@@ -51,6 +51,7 @@ See [work-tracking rules](docs/TICKET_BOARD.md) and [CONTRIBUTING.md](CONTRIBUTI
 - [Canonical-data transition](docs/CANONICAL_DATA_TRANSITION.md)
 - [Training-summary contract](docs/TRAINING_SUMMARY.md)
 - [Backup format](docs/BACKUP_FORMAT.md)
+- [Release app handoff](docs/RELEASE_HANDOFF.md)
 - [Testing strategy](docs/TESTING.md)
 - [Repository settings](docs/REPOSITORY_SETTINGS.md)
 - [Work-item automation](docs/WORK_ITEM_AUTOMATION.md)
