@@ -71,12 +71,61 @@ data class ExerciseIdentity(
     }
 }
 
+fun ExerciseIdentity.variantLabels(): List<String> = buildList {
+    brand?.takeIf(String::isNotBlank)?.let(::add)
+    attachment?.displayLabel()?.let(::add)
+    when (equipment) {
+        ExerciseEquipment.CABLE -> add("Cable")
+        ExerciseEquipment.DUMBBELL -> add("Dumbbell")
+        ExerciseEquipment.BARBELL -> add("Barbell")
+        ExerciseEquipment.SMITH_MACHINE -> add("Smith")
+        ExerciseEquipment.MACHINE -> if (brand.isNullOrBlank()) add("Machine")
+        ExerciseEquipment.BODYWEIGHT -> add("Bodyweight")
+        ExerciseEquipment.UNKNOWN -> Unit
+    }
+    when (sideMode) {
+        ExerciseSideMode.UNILATERAL -> add("Unilateral")
+        ExerciseSideMode.ALTERNATING -> add("Alternating")
+        ExerciseSideMode.BILATERAL,
+        ExerciseSideMode.UNKNOWN -> Unit
+    }
+    if (confidence == ExerciseIdentityConfidence.AMBIGUOUS) add("Review")
+}.distinct()
+
+private fun ExerciseAttachment.displayLabel(): String = when (this) {
+    ExerciseAttachment.ROPE -> "Rope"
+    ExerciseAttachment.STRAIGHT_BAR -> "Straight bar"
+    ExerciseAttachment.V_BAR -> "V-bar"
+    ExerciseAttachment.EZ_BAR -> "EZ-bar"
+    ExerciseAttachment.HANDLE -> "Handle"
+    ExerciseAttachment.UNKNOWN -> "Attachment"
+}
+
 object ExerciseIdentityResolver {
     private val whitespaceRegex = Regex("\\s+")
     private val punctuationRegex = Regex("[^a-z0-9]+")
     private val rlTokenRegex = Regex("""(^|\s)r\s*l(\s|$)|(^|\s)rl(\s|$)""")
     private val unilateralTokenRegex = Regex("""(^|\s)(uni|unilateral|single|one arm|one leg)(\s|$)""")
     private val alternatingTokenRegex = Regex("""(^|\s)(alternating|alternate)(\s|$)""")
+    private val brandAliases = mapOf(
+        "at" to "Atlantis",
+        "atl" to "Atlantis",
+        "atlantis" to "Atlantis",
+        "prime" to "Prime",
+        "hs" to "Hammer Strength",
+        "hammerstrength" to "Hammer Strength",
+        "cy" to "Cybex",
+        "cybex" to "Cybex",
+        "g80" to "Gym80",
+        "gym80" to "Gym80",
+        "lf" to "Life Fitness",
+        "lifefitness" to "Life Fitness",
+        "technogym" to "Technogym",
+        "matrix" to "Matrix",
+        "precor" to "Precor",
+        "nautilus" to "Nautilus",
+        "panatta" to "Panatta",
+    )
 
     fun resolve(
         rawName: String,
@@ -91,8 +140,11 @@ object ExerciseIdentityResolver {
         val combined = listOf(rawNormalized, parsedNormalized, modifierNormalized)
             .filter(String::isNotBlank)
             .joinToString(" ")
+        val resolvedBrand = brand?.trim()?.takeIf(String::isNotEmpty)
+            ?: detectBrand(rawNormalized)
+            ?: detectBrand(parsedNormalized)
 
-        val equipment = detectEquipment(combined, brand)
+        val equipment = detectEquipment(combined, resolvedBrand)
         val attachment = detectAttachment(combined)
         val sideMode = detectSideMode(rawNormalized, modifierNormalized, isUnilateral)
         val warnings = mutableListOf<String>()
@@ -119,7 +171,7 @@ object ExerciseIdentityResolver {
             aliases = aliases,
             equipment = equipment,
             attachment = attachment,
-            brand = brand?.trim()?.takeIf(String::isNotEmpty),
+            brand = resolvedBrand,
             sideMode = sideMode,
             confidence = confidence,
             warnings = warnings.distinct(),
@@ -179,7 +231,7 @@ object ExerciseIdentityResolver {
             cleanedCombined.contains("preacher curl") -> "Preacher Curl"
             cleanedCombined.contains("hammer curl") -> "Hammer Curl"
             cleanedCombined.contains("brachial curl") -> "Brachialis Curl"
-            cleanedCombined.contains("bicep curl") || cleanedCombined.contains("biceps curl") -> "Biceps Curl"
+            cleanedCombined.contains("biceps curl") -> "Biceps Curl"
             cleanedCombined.contains("shrug") -> "Shrug"
             cleanedCombined.contains("hanging leg raise") -> "Hanging Leg Raise"
             cleanedCombined.contains("sit up") -> "Sit-Up"
@@ -216,6 +268,11 @@ object ExerciseIdentityResolver {
             combined.startsWith("bar ") -> ExerciseAttachment.STRAIGHT_BAR
         combined.contains("handle") -> ExerciseAttachment.HANDLE
         else -> null
+    }
+
+    private fun detectBrand(normalized: String): String? {
+        val tokens = normalized.split(" ").filter(String::isNotBlank)
+        return tokens.firstNotNullOfOrNull(brandAliases::get)
     }
 
     private fun detectSideMode(raw: String, modifier: String, isUnilateral: Boolean): ExerciseSideMode {
