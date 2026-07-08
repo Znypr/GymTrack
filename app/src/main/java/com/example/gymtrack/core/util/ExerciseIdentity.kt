@@ -134,7 +134,6 @@ private fun ExerciseAttachment.displayLabel(): String = when (this) {
 object ExerciseIdentityResolver {
     private val whitespaceRegex = Regex("\\s+")
     private val punctuationRegex = Regex("[^a-z0-9]+")
-    private val rlTokenRegex = Regex("""(^|\s)r\s*l(\s|$)|(^|\s)rl(\s|$)""")
     private val unilateralTokenRegex = Regex("""(^|\s)(uni|unilateral|single|one arm|one leg)(\s|$)""")
     private val alternatingTokenRegex = Regex("""(^|\s)(alternating|alternate)(\s|$)""")
     private val brandAliases = mapOf(
@@ -155,6 +154,8 @@ object ExerciseIdentityResolver {
         "precor" to "Precor",
         "nautilus" to "Nautilus",
         "panatta" to "Panatta",
+        "rl" to "Realleader",
+        "realleader" to "Realleader",
     )
 
     fun resolve(
@@ -191,7 +192,6 @@ object ExerciseIdentityResolver {
             canonicalName = canonical,
             rawName = rawName,
             parsedName = parsedName,
-            normalized = rawNormalized,
         )
 
         return ExerciseIdentity(
@@ -265,8 +265,8 @@ object ExerciseIdentityResolver {
             cleanedCombined.contains("shrug") -> "Shrug"
             cleanedCombined.contains("hanging leg raise") -> "Hanging Leg Raise"
             cleanedCombined.contains("sit up") -> "Sit-Up"
-            cleanedCombined == "rl" -> {
-                warnings += "Only right-left marker remained after parsing; exercise needs manual review."
+            cleanedCombined == "rl" || cleanedCombined == "realleader" -> {
+                warnings += "Only Realleader brand marker remained after parsing; exercise needs manual review."
                 "Unknown exercise"
             }
             cleanedParsed.isNotBlank() -> cleanedParsed.toTitleCase()
@@ -302,6 +302,7 @@ object ExerciseIdentityResolver {
     }
 
     private fun detectBrand(normalized: String): String? {
+        if (normalized.contains("real leader")) return "Realleader"
         val tokens = normalized.split(" ").filter(String::isNotBlank)
         return tokens.firstNotNullOfOrNull(brandAliases::get)
     }
@@ -310,9 +311,7 @@ object ExerciseIdentityResolver {
         val combined = "$raw $modifier"
         return when {
             alternatingTokenRegex.containsMatchIn(combined) -> ExerciseSideMode.ALTERNATING
-            isUnilateral || rlTokenRegex.containsMatchIn(combined) || unilateralTokenRegex.containsMatchIn(combined) -> {
-                ExerciseSideMode.UNILATERAL
-            }
+            isUnilateral || unilateralTokenRegex.containsMatchIn(combined) -> ExerciseSideMode.UNILATERAL
             raw.isNotBlank() -> ExerciseSideMode.BILATERAL
             else -> ExerciseSideMode.UNKNOWN
         }
@@ -322,7 +321,6 @@ object ExerciseIdentityResolver {
         canonicalName: String,
         rawName: String,
         parsedName: String,
-        normalized: String,
     ): Set<String> {
         val aliases = linkedSetOf(rawName.trim(), parsedName.trim())
         when (canonicalName) {
@@ -338,9 +336,6 @@ object ExerciseIdentityResolver {
             "Rear Delt Fly" -> aliases += listOf("rear delt", "rear fly", "reverse fly")
             "Calf Raise" -> aliases += listOf("calve machine", "calf machine", "calf raise")
             "Sit-Up" -> aliases += listOf("situp", "sit up", "situp l6", "sit up l6")
-        }
-        if (normalized.contains(" rl")) {
-            aliases += normalized.replace(Regex("""\brl\b"""), "").replace(whitespaceRegex, " ").trim()
         }
         return aliases.filterMeaningfulAliases(canonicalName)
     }
@@ -372,7 +367,7 @@ object ExerciseIdentityResolver {
 
     private fun stripContextTokens(raw: String): String {
         val stripped = raw.split(" ")
-            .filterNot { it in setOf("rl", "uni", "unilateral", "bilateral", "l6", "ss") }
+            .filterNot { it in setOf("uni", "unilateral", "bilateral", "l6", "ss") }
             .joinToString(" ")
             .replace(whitespaceRegex, " ")
             .trim()
