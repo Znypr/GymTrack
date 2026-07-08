@@ -78,7 +78,10 @@ fun DrawScope.drawYGridAndLabels(
     scale: ScaleY,
     theme: ChartTheme,
     layout: ChartLayout,
-    textPaint: Paint
+    textPaint: Paint,
+    formatValue: (Float) -> String = { value ->
+        if (value % 1.0f == 0f) value.toInt().toString() else String.format("%.1f", value)
+    }
 ) {
     val steps = 5
     val stepVal = scale.top / steps
@@ -97,7 +100,7 @@ fun DrawScope.drawYGridAndLabels(
             strokeWidth = 1f
         )
 
-        val label = if (value % 1.0f == 0f) value.toInt().toString() else String.format("%.1f", value)
+        val label = formatValue(value)
         val p = textPaint
         val w = p.measureText(label)
         drawContext.canvas.nativeCanvas.drawText(label, xStart - w - 12f, y + (p.textSize / 3), p)
