@@ -44,13 +44,31 @@ class ExerciseIdentityResolverTest {
     }
 
     @Test
-    fun sygTokenResolvesAsSygnumMachineBrand() {
-        val identity = ExerciseIdentityResolver.resolve(rawName = "leg extension syg")
+    fun sygTokenResolvesAsGym80MachineBrandLikeG80() {
+        val syg = ExerciseIdentityResolver.resolve(rawName = "leg extension syg")
+        val g80 = ExerciseIdentityResolver.resolve(rawName = "leg extension g80")
 
-        assertEquals("Leg Extension", identity.canonicalName)
-        assertEquals("Sygnum", identity.brand)
-        assertEquals(ExerciseEquipment.MACHINE, identity.equipment)
-        assertTrue("Sygnum chip should be displayable", "Sygnum" in identity.variantLabels())
+        assertEquals("Leg Extension", syg.canonicalName)
+        assertEquals("Gym80", syg.brand)
+        assertEquals(ExerciseEquipment.MACHINE, syg.equipment)
+        assertEquals(g80.strictComparisonKey, syg.strictComparisonKey)
+        assertEquals(g80.progressComparisonKey, syg.progressComparisonKey)
+        assertTrue("Gym80 chip should be displayable", "Gym80" in syg.variantLabels())
+    }
+
+    @Test
+    fun parserNormalizesSygAbbreviationToGym80MachineIdentity() {
+        val sets = WorkoutParser().parseWorkout(
+            rawText = """
+                leg extension syg
+                10x 50kg
+            """.trimIndent(),
+        )
+
+        assertEquals(1, sets.size)
+        assertEquals("Gym80", sets.single().brand)
+        assertEquals("Gym80", sets.single().exerciseIdentity.brand)
+        assertEquals(ExerciseEquipment.MACHINE, sets.single().exerciseIdentity.equipment)
     }
 
     @Test
