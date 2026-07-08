@@ -44,6 +44,18 @@ class ExerciseIdentityResolverTest {
     }
 
     @Test
+    fun rlTokenResolvesAsRealleaderBrandNotUnilateralMarker() {
+        val identity = ExerciseIdentityResolver.resolve(rawName = "latpulldown rl")
+
+        assertEquals("Lat Pulldown", identity.canonicalName)
+        assertEquals("Realleader", identity.brand)
+        assertEquals(ExerciseEquipment.MACHINE, identity.equipment)
+        assertEquals(ExerciseSideMode.BILATERAL, identity.sideMode)
+        assertTrue("Realleader chip should be displayable", "Realleader" in identity.variantLabels())
+        assertFalse("RL alone should not create a unilateral chip", "Unilateral" in identity.variantLabels())
+    }
+
+    @Test
     fun progressComparisonSeparatesLoadIncompatibleEquipmentVariants() {
         val dumbbell = ExerciseIdentityResolver.resolve(rawName = "lateral raise db")
         val machine = ExerciseIdentityResolver.resolve(rawName = "lateral raise machine")
@@ -66,7 +78,7 @@ class ExerciseIdentityResolverTest {
     }
 
     @Test
-    fun rightLeftSuffixDoesNotPolluteCanonicalExerciseName() {
+    fun explicitUnilateralFlagStillControlsSideModeWhenBrandIsPresent() {
         val identity = ExerciseIdentityResolver.resolve(
             rawName = "leg extension rl",
             parsedName = "Leg extension",
@@ -74,9 +86,10 @@ class ExerciseIdentityResolverTest {
         )
 
         assertEquals("Leg Extension", identity.canonicalName)
+        assertEquals("Realleader", identity.brand)
         assertEquals(ExerciseSideMode.UNILATERAL, identity.sideMode)
         assertTrue("raw rl wording should be retained as alias", "leg extension rl" in identity.aliases)
-        assertTrue("unilateral chip should be displayable", "Unilateral" in identity.variantLabels())
+        assertTrue("unilateral chip should be displayable when the row flag says Uni", "Unilateral" in identity.variantLabels())
     }
 
     @Test
