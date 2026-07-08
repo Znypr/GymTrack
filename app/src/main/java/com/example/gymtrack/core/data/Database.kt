@@ -33,6 +33,13 @@ data class ExerciseWithCount(
     val setTotalCount: Int,
 )
 
+data class ExerciseGroupWithCount(
+    val exerciseIds: List<Long>,
+    val name: String,
+    val setTotalCount: Int,
+    val variantLabels: List<String> = emptyList(),
+)
+
 @Entity(tableName = "exercises")
 data class ExerciseEntity(
     @PrimaryKey(autoGenerate = true) val exerciseId: Long = 0,
@@ -182,6 +189,19 @@ interface SetDao {
         """,
     )
     fun getAverageWeightHistory(exerciseId: Long): Flow<List<GraphPoint>>
+
+    @Query(
+        """
+        SELECT
+            workoutId AS originTimestamp,
+            CAST(SUM(weight * reps) AS REAL) / SUM(reps) AS avgVal
+        FROM sets
+        WHERE exerciseId IN (:exerciseIds)
+        GROUP BY workoutId
+        ORDER BY workoutId ASC
+        """,
+    )
+    fun getAverageWeightHistoryForExercises(exerciseIds: List<Long>): Flow<List<GraphPoint>>
 
     @Transaction
     suspend fun replaceSetsForWorkout(workoutId: Long, sets: List<SetEntity>) {
