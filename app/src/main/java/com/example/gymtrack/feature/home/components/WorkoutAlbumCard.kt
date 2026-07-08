@@ -11,12 +11,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.util.formatTime
@@ -35,20 +34,13 @@ fun WorkoutAlbumCard(
 ) {
     val categoryColor = remember(note.categoryName, settings.categories) {
         val found = settings.categories.find { it.name == note.categoryName }
-        if (found != null) Color(found.color) else Color(0xFF666666)
+        if (found != null) Color(found.color) else MaterialTheme.colorScheme.primary
     }
 
-    val cardBaseColor = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.background
+    val cardBaseColor = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
     val textColor = MaterialTheme.colorScheme.onSurface
-
-    val fadeGradient = remember(categoryColor, cardBaseColor) {
-        Brush.verticalGradient(
-            colors = listOf(
-                categoryColor.copy(alpha = 0.50f),
-                cardBaseColor
-            )
-        )
-    }
+    val mutedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val cardShape = MaterialTheme.shapes.large
 
     val totalMinutes = remember(note.text, note.rowMetadata) {
         val seconds = parseNoteText(note.text, note.rowMetadata).second.mapNotNull {
@@ -66,51 +58,88 @@ fun WorkoutAlbumCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(1.1f)
+            .aspectRatio(1.16f)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .then(if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier),
-        shape = RoundedCornerShape(12.dp),
+            .then(
+                if (isSelected) {
+                    Modifier.border(2.dp, MaterialTheme.colorScheme.primary, cardShape)
+                } else {
+                    Modifier
+                },
+            ),
+        shape = cardShape,
         colors = CardDefaults.cardColors(containerColor = cardBaseColor),
-        elevation = CardDefaults.cardElevation(0.dp)
+        elevation = CardDefaults.cardElevation(0.dp),
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(14.dp),
+        ) {
             Box(
                 modifier = Modifier
-                    .weight(1f)
                     .fillMaxWidth()
-                    .background(cardBaseColor)
-                    .background(fadeGradient)
-                    .padding(12.dp)
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(categoryColor),
+            )
+
+            Spacer(Modifier.height(14.dp))
+
+            Text(
+                text = (note.categoryName ?: "Workout").uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = categoryColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                text = displayTitle,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.ExtraBold,
+                color = textColor,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                text = displaySubtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = mutedTextColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+
+            Spacer(Modifier.weight(1f))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = (note.categoryName ?: "Work").take(6).uppercase(),
-                    style = MaterialTheme.typography.displayLarge,
-                    color = textColor.copy(alpha = 0.1f),
-                    fontWeight = FontWeight.Black,
-                    fontSize = 50.sp,
-                    letterSpacing = (-1).sp,
-                    modifier = Modifier.align(Alignment.BottomStart)
-                )
-            }
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(cardBaseColor)
-                    .padding(12.dp)
-            ) {
-                Text(displayTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(999.dp),
                 ) {
-                    Text(displaySubtitle, style = MaterialTheme.typography.bodySmall, color = textColor.copy(alpha = 0.6f), maxLines = 1)
-                    if (totalMinutes > 0) {
-                        Surface(color = textColor.copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp)) {
-                            Text("${totalMinutes} min", color = textColor.copy(alpha = 0.9f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
-                        }
-                    }
+                    Text(
+                        text = "LOG",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    )
+                }
+
+                if (totalMinutes > 0) {
+                    Text(
+                        text = "${totalMinutes} min",
+                        color = mutedTextColor,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
                 }
             }
         }
