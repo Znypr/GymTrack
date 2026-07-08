@@ -62,6 +62,8 @@ private fun ExerciseProgressChartGraph(
     val dateFormatter = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
     val density = LocalDensity.current
     val textPaint = makeTextPaint(theme.label, with(density) { 10.sp.toPx() })
+    val anomalyColor = MaterialTheme.colorScheme.error
+    val anomalyInnerColor = MaterialTheme.colorScheme.surface
 
     Column(modifier.fillMaxWidth()) {
         Canvas(modifier = modifier) {
@@ -100,8 +102,8 @@ private fun ExerciseProgressChartGraph(
             val anomalySet = anomalies.map { it.originTimestamp }.toSet()
             points.zip(dataPoints).forEach { (coord, raw) ->
                 if (raw.originTimestamp in anomalySet) {
-                    drawCircle(MaterialTheme.colorScheme.error, radius = 8f, center = Offset(coord.first, coord.second))
-                    drawCircle(MaterialTheme.colorScheme.surface, radius = 4f, center = Offset(coord.first, coord.second))
+                    drawCircle(anomalyColor, radius = 8f, center = Offset(coord.first, coord.second))
+                    drawCircle(anomalyInnerColor, radius = 4f, center = Offset(coord.first, coord.second))
                 }
             }
 
