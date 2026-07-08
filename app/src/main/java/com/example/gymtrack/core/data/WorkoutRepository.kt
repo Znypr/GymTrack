@@ -46,7 +46,7 @@ class WorkoutRepository(
     fun getExerciseGroupsSortedByCount(minTimestamp: Long = 0): Flow<List<ExerciseGroupWithCount>> {
         return getExercisesSortedByCount(minTimestamp).map { exercises ->
             exercises
-                .groupBy { exercise -> ExerciseIdentityResolver.resolve(exercise.name).baseComparisonKey }
+                .groupBy { exercise -> ExerciseIdentityResolver.resolve(exercise.name).progressComparisonKey }
                 .values
                 .map { group ->
                     val identities = group.map { exercise -> exercise to ExerciseIdentityResolver.resolve(exercise.name) }
