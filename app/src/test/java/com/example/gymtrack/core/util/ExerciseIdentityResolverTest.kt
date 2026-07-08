@@ -21,6 +21,7 @@ class ExerciseIdentityResolverTest {
         assertEquals(ExerciseEquipment.CABLE, identity.equipment)
         assertEquals(ExerciseAttachment.STRAIGHT_BAR, identity.attachment)
         assertTrue("raw wording should be kept as alias", "tricep pushdown bar" in identity.aliases)
+        assertTrue("straight-bar chip should be displayable", "Straight bar" in identity.variantLabels())
     }
 
     @Test
@@ -28,15 +29,15 @@ class ExerciseIdentityResolverTest {
         val prime = ExerciseIdentityResolver.resolve(
             rawName = "tricep extension prime",
             parsedName = "Tricep extension",
-            brand = "Prime",
         )
         val atlantis = ExerciseIdentityResolver.resolve(
             rawName = "tricep extension at",
             parsedName = "Tricep extension",
-            brand = "Atlantis",
         )
 
         assertEquals("Triceps Extension", prime.canonicalName)
+        assertEquals("Prime", prime.brand)
+        assertEquals("Atlantis", atlantis.brand)
         assertEquals(prime.baseComparisonKey, atlantis.baseComparisonKey)
         assertNotEquals(prime.strictComparisonKey, atlantis.strictComparisonKey)
     }
@@ -52,6 +53,7 @@ class ExerciseIdentityResolverTest {
         assertEquals("Leg Extension", identity.canonicalName)
         assertEquals(ExerciseSideMode.UNILATERAL, identity.sideMode)
         assertTrue("raw rl wording should be retained as alias", "leg extension rl" in identity.aliases)
+        assertTrue("unilateral chip should be displayable", "Unilateral" in identity.variantLabels())
     }
 
     @Test
