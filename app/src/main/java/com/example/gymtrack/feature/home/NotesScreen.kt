@@ -41,6 +41,7 @@ fun NotesScreen(
     onExport: (Set<NoteLine>) -> Unit,
     onCreate: () -> Unit,
     onImport: (List<Uri>) -> Unit,
+    showLegacyCsvImport: Boolean = false,
     onOpenSettings: () -> Unit,
     onOpenStats: () -> Unit,
     onSwipeRight: () -> Unit,
@@ -89,10 +90,16 @@ fun NotesScreen(
                         IconButton(onClick = onOpenStats) {
                             Icon(Icons.Default.BarChart, contentDescription = "Stats", tint = MaterialTheme.colorScheme.onBackground)
                         }
-                        IconButton(onClick = {
-                            importLauncher.launch(arrayOf("*/*"))
-                        }) {
-                            Icon(Icons.Default.UploadFile, contentDescription = "Import", tint = MaterialTheme.colorScheme.onBackground)
+                        if (showLegacyCsvImport) {
+                            IconButton(onClick = {
+                                importLauncher.launch(arrayOf("text/*", "text/csv", "application/vnd.ms-excel"))
+                            }) {
+                                Icon(
+                                    Icons.Default.UploadFile,
+                                    contentDescription = "Import legacy CSV",
+                                    tint = MaterialTheme.colorScheme.onBackground,
+                                )
+                            }
                         }
                         IconButton(onClick = onOpenSettings) {
                             Icon(Icons.Default.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onBackground)

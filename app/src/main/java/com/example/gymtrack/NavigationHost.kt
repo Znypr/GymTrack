@@ -5,8 +5,13 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -17,7 +22,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -116,6 +125,7 @@ fun NavigationHost(
                 onImport = { uris ->
                     homeViewModel.importNotesFromUris(context, uris, settings)
                 },
+                showLegacyCsvImport = BuildConfig.DEBUG,
                 onOpenSettings = { navController.navigate("settings") },
                 onOpenStats = { navController.navigate("stats") },
                 onSwipeRight = {},
@@ -332,50 +342,79 @@ fun NavigationHost(
             val restoreUri = pendingRestoreUri
             val restoreManifest = pendingRestoreManifest
             if (restoreUri != null && restoreManifest != null) {
-                AlertDialog(
-                    onDismissRequest = { clearPendingRestore() },
-                    title = { Text("Replace all local data?") },
-                    text = {
-                        Column {
-                            Text(
-                                "This validated backup contains ${restoreManifest.counts.totalRecords} records. " +
-                                    "Your current GymTrack data will be replaced.",
-                            )
-                            if (pendingRestoreHasLocalData) {
-                                Text(
-                                    "Create a safety backup first if you want a separate file copy of your current data before restore.",
-                                )
-                            } else {
-                                Text("No existing workout records were found, so a safety backup is not required.")
-                            }
-                        }
+                RestoreConfirmationDialog(
+                    totalRecords = restoreManifest.counts.totalRecords,
+                    hasLocalData = pendingRestoreHasLocalData,
+                    onCreateSafetyBackup = {
+                        safetyBackupBeforeRestoreLauncher.launch(
+                            backupFileName("GymTrack-safety-backup-before-restore"),
+                        )
                     },
-                    confirmButton = {
-                        if (pendingRestoreHasLocalData) {
-                            TextButton(
-                                onClick = {
-                                    safetyBackupBeforeRestoreLauncher.launch(
-                                        backupFileName("GymTrack-safety-backup-before-restore"),
-                                    )
-                                },
-                            ) { Text("Create safety backup first") }
-                        } else {
-                            TextButton(onClick = { restoreSelectedBackup(restoreUri) }) {
-                                Text("Restore backup")
-                            }
-                        }
-                    },
-                    dismissButton = {
-                        Column {
-                            if (pendingRestoreHasLocalData) {
-                                TextButton(onClick = { restoreSelectedBackup(restoreUri) }) {
-                                    Text("Restore without backup")
-                                }
-                            }
-                            TextButton(onClick = { clearPendingRestore() }) { Text("Cancel") }
-                        }
-                    },
+                    onRestoreWithoutBackup = { restoreSelectedBackup(restoreUri) },
+                    onDismiss = { clearPendingRestore() },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RestoreConfirmationDialog(
+    totalRecords: Int,
+    hasLocalData: Boolean,
+    onCreateSafetyBackup: () -> Unit,
+    onRestoreWithoutBackup: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp,
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(
+                    text = "Replace all local data?",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "This validated backup contains $totalRecords records. Your current GymTrack data will be replaced.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = if (hasLocalData) {
+                            "Create a safety backup first if you want a separate file copy of your current data before restore."
+                        } else {
+                            "No existing workout records were found, so a safety backup is not required."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    if (hasLocalData) {
+                        TextButton(onClick = onCreateSafetyBackup) {
+                            Text("Create safety backup first")
+                        }
+                    }
+                    TextButton(onClick = onRestoreWithoutBackup) {
+                        Text(if (hasLocalData) "Restore without backup" else "Restore backup")
+                    }
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel")
+                    }
+                }
             }
         }
     }
