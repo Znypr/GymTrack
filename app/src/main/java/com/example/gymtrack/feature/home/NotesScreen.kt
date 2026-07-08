@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -29,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.Category
+import com.example.gymtrack.core.data.HomeOverviewWidget
 import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.util.formatWeekRelativeTime
@@ -152,8 +154,21 @@ fun NotesScreen(
                 .filter { n -> categoryFilter?.let { n.categoryName == it.name } ?: true }
                 .let { list -> if (newestFirst) list.sortedByDescending { it.timestamp } else list.sortedBy { it.timestamp } }
         }
+        val statsByNote = remember(notes, settings.defaultWeightUnit) {
+            notes.associateWith { analyzeWorkoutForHome(it, settings) }
+        }
+        val flamesByNote = remember(notes, statsByNote, settings.workoutIntensityFormula) {
+            notes.associateWith { note ->
+                val current = statsByNote.getValue(note)
+                val peers = notes
+                    .filter { it != note && it.categoryName == note.categoryName }
+                    .sortedByDescending { it.timestamp }
+                    .take(6)
+                    .mapNotNull { statsByNote[it] }
+                intensityFlames(current, peers, settings.workoutIntensityFormula)
+            }
+        }
         val latestWorkout = remember(notes) { notes.maxByOrNull { it.timestamp } }
-        val categoryCount = remember(notes) { notes.mapNotNull { it.categoryName }.distinct().size }
 
         Box(
             modifier = Modifier
@@ -175,11 +190,13 @@ fun NotesScreen(
             ) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     HomeTrainingOverview(
-                        totalWorkouts = notes.size,
-                        visibleWorkouts = displayNotes.size,
-                        categoryCount = categoryCount,
+                        widget = settings.homeOverviewWidget,
                         latestWorkout = latestWorkout,
+                        recentWorkouts = displayNotes.take(5),
+                        statsByNote = statsByNote,
+                        flamesByNote = flamesByNote,
                         settings = settings,
+                        onStartWorkout = onCreate,
                     )
                 }
 
@@ -236,6 +253,8 @@ fun NotesScreen(
                     val isSelected = selectedNotes.contains(note)
                     WorkoutAlbumCard(
                         note = note,
+                        stats = statsByNote.getValue(note),
+                        flames = flamesByNote[note] ?: 0,
                         isSelected = isSelected,
                         onClick = {
                             if (selectedNotes.isNotEmpty()) {
@@ -259,20 +278,155 @@ fun NotesScreen(
 
 @Composable
 private fun HomeTrainingOverview(
-    totalWorkouts: Int,
-    visibleWorkouts: Int,
-    categoryCount: Int,
+    widget: HomeOverviewWidget,
     latestWorkout: NoteLine?,
+    recentWorkouts: List<NoteLine>,
+    statsByNote: Map<NoteLine, HomeWorkoutStats>,
+    flamesByNote: Map<NoteLine, Int>,
+    settings: Settings,
+    onStartWorkout: () -> Unit,
+) {
+    when (widget) {
+        HomeOverviewWidget.LAST_WORKOUT -> LastWorkoutOverview(
+            latestWorkout = latestWorkout,
+            stats = latestWorkout?.let { statsByNote[it] },
+            flames = latestWorkout?.let { flamesByNote[it] } ?: 0,
+            settings = settings,
+        )
+        HomeOverviewWidget.RECENT_INTENSITY -> RecentIntensityOverview(
+            recentWorkouts = recentWorkouts,
+            statsByNote = statsByNote,
+            flamesByNote = flamesByNote,
+            settings = settings,
+        )
+        HomeOverviewWidget.QUICK_START -> QuickStartOverview(onStartWorkout = onStartWorkout)
+    }
+}
+
+@Composable
+private fun LastWorkoutOverview(
+    latestWorkout: NoteLine?,
+    stats: HomeWorkoutStats?,
+    flames: Int,
     settings: Settings,
 ) {
     val accent = MaterialTheme.colorScheme.primary
+    OverviewCard {
+        Text("LAST WORKOUT", color = accent, style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(8.dp))
+        if (latestWorkout == null || stats == null) {
+            Text(
+                text = "Ready for your first session",
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.ExtraBold,
+            )
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "${latestWorkout.categoryName ?: "Workout"} · ${formatWeekRelativeTime(latestWorkout.timestamp, settings)}",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = listOfNotNull(
+                            stats.durationMinutes.takeIf { it > 0 }?.let { "$it min" },
+                            stats.cardMetricLabel(settings.homeCardMetric),
+                        ).joinToString(" · "),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                Text(flameText(flames), style = MaterialTheme.typography.titleLarge)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentIntensityOverview(
+    recentWorkouts: List<NoteLine>,
+    statsByNote: Map<NoteLine, HomeWorkoutStats>,
+    flamesByNote: Map<NoteLine, Int>,
+    settings: Settings,
+) {
+    val accent = MaterialTheme.colorScheme.primary
+    OverviewCard {
+        Text("RECENT INTENSITY", color = accent, style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(10.dp))
+        if (recentWorkouts.isEmpty()) {
+            Text("No workouts yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                recentWorkouts.take(4).forEach { note ->
+                    val stats = statsByNote[note]
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "${note.categoryName ?: "Workout"} · ${formatWeekRelativeTime(note.timestamp, settings)}",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = listOfNotNull(
+                                stats?.durationMinutes?.takeIf { it > 0 }?.let { "$it min" },
+                                flameText(flamesByNote[note] ?: 0).takeIf { it.isNotBlank() },
+                            ).joinToString(" · "),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickStartOverview(onStartWorkout: () -> Unit) {
+    val accent = MaterialTheme.colorScheme.primary
+    OverviewCard(modifier = Modifier.clickable(onClick = onStartWorkout)) {
+        Text("READY TO TRAIN", color = accent, style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "Start current workout",
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.ExtraBold,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "Tap here or use + to begin logging fast.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
+
+@Composable
+private fun OverviewCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val accent = MaterialTheme.colorScheme.primary
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(0.dp),
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
@@ -284,49 +438,7 @@ private fun HomeTrainingOverview(
                     ),
                 )
                 .padding(18.dp),
-        ) {
-            Column {
-                Text(
-                    text = "TRAINING LOG",
-                    color = accent,
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = if (latestWorkout == null) "Ready for your first session" else "Last session: ${formatWeekRelativeTime(latestWorkout.timestamp, settings)}",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                )
-                Spacer(Modifier.height(14.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OverviewMetric("TOTAL", totalWorkouts.toString())
-                    OverviewMetric("VISIBLE", visibleWorkouts.toString())
-                    OverviewMetric("TYPES", categoryCount.toString())
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun OverviewMetric(label: String, value: String) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(14.dp),
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Text(
-                text = value,
-                color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold,
-            )
-            Text(
-                text = label,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.labelSmall,
-            )
-        }
+            content = content,
+        )
     }
 }
