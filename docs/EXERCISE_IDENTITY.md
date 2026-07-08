@@ -29,6 +29,37 @@ Parser output now carries an `ExerciseIdentity` next to the parsed display name.
 - `sideMode`: bilateral, unilateral, alternating, or unknown
 - `baseComparisonKey`: default stats/prediction grouping
 - `strictComparisonKey`: stricter chart/PR grouping including equipment, attachment, brand, and side mode
+- `variantLabels`: short UI chips such as `Prime`, `Atlantis`, `Straight bar`, `Cable`, or `Unilateral`
+
+## Display policy
+
+GymTrack should let users type fast during workouts while displaying a cleaner interpretation later.
+
+Example raw input:
+
+```text
+tricep pushdown prime
+tricep pushdown cable
+tricep pushdown bar
+```
+
+The app should preserve the text exactly, but show cleaner UI around it:
+
+```text
+Triceps Pushdown
+[Prime] [Machine]
+
+Triceps Pushdown
+[Cable]
+
+Triceps Pushdown
+[Straight bar] [Cable]
+```
+
+This is now applied in two places:
+
+- **Stats exercise-progress selector:** grouped by canonical base exercise, with variant chips under the option.
+- **Note editor exercise headers:** raw text remains editable, with a canonical preview and variant chips shown underneath when the clean name differs or useful labels exist.
 
 ## Grouping policy
 
@@ -92,7 +123,8 @@ Run:
 
 Manual check after a local force statistics repair or new completed workout:
 
-- exercise dropdown should prefer canonical names for newly parsed sets
-- obvious aliases should group under the same compatibility exercise row
+- exercise dropdown should show canonical grouped names, not raw legacy spellings
+- progress graph should aggregate grouped legacy exercise IDs for the selected canonical exercise
+- editor exercise headers should show canonical preview labels without modifying the text field contents
 - canonical projection should store alias rows for non-canonical user wording
 - raw workout note text should remain unchanged
