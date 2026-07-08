@@ -27,7 +27,7 @@ val AppleLightCard = Color(0xFFFFFFFF)   // Cards (Pure white)
 val TextBlack = Color(0xFF000000)
 
 // --- ACCENTS (Shared) ---
-val GymAccent = Color(0xFFE85D3F)        // Muted red-orange training accent
+val GymAccent = Color(0xFFF2B705)        // Muted amber-yellow training accent
 val NeonGreen = Color(0xFF34C759)
 val NeonRed = Color(0xFFFF3B30)
 val NeonPurple = Color(0xFFAF52DE)
