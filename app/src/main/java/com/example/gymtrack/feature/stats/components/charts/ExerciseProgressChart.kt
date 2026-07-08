@@ -10,19 +10,20 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.ExerciseWithCount
 import com.example.gymtrack.core.data.GraphPoint
 import com.example.gymtrack.core.data.WorkoutRepository
+import com.example.gymtrack.feature.stats.AdaptiveCard
 import com.example.gymtrack.feature.stats.TimeRange
 import kotlinx.coroutines.flow.flowOf
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
 
-// ... (calculateOutliers and ExerciseProgressChartGraph remain exactly the same as before) ...
-// [Use previous version of these functions]
 private fun calculateOutliers(data: List<GraphPoint>): List<GraphPoint> {
     if (data.size < 5) return emptyList()
     val values = data.map { it.avgVal }.sorted()
@@ -42,7 +43,10 @@ private fun ExerciseProgressChartGraph(
 ) {
     if (dataPoints.isEmpty()) {
         Box(modifier.height(200.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Text("No data for this period", color = Color.Gray)
+            Text(
+                "No data for this period",
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+            )
         }
         return
     }
@@ -56,13 +60,13 @@ private fun ExerciseProgressChartGraph(
 
     val theme = rememberChartTheme()
     val dateFormatter = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
-    val textPaint = makeTextPaint(theme.label, 30f)
+    val density = LocalDensity.current
+    val textPaint = makeTextPaint(theme.label, with(density) { 10.sp.toPx() })
 
     Column(modifier.fillMaxWidth()) {
         Canvas(modifier = modifier) {
             val layout = ChartLayout()
             val chartW = layout.width(size.width)
-            val chartH = layout.height(size.height)
             val x0 = layout.originX()
             val y0 = layout.originY(size.height)
 
@@ -81,7 +85,7 @@ private fun ExerciseProgressChartGraph(
             drawPath(
                 path = fillPath,
                 brush = Brush.verticalGradient(
-                    colors = listOf(theme.primary.copy(alpha = 0.3f), Color.Transparent),
+                    colors = listOf(theme.primary.copy(alpha = 0.28f), Color.Transparent),
                     startY = layout.topPad,
                     endY = y0
                 )
@@ -90,15 +94,14 @@ private fun ExerciseProgressChartGraph(
             drawPath(
                 path = linePath,
                 color = theme.primary,
-                style = Stroke(width = 6f)
+                style = Stroke(width = 5f)
             )
 
-            // Anomalies
             val anomalySet = anomalies.map { it.originTimestamp }.toSet()
             points.zip(dataPoints).forEach { (coord, raw) ->
                 if (raw.originTimestamp in anomalySet) {
-                    drawCircle(Color.Red, radius = 8f, center = Offset(coord.first, coord.second))
-                    drawCircle(Color.White, radius = 4f, center = Offset(coord.first, coord.second))
+                    drawCircle(MaterialTheme.colorScheme.error, radius = 8f, center = Offset(coord.first, coord.second))
+                    drawCircle(MaterialTheme.colorScheme.surface, radius = 4f, center = Offset(coord.first, coord.second))
                 }
             }
 
@@ -115,7 +118,6 @@ fun ExerciseProgressCard(
     timeRange: TimeRange,
     modifier: Modifier = Modifier,
 ) {
-    // [FIX] Strict "Last X Days" math
     val cutoffTimestamp = remember(timeRange) {
         if (timeRange == TimeRange.ALL_TIME) {
             0L
@@ -154,13 +156,14 @@ fun ExerciseProgressCard(
 
     val anomalies = remember(filteredGraphData) { calculateOutliers(filteredGraphData) }
 
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-        modifier = modifier.fillMaxWidth()
-    ) {
+    AdaptiveCard(modifier = modifier) {
         Column(Modifier.padding(16.dp)) {
-            Text("Exercise Progress", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(
+                "Exercise Progress",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
             Spacer(Modifier.height(12.dp))
 
             ExposedDropdownMenuBox(
@@ -174,10 +177,14 @@ fun ExerciseProgressCard(
                     onValueChange = {},
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expandedDropdown) },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = SpotifyGreen,
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.24f),
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedTrailingIconColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTrailingIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
                 )
                 DropdownMenu(
@@ -199,7 +206,7 @@ fun ExerciseProgressCard(
             if (anomalies.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "⚠️ ${anomalies.size} Anomalies Detected",
+                    "⚠ ${anomalies.size} Anomalies Detected",
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold
