@@ -34,7 +34,7 @@ enum class HomeCardMetric(val storageValue: String, val displayLabel: String) {
     AVG_SETS_PER_EXERCISE("AVG_SETS_PER_EXERCISE", "Sets/exercise");
 
     companion object {
-        fun fromStorage(value: String?): HomeCardMetric = entries.firstOrNull {
+        fun fromStorage(value: String?): HomeCardMetric = values().firstOrNull {
             it.storageValue == value?.trim()?.uppercase()
         } ?: SETS_PER_MINUTE
     }
@@ -58,7 +58,7 @@ enum class WorkoutIntensityFormula(val storageValue: String, val displayLabel: S
     );
 
     companion object {
-        fun fromStorage(value: String?): WorkoutIntensityFormula = entries.firstOrNull {
+        fun fromStorage(value: String?): WorkoutIntensityFormula = values().firstOrNull {
             it.storageValue == value?.trim()?.uppercase()
         } ?: SET_DENSITY
     }
@@ -70,7 +70,7 @@ enum class HomeOverviewWidget(val storageValue: String, val displayLabel: String
     QUICK_START("QUICK_START", "Quick start");
 
     companion object {
-        fun fromStorage(value: String?): HomeOverviewWidget = entries.firstOrNull {
+        fun fromStorage(value: String?): HomeOverviewWidget = values().firstOrNull {
             it.storageValue == value?.trim()?.uppercase()
         } ?: LAST_WORKOUT
     }
