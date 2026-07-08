@@ -44,6 +44,16 @@ class ExerciseIdentityResolverTest {
     }
 
     @Test
+    fun sygTokenResolvesAsSygnumMachineBrand() {
+        val identity = ExerciseIdentityResolver.resolve(rawName = "leg extension syg")
+
+        assertEquals("Leg Extension", identity.canonicalName)
+        assertEquals("Sygnum", identity.brand)
+        assertEquals(ExerciseEquipment.MACHINE, identity.equipment)
+        assertTrue("Sygnum chip should be displayable", "Sygnum" in identity.variantLabels())
+    }
+
+    @Test
     fun rlTokenResolvesAsRealleaderBrandNotUnilateralMarker() {
         val identity = ExerciseIdentityResolver.resolve(rawName = "latpulldown rl")
 
