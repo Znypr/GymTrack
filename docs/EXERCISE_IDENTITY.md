@@ -25,12 +25,12 @@ Parser output now carries an `ExerciseIdentity` next to the parsed display name.
 - `aliases`: user spellings, abbreviations, and legacy names
 - `equipment`: cable, machine, dumbbell, barbell, Smith machine, bodyweight, or unknown
 - `attachment`: rope, straight bar, V-bar, EZ-bar, handle, or unknown
-- `brand`: machine brand such as Prime, Atlantis, Hammer Strength, Cybex
+- `brand`: machine brand such as Prime, Atlantis, Hammer Strength, Cybex, Realleader
 - `sideMode`: bilateral, unilateral, alternating, or unknown
 - `baseComparisonKey`: default stats/prediction grouping
 - `strictComparisonKey`: stricter chart/PR grouping including equipment, attachment, brand, and side mode
 - `progressComparisonKey`: load-compatible grouping for progress charts
-- `variantLabels`: short UI chips such as `Prime`, `Atlantis`, `Straight bar`, `Cable`, or `Unilateral`
+- `variantLabels`: short UI chips such as `Prime`, `Atlantis`, `Realleader`, `Straight bar`, `Cable`, or `Unilateral`
 
 ## Project-wide grouping decision
 
@@ -52,7 +52,7 @@ This answers: "Am I stronger on this exact comparable setup?" It must separate l
 - dumbbell curl vs cable curl vs machine curl
 - barbell press vs dumbbell press vs machine press
 - unilateral vs bilateral variants when the stored load is not directly comparable
-- Prime vs Atlantis or other brand-specific machine variants when the machine changes the load curve or stack/lever mechanics
+- Prime vs Atlantis, Realleader, or other brand-specific machine variants when the machine changes the load curve or stack/lever mechanics
 - attachment variants when they materially change loading or setup, such as rope vs straight bar pushdown
 
 The Exercise Progress dropdown should still select the base exercise, then show available progress variants underneath. The chart should plot the variants as overlapping individual graph lines. Clicking one variant pill focuses that line and fades the other lines instead of removing context.
@@ -114,11 +114,24 @@ T-Bar Row
 
 not as both raw and canonical names.
 
+## RL / Realleader policy
+
+`RL` should be treated as a machine brand abbreviation for `Realleader`, not as a right-left or unilateral marker.
+
+Side mode should come from the explicit row flag (`Uni` / `Bi`) or explicit words such as `unilateral`, not from `rl` in the exercise name.
+
+Examples:
+
+```text
+latpulldown rl -> Lat Pulldown [Realleader]
+leg extension rl + Uni row flag -> Leg Extension [Realleader] with unilateral side mode
+```
+
 ## Label colors
 
 Use semantic label colors in the note editor:
 
-- brand / machine line: green, e.g. `Prime`, `Atlantis`, `Hammer Strength`
+- brand / machine line: green, e.g. `Prime`, `Atlantis`, `Hammer Strength`, `Realleader`
 - attachment: purple, e.g. `Straight bar`, `Rope`, `Handle`
 - equipment class: blue, e.g. `Cable`, `Machine`, `Dumbbell`
 - side mode: red where needed, but do not show `Unilateral` in the editor because the row flag already shows it
@@ -133,10 +146,10 @@ Use distinct series colors in Exercise Progress so multiple visible graph lines 
 | `lateral raise db` | Lateral Raise | dumbbell | same as lateral raise | separate line from machine/cable |
 | `lateral raise machine` | Lateral Raise | machine | same as lateral raise | separate line from dumbbell/cable |
 | `tricep pushdown bar` | Triceps Pushdown | cable + straight bar | same as pushdown | separate line from rope/no-attachment cable |
-| `tricep extension prime` | Triceps Extension | machine + Prime | same base movement | separate line from Atlantis |
-| `tricep extension at` | Triceps Extension | machine + Atlantis | same base movement | separate line from Prime |
-| `leg extension rl` | Leg Extension | unilateral | same base movement | separate line from bilateral |
-| `latpulldown rl` | Lat Pulldown | unilateral | same base movement | separate line from bilateral |
+| `tricep extension prime` | Triceps Extension | machine + Prime | same base movement | separate line from Atlantis/Realleader |
+| `tricep extension at` | Triceps Extension | machine + Atlantis | same base movement | separate line from Prime/Realleader |
+| `leg extension rl` | Leg Extension | Realleader | same base movement | separate line from other brands/machines |
+| `latpulldown rl` | Lat Pulldown | Realleader | same base movement | separate line from other brands/machines |
 | `seated hamstring` | Seated Leg Curl | machine/brand if known | grouped with leg curl | strict by machine when known |
 
 ## Important ambiguity
@@ -153,7 +166,8 @@ The resolver marks this as ambiguous instead of silently deciding the exact vari
 
 The first implementation covers the most obvious current backup patterns:
 
-- `latpulldown` / `latpulldown rl` -> Lat Pulldown
+- `latpulldown` -> Lat Pulldown
+- `latpulldown rl` -> Lat Pulldown with Realleader brand
 - `diag rowing` / `diagonal rowing` -> Diagonal Row
 - `tbar row` / `tbar rowing` / `tbar machine` -> T-Bar Row
 - `seated hamstring` -> Seated Leg Curl
@@ -187,6 +201,7 @@ Manual check after a local force statistics repair or new completed workout:
 - exercise dropdown should show canonical base names, not raw legacy spellings
 - progress dropdown summary chips should be small and sparse, not overflowing
 - progress graph should show overlapping individual lines for variants like DB vs machine lateral raise, or straight-bar pushdown vs cable/no-attachment pushdown
+- `rl` should display as Realleader brand, not as a unilateral/right-left marker
 - clicking a variant pill should focus that line and fade the others
 - anomaly warning should not appear for mixed-variant charts unless a single variant is focused or only one variant exists
 - editor exercise headers should show only the canonical name visually, with outlined color-coded variant chips underneath
