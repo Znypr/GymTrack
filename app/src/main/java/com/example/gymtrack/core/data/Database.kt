@@ -33,6 +33,46 @@ data class ExerciseWithCount(
     val setTotalCount: Int,
 )
 
+data class ExerciseProgressOptionRow(
+    val exerciseId: Long,
+    val name: String,
+    val modifier: String?,
+    val brand: String?,
+    val isUnilateral: Boolean,
+    val setTotalCount: Int,
+)
+
+data class ExerciseProgressVariant(
+    val key: String,
+    val label: String,
+    val labels: List<String>,
+    val setTotalCount: Int,
+)
+
+data class ExerciseGroupWithCount(
+    val exerciseIds: List<Long>,
+    val name: String,
+    val setTotalCount: Int,
+    val variants: List<ExerciseProgressVariant> = emptyList(),
+)
+
+data class ExerciseProgressHistoryRow(
+    val originTimestamp: Long,
+    val exerciseName: String,
+    val modifier: String?,
+    val brand: String?,
+    val isUnilateral: Boolean,
+    val totalVolume: Float,
+    val totalReps: Int,
+)
+
+data class ExerciseProgressSeries(
+    val key: String,
+    val label: String,
+    val labels: List<String>,
+    val points: List<GraphPoint>,
+)
+
 @Entity(tableName = "exercises")
 data class ExerciseEntity(
     @PrimaryKey(autoGenerate = true) val exerciseId: Long = 0,
@@ -148,6 +188,41 @@ interface ExerciseDao {
         """,
     )
     fun getExercisesWithCountAfter(minTimestamp: Long): Flow<List<ExerciseWithCount>>
+
+    @Query(
+        """
+        SELECT
+            T1.exerciseId,
+            T1.name,
+            T2.modifier,
+            T2.brand,
+            T2.isUnilateral,
+            COUNT(T2.setId) AS setTotalCount
+        FROM exercises AS T1
+        JOIN sets AS T2 ON T1.exerciseId = T2.exerciseId
+        GROUP BY T1.exerciseId, T1.name, T2.modifier, T2.brand, T2.isUnilateral
+        ORDER BY setTotalCount DESC, T1.name ASC
+        """,
+    )
+    fun getExerciseProgressOptions(): Flow<List<ExerciseProgressOptionRow>>
+
+    @Query(
+        """
+        SELECT
+            T1.exerciseId,
+            T1.name,
+            T2.modifier,
+            T2.brand,
+            T2.isUnilateral,
+            COUNT(T2.setId) AS setTotalCount
+        FROM exercises AS T1
+        JOIN sets AS T2 ON T1.exerciseId = T2.exerciseId
+        WHERE T2.workoutId >= :minTimestamp
+        GROUP BY T1.exerciseId, T1.name, T2.modifier, T2.brand, T2.isUnilateral
+        ORDER BY setTotalCount DESC, T1.name ASC
+        """,
+    )
+    fun getExerciseProgressOptionsAfter(minTimestamp: Long): Flow<List<ExerciseProgressOptionRow>>
 }
 
 @Dao
@@ -182,6 +257,38 @@ interface SetDao {
         """,
     )
     fun getAverageWeightHistory(exerciseId: Long): Flow<List<GraphPoint>>
+
+    @Query(
+        """
+        SELECT
+            workoutId AS originTimestamp,
+            CAST(SUM(weight * reps) AS REAL) / SUM(reps) AS avgVal
+        FROM sets
+        WHERE exerciseId IN (:exerciseIds)
+        GROUP BY workoutId
+        ORDER BY workoutId ASC
+        """,
+    )
+    fun getAverageWeightHistoryForExercises(exerciseIds: List<Long>): Flow<List<GraphPoint>>
+
+    @Query(
+        """
+        SELECT
+            T1.workoutId AS originTimestamp,
+            T2.name AS exerciseName,
+            T1.modifier AS modifier,
+            T1.brand AS brand,
+            T1.isUnilateral AS isUnilateral,
+            CAST(SUM(T1.weight * T1.reps) AS REAL) AS totalVolume,
+            SUM(T1.reps) AS totalReps
+        FROM sets AS T1
+        JOIN exercises AS T2 ON T1.exerciseId = T2.exerciseId
+        WHERE T1.exerciseId IN (:exerciseIds)
+        GROUP BY T1.workoutId, T2.name, T1.modifier, T1.brand, T1.isUnilateral
+        ORDER BY T1.workoutId ASC
+        """,
+    )
+    fun getProgressHistoryRowsForExercises(exerciseIds: List<Long>): Flow<List<ExerciseProgressHistoryRow>>
 
     @Transaction
     suspend fun replaceSetsForWorkout(workoutId: Long, sets: List<SetEntity>) {

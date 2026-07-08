@@ -3,6 +3,7 @@ package com.example.gymtrack.feature.editor.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -19,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +38,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
@@ -43,12 +46,17 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.ExerciseFlag
-import com.example.gymtrack.core.util.CapitalizeWordsTransformation
+import com.example.gymtrack.core.util.CanonicalExerciseVisualTransformation
+import com.example.gymtrack.core.util.ExerciseIdentityResolver
+import com.example.gymtrack.core.util.ExerciseVariantLabel
+import com.example.gymtrack.core.util.ExerciseVariantLabelKind
 import com.example.gymtrack.core.util.SmallSecondsVisualTransformation
 import com.example.gymtrack.core.util.rememberRelativeTimeVisualTransformation
+import com.example.gymtrack.core.util.variantLabelSpecs
 import com.example.gymtrack.feature.editor.NoteEditorState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -61,7 +69,6 @@ internal const val EDITOR_EMPTY_AFFORDANCE_TEST_TAG = "editor-empty-affordance"
 fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
     val coroutineScope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
-    val capitalizeTransformation = remember { CapitalizeWordsTransformation() }
 
     LazyColumn(
         state = state.listState,
@@ -88,9 +95,14 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
             val fontSize = if (isMain) 22.sp else 14.sp
             val fontWeight = if (isMain) FontWeight.Black else FontWeight.Medium
             val textColor = if (isMain) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+            val rowIsUnilateral = row.flag.value == ExerciseFlag.UNILATERAL
 
             val visualTransformation = if (isMain) {
-                capitalizeTransformation
+                if (isFocused) {
+                    VisualTransformation.None
+                } else {
+                    remember(rowIsUnilateral) { CanonicalExerciseVisualTransformation(rowIsUnilateral) }
+                }
             } else {
                 rememberRelativeTimeVisualTransformation(fontSize)
             }
@@ -163,9 +175,13 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                     Spacer(Modifier.width(8.dp))
 
                     // Input Field
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(
+                                top = if (isMain) 8.dp else 0.dp,
+                                bottom = if (isMain) 6.dp else 0.dp,
+                            ),
                     ) {
                         BasicTextField(
                             value = row.text.value,
@@ -190,6 +206,13 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                                     }
                                 },
                         )
+
+                        if (isMain && row.text.value.text.isNotBlank()) {
+                            ExerciseIdentityPreview(
+                                rawName = row.text.value.text,
+                                isUnilateral = rowIsUnilateral,
+                            )
+                        }
                     }
 
                     // Timestamp
@@ -207,6 +230,59 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
             }
         }
     }
+}
+
+@Composable
+private fun ExerciseIdentityPreview(
+    rawName: String,
+    isUnilateral: Boolean,
+) {
+    val labels = remember(rawName, isUnilateral) {
+        ExerciseIdentityResolver.resolve(
+            rawName = rawName,
+            isUnilateral = isUnilateral,
+        ).variantLabelSpecs()
+            .filterNot { it.kind == ExerciseVariantLabelKind.SIDE }
+    }
+
+    if (labels.isNotEmpty()) {
+        Row(
+            modifier = Modifier.padding(top = 5.dp, bottom = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            labels.take(4).forEach { label ->
+                InlineVariantChip(label)
+            }
+        }
+    }
+}
+
+@Composable
+private fun InlineVariantChip(label: ExerciseVariantLabel) {
+    val accent = editorVariantAccentColor(label.kind)
+    Surface(
+        color = Color.Transparent,
+        contentColor = accent,
+        shape = RoundedCornerShape(percent = 50),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.82f)),
+    ) {
+        Text(
+            text = label.text,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+@Composable
+private fun editorVariantAccentColor(kind: ExerciseVariantLabelKind): Color = when (kind) {
+    ExerciseVariantLabelKind.BRAND -> Color(0xFF2E7D32)
+    ExerciseVariantLabelKind.ATTACHMENT -> Color(0xFF6A1B9A)
+    ExerciseVariantLabelKind.EQUIPMENT -> Color(0xFF1565C0)
+    ExerciseVariantLabelKind.SIDE -> Color(0xFFC62828)
+    ExerciseVariantLabelKind.WARNING -> MaterialTheme.colorScheme.error
 }
 
 @Composable

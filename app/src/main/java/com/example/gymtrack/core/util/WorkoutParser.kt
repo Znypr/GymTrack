@@ -16,6 +16,7 @@ data class ParsedSetDTO(
     val relativeTime: String?,
     val absoluteTime: String?,
     val workoutId: Long = 0L,
+    val exerciseIdentity: ExerciseIdentity = ExerciseIdentity.unknown(exerciseName),
 )
 
 class WorkoutParser {
@@ -40,7 +41,7 @@ class WorkoutParser {
     // --- DICTIONARIES & LISTS ---
 
     private val BODYWEIGHT_EXERCISES = setOf(
-        "pullup", "chinup", "dip", "situp", "pushup", "crunch", "hanging leg raise",
+        "pullup", "pull up", "chinup", "chin up", "dip", "situp", "sit up", "pushup", "push up", "crunch", "hanging leg raise",
         "leg raise", "air squat", "lunge", "hyperextension", "back extension", "muscle up",
         "burpee", "box jump",
     )
@@ -54,12 +55,13 @@ class WorkoutParser {
 
     private val GYM_TERMS = setOf(
         "press", "push", "pull", "row", "raise", "curl", "extension", "dip",
-        "squat", "leg", "arm", "chest", "back", "shoulder", "delt", "bicep", "tricep",
+        "squat", "leg", "arm", "chest", "back", "shoulder", "delt", "bicep", "biceps", "tricep", "triceps",
         "dumbbell", "barbell", "kettlebell", "cable", "machine", "smith", "rope",
         "bench", "incline", "decline", "fly", "butterfly", "crunch", "situp",
-        "adductor", "abductor", "calf", "glute", "hamstring", "quad",
+        "adductor", "abductor", "calf", "calve", "glute", "hamstring", "quad",
         "deadlift", "romanian", "stiff", "lunge", "step", "stairmaster", "lat",
         "hack", "seated", "lying", "standing", "assisted", "hanging", "hyperextension",
+        "pushdown", "pulldown", "tbar", "diagonal", "diag",
     ) + BODYWEIGHT_EXERCISES + CARDIO_EXERCISES
 
     private val BRAND_ALIASES = mapOf(
@@ -68,14 +70,17 @@ class WorkoutParser {
         "syg" to "Sygnum",
         "g80" to "Gym80", "gym80" to "Gym80",
         "lf" to "Life Fitness", "lifefitness" to "Life Fitness",
-        "atlantis" to "Atlantis", "prime" to "Prime", "technogym" to "Technogym",
+        "at" to "Atlantis", "atl" to "Atlantis", "atlantis" to "Atlantis",
+        "prime" to "Prime", "technogym" to "Technogym",
         "matrix" to "Matrix", "precor" to "Precor", "nautilus" to "Nautilus",
         "panatta" to "Panatta", "watson" to "Watson", "rogers" to "Rogers",
     )
 
     private val MODIFIER_ALIASES = mapOf(
         "db" to "Dumbbell", "dbs" to "Dumbbell", "dumbell" to "Dumbbell",
-        "bb" to "Barbell", "oh" to "Overgrip",
+        "bb" to "Barbell",
+        "bar" to "Straight Bar", "straightbar" to "Straight Bar", "vbar" to "V-Bar", "ezbar" to "EZ-Bar",
+        "oh" to "Overgrip",
         "ug" to "Undergrip", "og" to "Overgrip",
     )
 
@@ -93,6 +98,8 @@ class WorkoutParser {
         "lat pull" to "lat pulldown",
         "latpulldown" to "lat pulldown",
         "rowing" to "row",
+        "diag rowing" to "diagonal row",
+        "diagonal rowing" to "diagonal row",
         "pendulum" to "pendulum squat",
         "side" to "lateral",
         "rear" to "posterior",
@@ -100,13 +107,19 @@ class WorkoutParser {
         "pull up" to "pullup", "pullup" to "pullup",
         "stair master" to "stairmaster",
         "hacksquat" to "hack squat",
+        "reverse hacksquat" to "reverse hack squat",
         "legraise" to "leg raise",
         "ad abductor" to "adductor",
         "buttferfli" to "butterfly",
         "cycle" to "cycling", "bike" to "cycling",
+        "tricep pushdown" to "triceps pushdown",
+        "tricep extension" to "triceps extension",
+        "bicep curl" to "biceps curl",
+        "tbar row" to "t bar row",
+        "tbar rowing" to "t bar row",
     )
 
-    private val NOISE_WORDS = setOf("uni", "ss", "u", "b", "l", "r", "with", "on", "no", "v")
+    private val NOISE_WORDS = setOf("uni", "ss", "u", "b", "l", "r", "rl", "with", "on", "no", "v")
     private val VOCABULARY = GYM_TERMS + BRAND_ALIASES.keys + BRAND_ALIASES.values + MODIFIER_ALIASES.keys + MODIFIER_ALIASES.values + KNOWN_MODIFIERS
 
     private fun calculateReps(raw: String?): Int {
@@ -152,6 +165,7 @@ class WorkoutParser {
         val words = text.split(" ")
         return words.joinToString(" ") { word ->
             when {
+                word in setOf("biceps", "triceps") -> word
                 word.endsWith("ies") -> word.dropLast(3) + "y"
                 word.endsWith("ss") -> word
                 word.endsWith("s") -> word.dropLast(1)
@@ -244,6 +258,7 @@ class WorkoutParser {
         val fallbackWeightUnit = normalizeWeightUnit(defaultWeightUnit)
 
         var currentExerciseName = "Unknown"
+        var currentRawExerciseName = "Unknown"
         var currentModifier: String? = null
         var currentBrand: String? = null
         var currentRelTime: String? = null
@@ -282,6 +297,7 @@ class WorkoutParser {
                 currentAbsTime = abs
 
                 val (name, mod, brand) = extractDetails(cleanLine, rawMetadataPart)
+                currentRawExerciseName = cleanLine
                 currentExerciseName = name
                 currentModifier = mod
                 currentBrand = brand
@@ -331,6 +347,7 @@ class WorkoutParser {
 
                 val finalWeight = if (isBodyweight && weight == 0f) 0f else currentWeight
                 val finalWeightUnit = if (finalWeight > 0f) currentWeightUnit else fallbackWeightUnit
+                val isUnilateralSet = rowFlag == ExerciseFlag.UNILATERAL || line.lowercase().contains("uni")
 
                 val isValidSet = if (isBodyweight || isCardio) {
                     reps > 0
@@ -339,17 +356,26 @@ class WorkoutParser {
                 }
 
                 if (isValidSet) {
+                    val exerciseIdentity = ExerciseIdentityResolver.resolve(
+                        rawName = currentRawExerciseName,
+                        parsedName = currentExerciseName,
+                        modifier = currentModifier,
+                        brand = currentBrand,
+                        isUnilateral = isUnilateralSet,
+                    )
+
                     results.add(
                         ParsedSetDTO(
                             exerciseName = currentExerciseName,
                             weight = finalWeight,
                             weightUnit = finalWeightUnit,
                             reps = reps,
-                            isUnilateral = rowFlag == ExerciseFlag.UNILATERAL || line.lowercase().contains("uni"),
+                            isUnilateral = isUnilateralSet,
                             modifier = currentModifier,
                             brand = currentBrand,
                             relativeTime = currentRelTime,
                             absoluteTime = currentAbsTime,
+                            exerciseIdentity = exerciseIdentity,
                         ),
                     )
                 }

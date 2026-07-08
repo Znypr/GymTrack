@@ -34,26 +34,19 @@ internal class CanonicalExerciseCatalog(
             keyByNormalizedName.putIfAbsent(normalizedName, key)
 
             parseAliases(legacy.aliases).forEach { alias ->
-                val normalizedAlias = CanonicalKeys.normalize(alias)
-                if (normalizedAlias.isNotEmpty()) {
-                    keyByNormalizedName.putIfAbsent(normalizedAlias, key)
-                    val aliasKey = CanonicalKeys.alias(key, alias)
-                    aliases[aliasKey] = CanonicalExerciseAliasEntity(
-                        id = aliasKey,
-                        exerciseId = key,
-                        normalizedAlias = normalizedAlias,
-                        originalAlias = alias,
-                    )
-                }
+                registerAlias(key = key, alias = alias)
             }
         }
     }
 
-    fun resolve(name: String): CanonicalExerciseEntity {
+    fun resolve(name: String, rawAliases: Collection<String> = emptyList()): CanonicalExerciseEntity {
         val displayName = name.trim().ifEmpty { "Unknown exercise" }
         val normalizedName = CanonicalKeys.normalize(displayName)
         val existingKey = keyByNormalizedName[normalizedName]
-        if (existingKey != null) return exercises.getValue(existingKey)
+        if (existingKey != null) {
+            rawAliases.forEach { alias -> registerAlias(existingKey, alias) }
+            return exercises.getValue(existingKey)
+        }
 
         val key = CanonicalKeys.namedExercise(displayName)
         val exercise = CanonicalExerciseEntity(
@@ -67,12 +60,31 @@ internal class CanonicalExerciseCatalog(
         )
         exercises[key] = exercise
         keyByNormalizedName[normalizedName] = key
+        rawAliases.forEach { alias -> registerAlias(key, alias) }
         return exercise
     }
 
     fun exerciseEntities(): List<CanonicalExerciseEntity> = exercises.values.toList()
 
     fun aliasEntities(): List<CanonicalExerciseAliasEntity> = aliases.values.toList()
+
+    private fun registerAlias(key: String, alias: String) {
+        val cleanedAlias = alias.trim()
+        val normalizedAlias = CanonicalKeys.normalize(cleanedAlias)
+        if (normalizedAlias.isEmpty()) return
+
+        val exercise = exercises[key] ?: return
+        if (normalizedAlias == exercise.normalizedName) return
+
+        keyByNormalizedName.putIfAbsent(normalizedAlias, key)
+        val aliasKey = CanonicalKeys.alias(key, cleanedAlias)
+        aliases[aliasKey] = CanonicalExerciseAliasEntity(
+            id = aliasKey,
+            exerciseId = key,
+            normalizedAlias = normalizedAlias,
+            originalAlias = cleanedAlias,
+        )
+    }
 
     private fun displayName(legacy: ExerciseEntity): String =
         legacy.name.trim().ifEmpty { "Unknown exercise" }

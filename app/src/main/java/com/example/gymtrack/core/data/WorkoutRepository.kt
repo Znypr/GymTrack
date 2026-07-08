@@ -5,8 +5,11 @@ import com.example.gymtrack.core.data.canonical.toDomain
 import com.example.gymtrack.core.data.transition.CanonicalExerciseCatalog
 import com.example.gymtrack.core.data.transition.CanonicalKeys
 import com.example.gymtrack.core.data.transition.LegacyWorkoutProjector
+import com.example.gymtrack.core.util.ExerciseIdentity
+import com.example.gymtrack.core.util.ExerciseIdentityResolver
 import com.example.gymtrack.core.util.ParsedSetDTO
 import com.example.gymtrack.core.util.WorkoutParser
+import com.example.gymtrack.core.util.variantLabels
 import com.example.gymtrack.domain.model.WorkoutDetails
 import com.example.gymtrack.domain.model.WorkoutRecord
 import com.example.gymtrack.domain.model.WorkoutStatus
@@ -15,6 +18,8 @@ import com.example.gymtrack.domain.summary.TrainingSummaryJson
 import com.example.gymtrack.domain.summary.TrainingSummaryOutboxEntry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import java.time.ZoneId
 
 class WorkoutRepository(
@@ -39,8 +44,94 @@ class WorkoutRepository(
         }
     }
 
+    fun getExerciseGroupsSortedByCount(minTimestamp: Long = 0): Flow<List<ExerciseGroupWithCount>> {
+        val rowsFlow = if (minTimestamp == 0L) {
+            exerciseDao.getExerciseProgressOptions()
+        } else {
+            exerciseDao.getExerciseProgressOptionsAfter(minTimestamp)
+        }
+
+        return rowsFlow.map { rows ->
+            rows
+                .groupBy { row -> identityFor(row).baseComparisonKey }
+                .values
+                .map { group ->
+                    val rowsWithIdentity = group.map { row -> row to identityFor(row) }
+                    val primary = rowsWithIdentity.maxBy { it.first.setTotalCount }.second
+                    val variants = rowsWithIdentity
+                        .groupBy { it.second.progressComparisonKey }
+                        .map { (key, variantRows) ->
+                            val primaryVariant = variantRows.maxBy { it.first.setTotalCount }.second
+                            val labels = primaryVariant.variantLabels()
+                            ExerciseProgressVariant(
+                                key = key,
+                                label = variantDisplayLabel(labels),
+                                labels = labels,
+                                setTotalCount = variantRows.sumOf { it.first.setTotalCount },
+                            )
+                        }
+                        .sortedWith(
+                            compareByDescending<ExerciseProgressVariant> { it.setTotalCount }
+                                .thenBy { it.label },
+                        )
+
+                    ExerciseGroupWithCount(
+                        exerciseIds = group.map { it.exerciseId }.distinct(),
+                        name = primary.canonicalName,
+                        setTotalCount = group.sumOf { it.setTotalCount },
+                        variants = variants,
+                    )
+                }
+                .sortedWith(
+                    compareByDescending<ExerciseGroupWithCount> { it.setTotalCount }
+                        .thenBy { it.name },
+                )
+        }
+    }
+
     fun getWeightHistory(exerciseId: Long): Flow<List<GraphPoint>> {
         return setDao.getAverageWeightHistory(exerciseId)
+    }
+
+    fun getWeightHistory(exerciseIds: List<Long>): Flow<List<GraphPoint>> {
+        return if (exerciseIds.isEmpty()) {
+            flowOf(emptyList())
+        } else {
+            setDao.getAverageWeightHistoryForExercises(exerciseIds)
+        }
+    }
+
+    fun getWeightHistoryForExerciseGroup(group: ExerciseGroupWithCount): Flow<List<ExerciseProgressSeries>> {
+        if (group.exerciseIds.isEmpty()) return flowOf(emptyList())
+        val variantByKey = group.variants.associateBy { it.key }
+        return setDao.getProgressHistoryRowsForExercises(group.exerciseIds).map { rows ->
+            rows
+                .groupBy { row -> identityFor(row).progressComparisonKey }
+                .map { (key, variantRows) ->
+                    val fallbackIdentity = identityFor(variantRows.first())
+                    val variant = variantByKey[key]
+                    ExerciseProgressSeries(
+                        key = key,
+                        label = variant?.label ?: variantDisplayLabel(fallbackIdentity.variantLabels()),
+                        labels = variant?.labels ?: fallbackIdentity.variantLabels(),
+                        points = variantRows
+                            .groupBy { it.originTimestamp }
+                            .map { (timestamp, timestampRows) ->
+                                val totalVolume = timestampRows.sumOf { it.totalVolume.toDouble() }
+                                val totalReps = timestampRows.sumOf { it.totalReps }
+                                GraphPoint(
+                                    originTimestamp = timestamp,
+                                    avgVal = if (totalReps > 0) (totalVolume / totalReps).toFloat() else 0f,
+                                )
+                            }
+                            .sortedBy { it.originTimestamp },
+                    )
+                }
+                .sortedWith(
+                    compareByDescending<ExerciseProgressSeries> { variantByKey[it.key]?.setTotalCount ?: 0 }
+                        .thenBy { it.label },
+                )
+        }
     }
 
     suspend fun cleanUpOrphans() {
@@ -66,7 +157,7 @@ class WorkoutRepository(
 
     suspend fun saveParsedSets(sets: List<ParsedSetDTO>, workoutId: Long) {
         val setEntities = sets.map { set ->
-            val exerciseId = resolveExerciseId(set.exerciseName)
+            val exerciseId = resolveExerciseId(set)
             SetEntity(
                 workoutId = workoutId,
                 exerciseId = exerciseId,
@@ -258,18 +349,53 @@ class WorkoutRepository(
         )
     }
 
-    private suspend fun resolveExerciseId(rawName: String): Long {
-        if (rawName.isBlank()) return -1L
-        val normalizedName = rawName.trim()
+    private suspend fun resolveExerciseId(set: ParsedSetDTO): Long {
+        val identity = set.exerciseIdentity
+        val normalizedName = identity.canonicalName.trim().ifBlank { set.exerciseName.trim() }
+        if (normalizedName.isBlank()) return -1L
+
         val existing = exerciseDao.getByName(normalizedName)
         if (existing != null) return existing.exerciseId
-        val aliasMatch = exerciseDao.findByAlias(normalizedName).firstOrNull()
-        if (aliasMatch != null) return aliasMatch.exerciseId
+
+        val aliasCandidates = (identity.aliases + set.exerciseName + identity.rawName)
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .distinctBy { it.lowercase() }
+
+        aliasCandidates.forEach { alias ->
+            val aliasMatch = exerciseDao.findByAlias(alias).firstOrNull()
+            if (aliasMatch != null) return aliasMatch.exerciseId
+        }
+
         val newExercise = ExerciseEntity(
             name = normalizedName,
-            aliases = "",
+            aliases = aliasCandidates
+                .filterNot { it.equals(normalizedName, ignoreCase = true) }
+                .joinToString(","),
             muscleGroup = null,
         )
         return exerciseDao.insert(newExercise)
     }
+
+    private fun identityFor(row: ExerciseProgressOptionRow): ExerciseIdentity = ExerciseIdentityResolver.resolve(
+        rawName = row.name,
+        parsedName = row.name,
+        modifier = row.modifier,
+        brand = row.brand,
+        isUnilateral = row.isUnilateral,
+    )
+
+    private fun identityFor(row: ExerciseProgressHistoryRow): ExerciseIdentity = ExerciseIdentityResolver.resolve(
+        rawName = row.exerciseName,
+        parsedName = row.exerciseName,
+        modifier = row.modifier,
+        brand = row.brand,
+        isUnilateral = row.isUnilateral,
+    )
+
+    private fun variantDisplayLabel(labels: List<String>): String = labels
+        .filter(String::isNotBlank)
+        .takeIf { it.isNotEmpty() }
+        ?.joinToString(" · ")
+        ?: "Default"
 }

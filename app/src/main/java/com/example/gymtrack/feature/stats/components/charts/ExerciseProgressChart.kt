@@ -1,11 +1,15 @@
 package com.example.gymtrack.feature.stats.components.charts
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -13,7 +17,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.gymtrack.core.data.ExerciseWithCount
+import com.example.gymtrack.core.data.ExerciseGroupWithCount
+import com.example.gymtrack.core.data.ExerciseProgressSeries
+import com.example.gymtrack.core.data.ExerciseProgressVariant
 import com.example.gymtrack.core.data.GraphPoint
 import com.example.gymtrack.core.data.WorkoutRepository
 import com.example.gymtrack.feature.stats.AdaptiveCard
@@ -26,31 +32,37 @@ import java.util.concurrent.TimeUnit
 
 @Composable
 private fun ExerciseProgressChartGraph(
-    dataPoints: List<GraphPoint>,
+    series: List<ExerciseProgressSeries>,
+    focusedVariantKey: String?,
+    anomalies: List<GraphPoint>,
     weightUnitLabel: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    if (dataPoints.isEmpty()) {
+    val allPoints = series.flatMap { it.points }
+    if (allPoints.isEmpty()) {
         Box(modifier.height(200.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
             Text(
-                "No exercise data in this period",
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                "No data for this period",
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
             )
         }
         return
     }
 
-    val yValues = dataPoints.map { it.avgVal }
+    val yValues = allPoints.map { it.avgVal }
     val scaleY = buildScaleY(yValues)
 
-    val minTime = dataPoints.minOf { it.originTimestamp }
-    val maxTime = dataPoints.maxOf { it.originTimestamp }
+    val minTime = allPoints.minOf { it.originTimestamp }
+    val maxTime = allPoints.maxOf { it.originTimestamp }
     val timeRange = (maxTime - minTime).coerceAtLeast(1L)
 
     val theme = rememberChartTheme()
+    val seriesColors = exerciseProgressPalette()
     val dateFormatter = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
     val density = LocalDensity.current
     val textPaint = makeTextPaint(theme.label, with(density) { 10.sp.toPx() })
+    val anomalyColor = MaterialTheme.colorScheme.error
+    val anomalyInnerColor = MaterialTheme.colorScheme.surface
 
     Column(modifier.fillMaxWidth()) {
         Canvas(modifier = modifier) {
@@ -67,30 +79,57 @@ private fun ExerciseProgressChartGraph(
                 }
             }
 
-            val points = dataPoints.map { point ->
-                val fractionX = (point.originTimestamp - minTime) / timeRange.toFloat()
-                val x = x0 + fractionX * chartW
-                val y = scaleY.yToPx(point.avgVal, y0, layout.topPad)
-                x to y
+            val anomalySet = anomalies.map { it.originTimestamp }.toSet()
+            val indexedSeries = series.mapIndexed { index, currentSeries -> index to currentSeries }
+            val orderedSeries = indexedSeries.sortedBy { (_, currentSeries) ->
+                if (focusedVariantKey != null && currentSeries.key == focusedVariantKey) 1 else 0
             }
 
-            val linePath = createSmoothPath(points)
-            val fillPath = createFillPath(linePath, size.width, y0)
+            orderedSeries.forEach { (originalIndex, currentSeries) ->
+                val isFocused = focusedVariantKey == null || currentSeries.key == focusedVariantKey
+                val alpha = if (isFocused) 1f else 0.20f
+                val color = seriesColors[originalIndex % seriesColors.size].copy(alpha = alpha)
+                val points = currentSeries.points.map { point ->
+                    val fractionX = (point.originTimestamp - minTime) / timeRange.toFloat()
+                    val x = x0 + fractionX * chartW
+                    val y = scaleY.yToPx(point.avgVal, y0, layout.topPad)
+                    x to y
+                }
 
-            drawPath(
-                path = fillPath,
-                brush = Brush.verticalGradient(
-                    colors = listOf(theme.primary.copy(alpha = 0.28f), Color.Transparent),
-                    startY = layout.topPad,
-                    endY = y0
-                )
-            )
+                if (points.size >= 2) {
+                    val linePath = createSmoothPath(points)
+                    val shouldFill = focusedVariantKey == currentSeries.key || (focusedVariantKey == null && series.size == 1)
+                    if (shouldFill) {
+                        val fillPath = createFillPath(linePath, size.width, y0)
+                        drawPath(
+                            path = fillPath,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(color.copy(alpha = 0.18f), Color.Transparent),
+                                startY = layout.topPad,
+                                endY = y0,
+                            ),
+                        )
+                    }
+                    drawPath(
+                        path = linePath,
+                        color = color,
+                        style = Stroke(width = if (isFocused) 5f else 3.5f),
+                    )
+                } else {
+                    points.firstOrNull()?.let { point ->
+                        drawCircle(color, radius = if (isFocused) 7f else 5f, center = Offset(point.first, point.second))
+                    }
+                }
 
-            drawPath(
-                path = linePath,
-                color = theme.primary,
-                style = Stroke(width = 5f)
-            )
+                if (isFocused && anomalies.isNotEmpty()) {
+                    points.zip(currentSeries.points).forEach { (coord, raw) ->
+                        if (raw.originTimestamp in anomalySet) {
+                            drawCircle(anomalyColor, radius = 8f, center = Offset(coord.first, coord.second))
+                            drawCircle(anomalyInnerColor, radius = 4f, center = Offset(coord.first, coord.second))
+                        }
+                    }
+                }
+            }
 
             drawXTickLabel(dateFormatter.format(Date(minTime)), x0, y0, textPaint)
             drawXTickLabel(dateFormatter.format(Date(maxTime)), x0 + chartW, y0, textPaint)
@@ -114,15 +153,16 @@ fun ExerciseProgressCard(
         }
     }
 
-    val allExercises by (repository?.getExercisesSortedByCount(cutoffTimestamp)
+    val allExercises by (repository?.getExerciseGroupsSortedByCount(cutoffTimestamp)
         ?: remember { flowOf(emptyList()) })
         .collectAsState(initial = emptyList())
 
-    var selectedExercise by remember { mutableStateOf<ExerciseWithCount?>(null) }
+    var selectedExercise by remember { mutableStateOf<ExerciseGroupWithCount?>(null) }
     var expandedDropdown by remember { mutableStateOf(false) }
+    var focusedVariantKey by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(allExercises) {
-        val currentInList = allExercises.find { it.exerciseId == selectedExercise?.exerciseId }
+        val currentInList = allExercises.find { it.name == selectedExercise?.name }
         if (currentInList != null) {
             selectedExercise = currentInList
         } else if (allExercises.isNotEmpty()) {
@@ -132,21 +172,34 @@ fun ExerciseProgressCard(
         }
     }
 
-    val fullGraphData by remember(selectedExercise) {
-        selectedExercise?.let { repository?.getWeightHistory(it.exerciseId) }
+    LaunchedEffect(selectedExercise?.name) {
+        focusedVariantKey = null
+    }
+
+    val fullSeries by remember(selectedExercise) {
+        selectedExercise?.let { repository?.getWeightHistoryForExerciseGroup(it) }
             ?: flowOf(emptyList())
     }.collectAsState(initial = emptyList())
 
-    val filteredGraphData = remember(fullGraphData, cutoffTimestamp) {
-        if (cutoffTimestamp == 0L) fullGraphData
-        else fullGraphData.filter { it.originTimestamp >= cutoffTimestamp }
+    val filteredSeries = remember(fullSeries, cutoffTimestamp) {
+        fullSeries.mapNotNull { currentSeries ->
+            val points = if (cutoffTimestamp == 0L) {
+                currentSeries.points
+            } else {
+                currentSeries.points.filter { it.originTimestamp >= cutoffTimestamp }
+            }
+            currentSeries.copy(points = points).takeIf { it.points.isNotEmpty() }
+        }
     }
 
-    val anomalies = remember(filteredGraphData) { calculateExerciseOutliers(filteredGraphData) }
-    val cleanedGraphData = remember(filteredGraphData, anomalies) {
-        val anomalyKeys = anomalies.map { it.originTimestamp to it.avgVal }.toSet()
-        filteredGraphData.filterNot { (it.originTimestamp to it.avgVal) in anomalyKeys }
+    val anomalyInput = remember(filteredSeries, focusedVariantKey) {
+        when {
+            focusedVariantKey != null -> filteredSeries.firstOrNull { it.key == focusedVariantKey }?.points.orEmpty()
+            filteredSeries.size == 1 -> filteredSeries.single().points
+            else -> emptyList()
+        }
     }
+    val anomalies = remember(anomalyInput) { calculateExerciseOutliers(anomalyInput) }
 
     AdaptiveCard(modifier = modifier) {
         Column(Modifier.padding(16.dp)) {
@@ -154,19 +207,19 @@ fun ExerciseProgressCard(
                 "Exercise Progress",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 "Weighted avg working weight · $weightUnitLabel",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
             )
             Spacer(Modifier.height(12.dp))
 
             ExposedDropdownMenuBox(
                 expanded = expandedDropdown,
-                onExpandedChange = { expandedDropdown = !expandedDropdown }
+                onExpandedChange = { expandedDropdown = !expandedDropdown },
             ) {
                 OutlinedTextField(
                     modifier = Modifier.menuAnchor().fillMaxWidth(),
@@ -177,47 +230,205 @@ fun ExerciseProgressCard(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = MaterialTheme.colorScheme.onSurface,
                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        focusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.24f),
                         unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.24f),
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
                         focusedTrailingIconColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTrailingIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        unfocusedTrailingIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                     )
                 )
                 DropdownMenu(
                     expanded = expandedDropdown,
-                    onDismissRequest = { expandedDropdown = false }
+                    onDismissRequest = { expandedDropdown = false },
                 ) {
                     allExercises.forEach { exercise ->
                         DropdownMenuItem(
-                            text = { Text("${exercise.name} (${exercise.setTotalCount} sets)") },
+                            text = { ExerciseOptionLabel(exercise) },
                             onClick = {
                                 selectedExercise = exercise
                                 expandedDropdown = false
-                            }
+                            },
                         )
                     }
                 }
             }
 
+            selectedExercise?.variants?.takeIf { it.isNotEmpty() }?.let { variants ->
+                Spacer(Modifier.height(8.dp))
+                VariantLabelRow(
+                    variants = variants,
+                    focusedVariantKey = focusedVariantKey,
+                    onVariantClick = { variant ->
+                        focusedVariantKey = if (focusedVariantKey == variant.key) null else variant.key
+                    },
+                )
+            }
+
             if (anomalies.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "Ignoring ${anomalies.size} conservative outlier${if (anomalies.size == 1) "" else "s"}",
+                    "⚠ ${anomalies.size} conservative anomaly${if (anomalies.size == 1) "" else "ies"} detected",
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
                 )
             }
 
             Spacer(Modifier.height(16.dp))
 
             ExerciseProgressChartGraph(
-                dataPoints = cleanedGraphData,
+                series = filteredSeries,
+                focusedVariantKey = focusedVariantKey,
+                anomalies = anomalies,
                 weightUnitLabel = weightUnitLabel,
-                modifier = Modifier.fillMaxWidth().height(200.dp)
+                modifier = Modifier.fillMaxWidth().height(200.dp),
             )
         }
     }
+}
+
+@Composable
+private fun ExerciseOptionLabel(exercise: ExerciseGroupWithCount) {
+    val summaryLabels = remember(exercise) { dropdownSummaryLabels(exercise) }
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(
+            text = "${exercise.name} (${exercise.setTotalCount} sets)",
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+        )
+        if (summaryLabels.isNotEmpty()) {
+            CompactVariantSummaryRow(summaryLabels)
+        }
+    }
+}
+
+@Composable
+private fun CompactVariantSummaryRow(labels: List<String>) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        labels.take(4).forEachIndexed { index, label ->
+            CompactVariantSummaryChip(
+                label = label,
+                accent = compactSummaryColor(index),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CompactVariantSummaryChip(label: String, accent: Color) {
+    Surface(
+        color = Color.Transparent,
+        contentColor = accent,
+        shape = RoundedCornerShape(percent = 50),
+        border = BorderStroke(0.75.dp, accent.copy(alpha = 0.70f)),
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+            fontSize = 9.sp,
+            lineHeight = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+@Composable
+private fun VariantLabelRow(
+    variants: List<ExerciseProgressVariant>,
+    focusedVariantKey: String?,
+    onVariantClick: ((ExerciseProgressVariant) -> Unit)?,
+) {
+    val palette = exerciseProgressPalette()
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        variants.take(5).forEachIndexed { index, variant ->
+            VariantLabelChip(
+                variant = variant,
+                accent = palette[index % palette.size],
+                selected = focusedVariantKey == variant.key,
+                dimmed = focusedVariantKey != null && focusedVariantKey != variant.key,
+                onClick = onVariantClick,
+            )
+        }
+    }
+}
+
+@Composable
+private fun VariantLabelChip(
+    variant: ExerciseProgressVariant,
+    accent: Color,
+    selected: Boolean,
+    dimmed: Boolean,
+    onClick: ((ExerciseProgressVariant) -> Unit)?,
+) {
+    val alpha = if (dimmed) 0.38f else 1f
+    Surface(
+        modifier = if (onClick != null) Modifier.clickable { onClick(variant) } else Modifier,
+        color = if (selected) accent.copy(alpha = 0.14f) else Color.Transparent,
+        contentColor = accent.copy(alpha = alpha),
+        shape = RoundedCornerShape(percent = 50),
+        border = BorderStroke(1.dp, accent.copy(alpha = if (dimmed) 0.32f else 0.85f)),
+    ) {
+        Text(
+            text = variant.label,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+private fun dropdownSummaryLabels(exercise: ExerciseGroupWithCount): List<String> {
+    val rawLabels = exercise.variants
+        .flatMap { it.labels }
+        .map(String::trim)
+        .filter(String::isNotBlank)
+        .filterNot { it.equals("Unilateral", ignoreCase = true) || it.equals("Alternating", ignoreCase = true) }
+        .distinctBy { it.lowercase(Locale.getDefault()) }
+
+    val hasSpecificMachine = rawLabels.any { label ->
+        listOf("Prime", "Atlantis", "Hammer Strength", "Cybex", "Gym80", "Life Fitness", "Sygnum")
+            .any { label.equals(it, ignoreCase = true) }
+    }
+    val compact = rawLabels
+        .filterNot { hasSpecificMachine && it.equals("Machine", ignoreCase = true) }
+        .sortedBy(::dropdownLabelPriority)
+
+    val visible = compact.take(3).toMutableList()
+    val hiddenCount = (compact.size - visible.size).coerceAtLeast(0)
+    if (hiddenCount > 0) visible += "+$hiddenCount"
+    return visible
+}
+
+private fun dropdownLabelPriority(label: String): Int {
+    val lower = label.lowercase(Locale.getDefault())
+    return when {
+        listOf("dumbbell", "barbell", "smith", "cable", "machine", "bodyweight").any { lower == it } -> 0
+        listOf("straight bar", "rope", "v-bar", "ez-bar", "handle").any { lower == it } -> 1
+        else -> 2
+    }
+}
+
+@Composable
+private fun exerciseProgressPalette(): List<Color> = listOf(
+    MaterialTheme.colorScheme.primary,
+    Color(0xFF8E24AA),
+    Color(0xFF00897B),
+    Color(0xFFEF6C00),
+    Color(0xFFD81B60),
+    Color(0xFF5E35B1),
+    Color(0xFF6D4C41),
+)
+
+@Composable
+private fun compactSummaryColor(index: Int): Color {
+    val palette = exerciseProgressPalette()
+    return palette[index % palette.size]
 }
