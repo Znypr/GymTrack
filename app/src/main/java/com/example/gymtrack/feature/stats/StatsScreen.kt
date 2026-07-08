@@ -118,6 +118,14 @@ fun StatsScreen(
             }
 
             item {
+                AdaptiveCard {
+                    Column(Modifier.padding(16.dp)) {
+                        TrainingInsightsPanel(data = state.trainingInsights)
+                    }
+                }
+            }
+
+            item {
                 ExerciseProgressCard(
                     repository = workoutRepository,
                     timeRange = state.currentRange,
@@ -128,15 +136,15 @@ fun StatsScreen(
             item {
                 AdaptiveCard(height = 300.dp) {
                     Column(Modifier.padding(16.dp)) {
-                        WorkoutDurationTrendChart(notes = state.filteredNotes, showRollingAvg = true)
+                        WeeklyConsistencyChart(data = state.weeklyWorkoutCounts)
                     }
                 }
             }
 
             item {
-                AdaptiveCard(height = 320.dp) {
+                AdaptiveCard(height = 300.dp) {
                     Column(Modifier.padding(16.dp)) {
-                        TimeOfDayHeatmap(data = state.heatmapData)
+                        WorkoutDurationTrendChart(notes = state.filteredNotes, showRollingAvg = true)
                     }
                 }
             }
