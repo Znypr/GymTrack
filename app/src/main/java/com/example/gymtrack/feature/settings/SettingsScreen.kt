@@ -92,7 +92,7 @@ fun SettingsScreen(
                     SettingsChoiceRow(
                         title = "Workout card metric",
                         subtitle = "Controls the bottom-left metric shown on workout cards.",
-                        options = HomeCardMetric.entries,
+                        options = HomeCardMetric.values().toList(),
                         selected = settings.homeCardMetric,
                         label = { it.displayLabel },
                         onSelected = { metric -> update { copy(homeCardMetric = metric) } },
@@ -101,7 +101,7 @@ fun SettingsScreen(
                     SettingsChoiceRow(
                         title = "Intensity flames",
                         subtitle = settings.workoutIntensityFormula.description + "\n🔥 light · 🔥🔥 normal · 🔥🔥🔥 strong reference.",
-                        options = WorkoutIntensityFormula.entries,
+                        options = WorkoutIntensityFormula.values().toList(),
                         selected = settings.workoutIntensityFormula,
                         label = { it.displayLabel },
                         onSelected = { formula -> update { copy(workoutIntensityFormula = formula) } },
@@ -110,7 +110,7 @@ fun SettingsScreen(
                     SettingsChoiceRow(
                         title = "Default home overview",
                         subtitle = "Choose the top Home widget. No random cycling; this is deterministic.",
-                        options = HomeOverviewWidget.entries,
+                        options = HomeOverviewWidget.values().toList(),
                         selected = settings.homeOverviewWidget,
                         label = { it.displayLabel },
                         onSelected = { widget -> update { copy(homeOverviewWidget = widget) } },
