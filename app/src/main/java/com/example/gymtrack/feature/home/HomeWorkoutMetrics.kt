@@ -7,6 +7,7 @@ import com.example.gymtrack.core.data.WorkoutIntensityFormula
 import com.example.gymtrack.core.util.WorkoutParser
 import com.example.gymtrack.core.util.parseDurationSeconds
 import com.example.gymtrack.core.util.parseNoteText
+import java.util.Locale
 import kotlin.math.roundToInt
 
 data class HomeWorkoutStats(
@@ -133,4 +134,4 @@ private fun Float.format1(): String {
     return if (rounded % 1f == 0f) rounded.toInt().toString() else rounded.toString()
 }
 
-private fun Float.format2(): String = "%.2f".format(this)
+private fun Float.format2(): String = String.format(Locale.US, "%.2f", this)
