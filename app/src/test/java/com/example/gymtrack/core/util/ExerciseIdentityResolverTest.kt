@@ -43,6 +43,19 @@ class ExerciseIdentityResolverTest {
     }
 
     @Test
+    fun progressComparisonSeparatesLoadIncompatibleEquipmentVariants() {
+        val dumbbell = ExerciseIdentityResolver.resolve(rawName = "lateral raise db")
+        val machine = ExerciseIdentityResolver.resolve(rawName = "lateral raise machine")
+        val cable = ExerciseIdentityResolver.resolve(rawName = "lateral raise cable")
+
+        assertEquals("Lateral Raise", dumbbell.canonicalName)
+        assertEquals(dumbbell.baseComparisonKey, machine.baseComparisonKey)
+        assertEquals(dumbbell.baseComparisonKey, cable.baseComparisonKey)
+        assertNotEquals(dumbbell.progressComparisonKey, machine.progressComparisonKey)
+        assertNotEquals(machine.progressComparisonKey, cable.progressComparisonKey)
+    }
+
+    @Test
     fun rightLeftSuffixDoesNotPolluteCanonicalExerciseName() {
         val identity = ExerciseIdentityResolver.resolve(
             rawName = "leg extension rl",
