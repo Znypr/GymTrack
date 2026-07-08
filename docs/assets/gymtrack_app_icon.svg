@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">GymTrack app icon</title>
+  <desc id="desc">Bold black and white app icon combining a dumbbell with a workout tracking notepad.</desc>
+  <rect width="1024" height="1024" fill="#000000"/>
+  <rect x="199" y="152" width="626" height="720" rx="132" fill="#FFFFFF"/>
+  <rect x="152" y="285" width="151" height="38" rx="19" fill="#000000"/>
+  <rect x="152" y="493" width="151" height="38" rx="19" fill="#000000"/>
+  <rect x="152" y="701" width="151" height="38" rx="19" fill="#000000"/>
+  <rect x="426" y="474" width="172" height="76" rx="18" fill="#000000"/>
+  <rect x="332" y="360" width="123" height="304" rx="38" fill="#000000"/>
+  <rect x="569" y="360" width="123" height="304" rx="38" fill="#000000"/>
+  <rect x="256" y="417" width="76" height="190" rx="30" fill="#000000"/>
+  <rect x="692" y="417" width="76" height="190" rx="30" fill="#000000"/>
+</svg>
