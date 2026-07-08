@@ -35,6 +35,8 @@ data class StatsState(
     val averageDurations: Map<String, Float> = emptyMap(),
     val heatmapData: Array<IntArray> = Array(7) { IntArray(24) },
     val topExercises: List<Pair<String, Int>> = emptyList(),
+    val weeklyWorkoutCounts: List<WeeklyWorkoutCount> = emptyList(),
+    val volumeByCategory: List<CategoryVolume> = emptyList(),
     val currentRange: TimeRange = TimeRange.ALL_TIME,
     val filteredNotes: List<NoteLine> = emptyList()
 )
@@ -129,6 +131,8 @@ class StatsViewModel(
             averageDurations = durationAvgs,
             heatmapData = heatmap,
             topExercises = exerciseCounts,
+            weeklyWorkoutCounts = buildWeeklyWorkoutCounts(notes),
+            volumeByCategory = buildVolumeByCategory(notes, parser),
             currentRange = range,
             filteredNotes = notes
         )
