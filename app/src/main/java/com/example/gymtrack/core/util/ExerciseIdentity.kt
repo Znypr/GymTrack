@@ -147,6 +147,8 @@ object ExerciseIdentityResolver {
         "cybex" to "Cybex",
         "g80" to "Gym80",
         "gym80" to "Gym80",
+        "syg" to "Sygnum",
+        "sygnum" to "Sygnum",
         "lf" to "Life Fitness",
         "lifefitness" to "Life Fitness",
         "technogym" to "Technogym",
