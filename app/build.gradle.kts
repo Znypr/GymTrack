@@ -127,6 +127,35 @@ tasks.register("validateReleaseConfig") {
     }
 }
 
+tasks.register("validateReleaseHandoff") {
+    group = "verification"
+    description = "Requires complete local release signing before building the final handoff APK."
+    dependsOn("validateReleaseConfig")
+
+    doLast {
+        check(releaseSigningPropertiesFile.exists()) {
+            "Create release-signing.properties from release-signing.properties.example before a release handoff."
+        }
+        check(hasCompleteReleaseSigningConfig()) {
+            "release-signing.properties must define: ${releaseSigningKeys.joinToString()}."
+        }
+
+        val release = android.buildTypes.getByName("release")
+        check(release.signingConfig?.name == "release") {
+            "Release handoff builds must use the local release signing config."
+        }
+        check(!release.isDebuggable) { "Release handoff builds must not be debuggable." }
+        check(android.defaultConfig.applicationId == releaseApplicationId) {
+            "Release handoff must install as $releaseApplicationId."
+        }
+
+        val debug = android.buildTypes.getByName("debug")
+        check(debug.applicationIdSuffix == debugApplicationIdSuffix) {
+            "Debug must keep $debugApplicationIdSuffix so app.znypr.gymtrack.debug remains separate."
+        }
+    }
+}
+
 tasks.named("check") {
     dependsOn("validateReleaseConfig")
 }
