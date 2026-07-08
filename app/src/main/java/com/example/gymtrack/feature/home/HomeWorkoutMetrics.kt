@@ -9,7 +9,7 @@ import com.example.gymtrack.core.util.parseDurationSeconds
 import com.example.gymtrack.core.util.parseNoteText
 import kotlin.math.roundToInt
 
-internal data class HomeWorkoutStats(
+data class HomeWorkoutStats(
     val durationMinutes: Int,
     val exerciseCount: Int,
     val setCount: Int,
