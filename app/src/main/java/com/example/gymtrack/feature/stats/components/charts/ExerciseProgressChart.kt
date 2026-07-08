@@ -1,7 +1,9 @@
 package com.example.gymtrack.feature.stats.components.charts
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -250,16 +252,18 @@ private fun VariantLabelRow(labels: List<String>) {
 
 @Composable
 private fun VariantLabelChip(label: String) {
+    val borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
     Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        shape = MaterialTheme.shapes.extraSmall,
+        color = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.primary,
+        shape = RoundedCornerShape(percent = 50),
+        border = BorderStroke(1.dp, borderColor),
     ) {
         Text(
             text = label,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
             style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.SemiBold,
         )
     }
 }
