@@ -1,35 +1,34 @@
 package com.example.gymtrack.feature.stats.components.charts
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.gymtrack.feature.stats.CategoryVolume
+import com.example.gymtrack.feature.stats.TrainingInsightRow
+import com.example.gymtrack.feature.stats.TrainingMetricShift
 import java.util.Locale
+import kotlin.math.abs
 
 @Composable
-fun CategoryVolumeChart(
-    data: List<CategoryVolume>,
-    unitLabel: String,
+fun TrainingInsightsPanel(
+    data: List<TrainingInsightRow>,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxWidth()) {
         Text(
-            "Volume by Category",
+            "Training Insights",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            "Top categories by weight × reps · $unitLabel",
+            "Early vs recent workouts in this range · strategy, progression, and time use",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
         )
@@ -38,65 +37,108 @@ fun CategoryVolumeChart(
         if (data.isEmpty()) {
             Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
                 Text(
-                    "No load-based sets in this period",
+                    "Need at least two parsed workouts for trend insights",
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                 )
             }
             return
         }
 
-        val maxVolume = data.maxOf { it.totalVolume }.coerceAtLeast(1f)
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            data.forEach { row ->
-                val fraction = (row.totalVolume / maxVolume).coerceIn(0f, 1f)
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            row.category,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Text(
-                            "${formatVolume(row.totalVolume)} · ${row.setCount} sets",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
-                            maxLines = 1
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(12.dp)
-                            .clip(RoundedCornerShape(50))
-                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(fraction)
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(50))
-                                .background(MaterialTheme.colorScheme.primary)
-                        )
-                    }
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            data.forEachIndexed { index, row ->
+                TrainingInsightRowView(row = row)
+                if (index < data.lastIndex) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                 }
             }
         }
     }
 }
 
-private fun formatVolume(value: Float): String {
-    return if (value >= 1_000f) {
-        String.format(Locale.getDefault(), "%.1fk", value / 1_000f)
-    } else {
-        value.toInt().toString()
+@Composable
+private fun TrainingInsightRowView(row: TrainingInsightRow) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    row.category,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "${row.workoutCount} workouts · ${row.summary}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+                )
+            }
+        }
+
+        MetricLine(metric = row.strength)
+        MetricLine(metric = row.density)
+        MetricLine(metric = row.setDepth)
+        MetricLine(metric = row.exerciseCount)
+        MetricLine(metric = row.reps)
+        MetricLine(metric = row.duration)
     }
 }
+
+@Composable
+private fun MetricLine(metric: TrainingMetricShift) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            metric.label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            metricChangeText(metric),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+            maxLines = 1,
+        )
+    }
+}
+
+private fun metricChangeText(metric: TrainingMetricShift): String {
+    val direction = when {
+        metric.absoluteChange > 0.01f -> "↑"
+        metric.absoluteChange < -0.01f -> "↓"
+        else -> "→"
+    }
+    val change = metric.percentChange?.let { percent ->
+        if (abs(percent) >= 1f) {
+            "${percent.signPrefix()}${String.format(Locale.getDefault(), "%.0f", percent)}%"
+        } else {
+            "flat"
+        }
+    } ?: metric.absoluteChange.let { delta ->
+        if (abs(delta) >= 0.1f) "${delta.signPrefix()}${String.format(Locale.getDefault(), "%.1f", delta)}" else "flat"
+    }
+
+    return "$direction $change · now ${formatMetricValue(metric.recent, metric.unit)}"
+}
+
+private fun formatMetricValue(value: Float, unit: String): String {
+    val formatted = when {
+        value >= 100f -> String.format(Locale.getDefault(), "%.0f", value)
+        value >= 10f -> String.format(Locale.getDefault(), "%.1f", value)
+        else -> String.format(Locale.getDefault(), "%.2f", value)
+    }
+    return "$formatted $unit"
+}
+
+private fun Float.signPrefix(): String = if (this > 0f) "+" else ""
