@@ -1,6 +1,7 @@
 package com.example.gymtrack.core.util
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -53,6 +54,15 @@ class ExerciseIdentityResolverTest {
         assertEquals(dumbbell.baseComparisonKey, cable.baseComparisonKey)
         assertNotEquals(dumbbell.progressComparisonKey, machine.progressComparisonKey)
         assertNotEquals(machine.progressComparisonKey, cable.progressComparisonKey)
+    }
+
+    @Test
+    fun tBarRowDoesNotBecomeStraightBarAttachment() {
+        val identity = ExerciseIdentityResolver.resolve(rawName = "tbar rows prime")
+
+        assertEquals("T-Bar Row", identity.canonicalName)
+        assertEquals("Prime", identity.brand)
+        assertFalse("T-bar is the exercise name, not a straight-bar attachment", "Straight bar" in identity.variantLabels())
     }
 
     @Test
