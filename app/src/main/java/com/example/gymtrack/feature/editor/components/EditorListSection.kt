@@ -56,7 +56,6 @@ import kotlinx.coroutines.launch
 internal const val EDITOR_FIRST_INPUT_TEST_TAG = "editor-first-input"
 internal const val EDITOR_EMPTY_AFFORDANCE_TEST_TAG = "editor-empty-affordance"
 
-// --- COMPONENT: EDITOR LIST SECTION (UPDATED) ---
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
@@ -69,7 +68,7 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxSize()
             .imePadding(),
-        contentPadding = PaddingValues(bottom = 150.dp)
+        contentPadding = PaddingValues(bottom = 150.dp),
     ) {
         itemsIndexed(state.lines, key = { _, row -> row.id }) { index, row ->
             val fr = row.focusRequester
@@ -96,91 +95,114 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                 rememberRelativeTimeVisualTransformation(fontSize)
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 0.dp)
-                    .bringIntoViewRequester(bringIntoViewRequester),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Flag / Tag Column
-                Box(
-                    modifier = Modifier.width(50.dp),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    if (row.text.value.text.isNotBlank()) {
-                        if (isMain) {
-                            ExerciseFlagButton(
-                                flag = row.flag.value,
-                                relColor = textColor,
-                                onToggle = { state.toggleFlag(index) }
-                            )
-                        } else {
-                            var p = index - 1
-                            while (p >= 0 && (state.lines.getOrNull(p - 1)?.text?.value?.text?.isNotBlank() == true)) p--
-                            val parentFlag = state.lines.getOrNull(p)?.flag?.value ?: ExerciseFlag.BILATERAL
-                            ExerciseFlagTag(flag = parentFlag, relColor = textColor)
+            if (isFirstEmptyInput) {
+                BasicTextField(
+                    value = row.text.value,
+                    onValueChange = { state.onTextChange(index, it) },
+                    textStyle = LocalTextStyle.current.copy(
+                        color = textColor,
+                        fontSize = fontSize,
+                        fontWeight = fontWeight,
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    visualTransformation = visualTransformation,
+                    decorationBox = { innerTextField ->
+                        StarterInputAffordance(
+                            isFocused = isFocused,
+                            innerTextField = innerTextField,
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 84.dp)
+                        .testTag(EDITOR_FIRST_INPUT_TEST_TAG)
+                        .bringIntoViewRequester(bringIntoViewRequester)
+                        .clickable {
+                            fr.requestFocus()
+                            keyboardController?.show()
                         }
-                    }
-                }
-
-                Spacer(Modifier.width(8.dp))
-
-                // Input Field
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    BasicTextField(
-                        value = row.text.value,
-                        onValueChange = { state.onTextChange(index, it) },
-                        textStyle = LocalTextStyle.current.copy(
-                            color = textColor,
-                            fontSize = fontSize,
-                            fontWeight = fontWeight,
-                        ),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                        visualTransformation = visualTransformation,
-                        decorationBox = { innerTextField ->
-                            if (isFirstEmptyInput) {
-                                StarterInputAffordance(
-                                    isFocused = isFocused,
-                                    innerTextField = innerTextField,
-                                )
-                            } else {
-                                innerTextField()
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .then(if (isFirstEmptyInput) Modifier.heightIn(min = 84.dp) else Modifier)
-                            .then(if (index == 0) Modifier.testTag(EDITOR_FIRST_INPUT_TEST_TAG) else Modifier)
-                            .clickable(enabled = isFirstEmptyInput) {
-                                fr.requestFocus()
-                                keyboardController?.show()
-                            }
-                            .focusRequester(fr)
-                            .onFocusChanged {
-                                isFocused = it.isFocused
-                                if (it.isFocused) {
-                                    coroutineScope.launch {
-                                        bringIntoViewRequester.bringIntoView()
-                                    }
+                        .focusRequester(fr)
+                        .onFocusChanged {
+                            isFocused = it.isFocused
+                            if (it.isFocused) {
+                                coroutineScope.launch {
+                                    bringIntoViewRequester.bringIntoView()
                                 }
                             }
-                    )
-                }
+                        },
+                )
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 0.dp)
+                        .bringIntoViewRequester(bringIntoViewRequester),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Flag / Tag Column
+                    Box(
+                        modifier = Modifier.width(50.dp),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        if (row.text.value.text.isNotBlank()) {
+                            if (isMain) {
+                                ExerciseFlagButton(
+                                    flag = row.flag.value,
+                                    relColor = textColor,
+                                    onToggle = { state.toggleFlag(index) },
+                                )
+                            } else {
+                                var p = index - 1
+                                while (p >= 0 && (state.lines.getOrNull(p - 1)?.text?.value?.text?.isNotBlank() == true)) p--
+                                val parentFlag = state.lines.getOrNull(p)?.flag?.value ?: ExerciseFlag.BILATERAL
+                                ExerciseFlagTag(flag = parentFlag, relColor = textColor)
+                            }
+                        }
+                    }
 
-                // Timestamp
-                val absText = state.timestamps.getOrElse(index) { "" }
-                if (absText.isNotBlank()) {
-                    val absAnnotated = SmallSecondsVisualTransformation(14.sp).filter(AnnotatedString(absText)).text
-                    Text(
-                        text = absAnnotated,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
+                    Spacer(Modifier.width(8.dp))
+
+                    // Input Field
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        BasicTextField(
+                            value = row.text.value,
+                            onValueChange = { state.onTextChange(index, it) },
+                            textStyle = LocalTextStyle.current.copy(
+                                color = textColor,
+                                fontSize = fontSize,
+                                fontWeight = fontWeight,
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            visualTransformation = visualTransformation,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .then(if (index == 0) Modifier.testTag(EDITOR_FIRST_INPUT_TEST_TAG) else Modifier)
+                                .focusRequester(fr)
+                                .onFocusChanged {
+                                    isFocused = it.isFocused
+                                    if (it.isFocused) {
+                                        coroutineScope.launch {
+                                            bringIntoViewRequester.bringIntoView()
+                                        }
+                                    }
+                                },
+                        )
+                    }
+
+                    // Timestamp
+                    val absText = state.timestamps.getOrElse(index) { "" }
+                    if (absText.isNotBlank()) {
+                        val absAnnotated = SmallSecondsVisualTransformation(14.sp).filter(AnnotatedString(absText)).text
+                        Text(
+                            text = absAnnotated,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
                 }
             }
         }
@@ -194,7 +216,7 @@ internal fun StarterInputAffordance(
     innerTextField: @Composable () -> Unit = {},
 ) {
     val borderColor = if (isFocused) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.75f)
     } else {
         MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
     }
