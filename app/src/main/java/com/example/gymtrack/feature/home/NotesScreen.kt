@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -20,6 +21,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -28,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
+import com.example.gymtrack.core.util.formatWeekRelativeTime
 import com.example.gymtrack.feature.home.components.WorkoutAlbumCard
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -148,6 +152,8 @@ fun NotesScreen(
                 .filter { n -> categoryFilter?.let { n.categoryName == it.name } ?: true }
                 .let { list -> if (newestFirst) list.sortedByDescending { it.timestamp } else list.sortedBy { it.timestamp } }
         }
+        val latestWorkout = remember(notes) { notes.maxByOrNull { it.timestamp } }
+        val categoryCount = remember(notes) { notes.mapNotNull { it.categoryName }.distinct().size }
 
         Box(
             modifier = Modifier
@@ -162,48 +168,66 @@ fun NotesScreen(
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(160.dp),
                 state = rememberLazyGridState(),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
+                    HomeTrainingOverview(
+                        totalWorkouts = notes.size,
+                        visibleWorkouts = displayNotes.size,
+                        categoryCount = categoryCount,
+                        latestWorkout = latestWorkout,
+                        settings = settings,
+                    )
+                }
+
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 8.dp),
-                        horizontalArrangement = Arrangement.End,
+                            .padding(top = 2.dp, bottom = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box {
-                            TextButton(onClick = { filterExpanded = true }) {
-                                Text(
-                                    text = categoryFilter?.name ?: "All Categories",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            DropdownMenu(
-                                expanded = filterExpanded,
-                                onDismissRequest = { filterExpanded = false },
-                                containerColor = MaterialTheme.colorScheme.surface,
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("All", color = MaterialTheme.colorScheme.onSurface) },
-                                    onClick = { categoryFilter = null; filterExpanded = false },
-                                )
-                                settings.categories.forEach { cat ->
-                                    DropdownMenuItem(
-                                        text = { Text(cat.name, color = MaterialTheme.colorScheme.onSurface) },
-                                        trailingIcon = { Box(Modifier.size(10.dp).background(Color(cat.color), CircleShape)) },
-                                        onClick = { categoryFilter = cat; filterExpanded = false },
+                        Text(
+                            text = "Workout history",
+                            color = MaterialTheme.colorScheme.onBackground,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box {
+                                TextButton(onClick = { filterExpanded = true }) {
+                                    Text(
+                                        text = categoryFilter?.name ?: "All Categories",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.SemiBold,
                                     )
+                                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                DropdownMenu(
+                                    expanded = filterExpanded,
+                                    onDismissRequest = { filterExpanded = false },
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("All", color = MaterialTheme.colorScheme.onSurface) },
+                                        onClick = { categoryFilter = null; filterExpanded = false },
+                                    )
+                                    settings.categories.forEach { cat ->
+                                        DropdownMenuItem(
+                                            text = { Text(cat.name, color = MaterialTheme.colorScheme.onSurface) },
+                                            trailingIcon = { Box(Modifier.size(10.dp).background(Color(cat.color), CircleShape)) },
+                                            onClick = { categoryFilter = cat; filterExpanded = false },
+                                        )
+                                    }
                                 }
                             }
-                        }
-                        IconButton(onClick = { newestFirst = !newestFirst }) {
-                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Sort", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            IconButton(onClick = { newestFirst = !newestFirst }) {
+                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Sort", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                 }
@@ -229,6 +253,80 @@ fun NotesScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun HomeTrainingOverview(
+    totalWorkouts: Int,
+    visibleWorkouts: Int,
+    categoryCount: Int,
+    latestWorkout: NoteLine?,
+    settings: Settings,
+) {
+    val accent = MaterialTheme.colorScheme.primary
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(0.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            accent.copy(alpha = 0.18f),
+                            MaterialTheme.colorScheme.surface,
+                        ),
+                    ),
+                )
+                .padding(18.dp),
+        ) {
+            Column {
+                Text(
+                    text = "TRAINING LOG",
+                    color = accent,
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = if (latestWorkout == null) "Ready for your first session" else "Last session: ${formatWeekRelativeTime(latestWorkout.timestamp, settings)}",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                )
+                Spacer(Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OverviewMetric("TOTAL", totalWorkouts.toString())
+                    OverviewMetric("VISIBLE", visibleWorkouts.toString())
+                    OverviewMetric("TYPES", categoryCount.toString())
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OverviewMetric(label: String, value: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(14.dp),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Text(
+                text = value,
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+            )
+            Text(
+                text = label,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelSmall,
+            )
         }
     }
 }
