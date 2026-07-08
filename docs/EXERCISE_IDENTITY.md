@@ -47,7 +47,7 @@ The app should preserve the text exactly, but show cleaner UI around it:
 
 ```text
 Triceps Pushdown
-[Prime] [Machine]
+[Prime] [Cable]
 
 Triceps Pushdown
 [Cable]
