@@ -27,14 +27,19 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.HomeOverviewWidget
 import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
+import com.example.gymtrack.core.data.WorkoutIntensityFormula
 import com.example.gymtrack.core.util.formatWeekRelativeTime
 import com.example.gymtrack.feature.home.components.WorkoutAlbumCard
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -149,6 +154,7 @@ fun NotesScreen(
         var categoryFilter by remember { mutableStateOf<Category?>(null) }
         var filterExpanded by remember { mutableStateOf(false) }
 
+        val sortedNotes = remember(notes) { notes.sortedByDescending { it.timestamp } }
         val displayNotes = remember(notes, categoryFilter, newestFirst) {
             notes
                 .filter { n -> categoryFilter?.let { n.categoryName == it.name } ?: true }
@@ -168,7 +174,7 @@ fun NotesScreen(
                 intensityFlames(current, peers, settings.workoutIntensityFormula)
             }
         }
-        val latestWorkout = remember(notes) { notes.maxByOrNull { it.timestamp } }
+        val latestWorkout = remember(sortedNotes) { sortedNotes.firstOrNull() }
 
         Box(
             modifier = Modifier
@@ -192,7 +198,7 @@ fun NotesScreen(
                     HomeTrainingOverview(
                         widget = settings.homeOverviewWidget,
                         latestWorkout = latestWorkout,
-                        recentWorkouts = displayNotes.take(5),
+                        allWorkouts = sortedNotes,
                         statsByNote = statsByNote,
                         flamesByNote = flamesByNote,
                         settings = settings,
@@ -280,7 +286,7 @@ fun NotesScreen(
 private fun HomeTrainingOverview(
     widget: HomeOverviewWidget,
     latestWorkout: NoteLine?,
-    recentWorkouts: List<NoteLine>,
+    allWorkouts: List<NoteLine>,
     statsByNote: Map<NoteLine, HomeWorkoutStats>,
     flamesByNote: Map<NoteLine, Int>,
     settings: Settings,
@@ -289,14 +295,19 @@ private fun HomeTrainingOverview(
     when (widget) {
         HomeOverviewWidget.LAST_WORKOUT -> LastWorkoutOverview(
             latestWorkout = latestWorkout,
-            stats = latestWorkout?.let { statsByNote[it] },
-            flames = latestWorkout?.let { flamesByNote[it] } ?: 0,
+            previousSameCategory = previousSameCategoryWorkout(latestWorkout, allWorkouts),
+            statsByNote = statsByNote,
+            flamesByNote = flamesByNote,
             settings = settings,
         )
         HomeOverviewWidget.RECENT_INTENSITY -> RecentIntensityOverview(
-            recentWorkouts = recentWorkouts,
+            allWorkouts = allWorkouts,
             statsByNote = statsByNote,
-            flamesByNote = flamesByNote,
+            settings = settings,
+        )
+        HomeOverviewWidget.CYCLE_PROGRESS -> CycleProgressOverview(
+            allWorkouts = allWorkouts,
+            statsByNote = statsByNote,
             settings = settings,
         )
         HomeOverviewWidget.QUICK_START -> QuickStartOverview(onStartWorkout = onStartWorkout)
@@ -306,45 +317,61 @@ private fun HomeTrainingOverview(
 @Composable
 private fun LastWorkoutOverview(
     latestWorkout: NoteLine?,
-    stats: HomeWorkoutStats?,
-    flames: Int,
+    previousSameCategory: NoteLine?,
+    statsByNote: Map<NoteLine, HomeWorkoutStats>,
+    flamesByNote: Map<NoteLine, Int>,
     settings: Settings,
 ) {
     val accent = MaterialTheme.colorScheme.primary
     OverviewCard {
-        Text("LAST WORKOUT", color = accent, style = MaterialTheme.typography.labelLarge)
+        Text("LAST SESSION TARGET", color = accent, style = MaterialTheme.typography.labelLarge)
         Spacer(Modifier.height(8.dp))
-        if (latestWorkout == null || stats == null) {
+        if (latestWorkout == null) {
             Text(
                 text = "Ready for your first session",
                 color = MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.ExtraBold,
             )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "Start logging now; this widget becomes useful after your next repeat workout.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
         } else {
+            val latestStats = statsByNote[latestWorkout]
+            val previousStats = previousSameCategory?.let { statsByNote[it] }
+            val latestScore = latestStats?.intensityScore(settings.workoutIntensityFormula) ?: 0f
+            val previousScore = previousStats?.intensityScore(settings.workoutIntensityFormula) ?: 0f
+            val delta = scoreDeltaPercent(latestScore, previousScore)
+            val category = latestWorkout.categoryName ?: "Workout"
+
+            Text(
+                text = "$category · ${formatWeekRelativeTime(latestWorkout.timestamp, settings)}",
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.ExtraBold,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = if (delta == null) {
+                    "No previous $category session yet. Use this as your baseline."
+                } else {
+                    "${delta.statusText} vs previous $category · ${delta.percentText}"
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Spacer(Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "${latestWorkout.categoryName ?: "Workout"} · ${formatWeekRelativeTime(latestWorkout.timestamp, settings)}",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = listOfNotNull(
-                            stats.durationMinutes.takeIf { it > 0 }?.let { "$it min" },
-                            stats.cardMetricLabel(settings.homeCardMetric),
-                        ).joinToString(" · "),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                Text(flameText(flames), style = MaterialTheme.typography.titleLarge)
+                MetricPill("Last", latestStats?.cardMetricLabel(settings.homeCardMetric) ?: "—")
+                MetricPill("Target", previousStats?.cardMetricLabel(settings.homeCardMetric) ?: "baseline")
+                Text(flameText(flamesByNote[latestWorkout] ?: 0), style = MaterialTheme.typography.titleLarge)
             }
         }
     }
@@ -352,43 +379,127 @@ private fun LastWorkoutOverview(
 
 @Composable
 private fun RecentIntensityOverview(
-    recentWorkouts: List<NoteLine>,
+    allWorkouts: List<NoteLine>,
     statsByNote: Map<NoteLine, HomeWorkoutStats>,
-    flamesByNote: Map<NoteLine, Int>,
     settings: Settings,
 ) {
     val accent = MaterialTheme.colorScheme.primary
+    val trend = remember(allWorkouts, statsByNote, settings.workoutIntensityFormula) {
+        recentIntensityTrend(allWorkouts, statsByNote, settings.workoutIntensityFormula)
+    }
+
     OverviewCard {
-        Text("RECENT INTENSITY", color = accent, style = MaterialTheme.typography.labelLarge)
-        Spacer(Modifier.height(10.dp))
-        if (recentWorkouts.isEmpty()) {
-            Text("No workouts yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("INTENSITY TREND", color = accent, style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "Beat your recent baseline today",
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.ExtraBold,
+        )
+        Spacer(Modifier.height(6.dp))
+        if (trend.isEmpty()) {
+            Text("No workout intensity data yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                recentWorkouts.take(4).forEach { note ->
-                    val stats = statsByNote[note]
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "${note.categoryName ?: "Workout"} · ${formatWeekRelativeTime(note.timestamp, settings)}",
-                            color = MaterialTheme.colorScheme.onSurface,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = listOfNotNull(
-                                stats?.durationMinutes?.takeIf { it > 0 }?.let { "$it min" },
-                                flameText(flamesByNote[note] ?: 0).takeIf { it.isNotBlank() },
-                            ).joinToString(" · "),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.labelLarge,
-                        )
-                    }
-                }
+            val average = trend.map { it.score }.average().toFloat()
+            val last = trend.first().score
+            val delta = scoreDeltaPercent(last, average)
+            Text(
+                text = if (delta == null) {
+                    "Recent average will appear after more logged workouts."
+                } else {
+                    "Latest is ${delta.percentText} vs recent average using ${settings.workoutIntensityFormula.displayLabel.lowercase()}."
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Spacer(Modifier.height(14.dp))
+            MiniIntensityBars(trend = trend.reversed())
+        }
+    }
+}
+
+@Composable
+private fun CycleProgressOverview(
+    allWorkouts: List<NoteLine>,
+    statsByNote: Map<NoteLine, HomeWorkoutStats>,
+    settings: Settings,
+) {
+    val accent = MaterialTheme.colorScheme.primary
+    val rows = remember(allWorkouts, statsByNote, settings.workoutIntensityFormula) {
+        buildCycleRows(allWorkouts, statsByNote, settings.workoutIntensityFormula)
+    }
+    val completed = rows.count { it.current != null }
+    val ahead = rows.count { it.delta?.ratio ?: 0f >= 1.05f }
+
+    OverviewCard {
+        Text("CYCLE PROGRESS", color = accent, style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = when {
+                completed == 0 -> "Start the next PPL cycle"
+                ahead >= 2 -> "This cycle is ahead"
+                completed < 3 -> "Finish the current cycle"
+                else -> "Use today to beat last cycle"
+            },
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.ExtraBold,
+        )
+        Spacer(Modifier.height(10.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            rows.forEach { row ->
+                CycleRowView(row = row, settings = settings)
             }
+        }
+    }
+}
+
+@Composable
+private fun CycleRowView(row: CycleComparisonRow, settings: Settings) {
+    val currentStats = row.currentStats
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = row.category,
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.width(46.dp),
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(8.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+        ) {
+            val fill = (row.delta?.ratio ?: if (row.current != null) 0.5f else 0f).coerceIn(0f, 1.25f) / 1.25f
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(fill)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(MaterialTheme.colorScheme.primary),
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(horizontalAlignment = Alignment.End, modifier = Modifier.width(82.dp)) {
+            Text(
+                text = row.delta?.statusText ?: if (row.current == null) "Missing" else "Baseline",
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = currentStats?.cardMetricLabel(settings.homeCardMetric) ?: "not done",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelSmall,
+                textAlign = TextAlign.End,
+            )
         }
     }
 }
@@ -411,6 +522,58 @@ private fun QuickStartOverview(onStartWorkout: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium,
         )
+    }
+}
+
+@Composable
+private fun MiniIntensityBars(trend: List<IntensityPoint>) {
+    val maxScore = trend.maxOfOrNull { it.score }?.takeIf { it > 0f } ?: 1f
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(54.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        trend.takeLast(12).forEach { point ->
+            val heightFraction = (point.score / maxScore).coerceIn(0.08f, 1f)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(heightFraction)
+                        .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = if (point.isLatest) 1f else 0.42f)),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetricPill(label: String, value: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(14.dp),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Text(
+                text = label.uppercase(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelSmall,
+            )
+            Text(
+                text = value,
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+            )
+        }
     }
 }
 
@@ -442,3 +605,104 @@ private fun OverviewCard(
         )
     }
 }
+
+private data class ScoreDelta(
+    val ratio: Float,
+    val percent: Int,
+    val statusText: String,
+    val percentText: String,
+)
+
+private data class IntensityPoint(
+    val note: NoteLine,
+    val score: Float,
+    val isLatest: Boolean,
+)
+
+private data class CycleComparisonRow(
+    val category: String,
+    val current: NoteLine?,
+    val previous: NoteLine?,
+    val currentStats: HomeWorkoutStats?,
+    val previousStats: HomeWorkoutStats?,
+    val delta: ScoreDelta?,
+)
+
+private fun previousSameCategoryWorkout(latestWorkout: NoteLine?, allWorkouts: List<NoteLine>): NoteLine? {
+    if (latestWorkout == null) return null
+    return allWorkouts
+        .filter { it != latestWorkout && it.categoryName == latestWorkout.categoryName }
+        .sortedByDescending { it.timestamp }
+        .firstOrNull()
+}
+
+private fun recentIntensityTrend(
+    allWorkouts: List<NoteLine>,
+    statsByNote: Map<NoteLine, HomeWorkoutStats>,
+    formula: WorkoutIntensityFormula,
+): List<IntensityPoint> {
+    val latestTimestamp = allWorkouts.maxOfOrNull { it.timestamp } ?: return emptyList()
+    val ninetyDaysMs = 90L * 24L * 60L * 60L * 1000L
+    val recent = allWorkouts
+        .filter { it.timestamp >= latestTimestamp - ninetyDaysMs }
+        .sortedByDescending { it.timestamp }
+        .take(12)
+        .ifEmpty { allWorkouts.sortedByDescending { it.timestamp }.take(12) }
+
+    return recent.mapIndexedNotNull { index, note ->
+        val score = statsByNote[note]?.intensityScore(formula) ?: return@mapIndexedNotNull null
+        if (score <= 0f) return@mapIndexedNotNull null
+        IntensityPoint(note = note, score = score, isLatest = index == 0)
+    }
+}
+
+private fun buildCycleRows(
+    allWorkouts: List<NoteLine>,
+    statsByNote: Map<NoteLine, HomeWorkoutStats>,
+    formula: WorkoutIntensityFormula,
+): List<CycleComparisonRow> {
+    val cycleCategories = listOf("Push", "Pull", "Legs")
+    return cycleCategories.map { category ->
+        val categoryWorkouts = allWorkouts
+            .filter { it.categoryName.equals(category, ignoreCase = true) }
+            .sortedByDescending { it.timestamp }
+        val current = categoryWorkouts.getOrNull(0)
+        val previous = categoryWorkouts.getOrNull(1)
+        val currentStats = current?.let { statsByNote[it] }
+        val previousStats = previous?.let { statsByNote[it] }
+        val currentScore = currentStats?.intensityScore(formula) ?: 0f
+        val previousScore = previousStats?.intensityScore(formula) ?: 0f
+        CycleComparisonRow(
+            category = category,
+            current = current,
+            previous = previous,
+            currentStats = currentStats,
+            previousStats = previousStats,
+            delta = scoreDeltaPercent(currentScore, previousScore),
+        )
+    }
+}
+
+private fun scoreDeltaPercent(current: Float, previous: Float): ScoreDelta? {
+    if (current <= 0f || previous <= 0f) return null
+    val ratio = current / previous
+    val percent = ((ratio - 1f) * 100f).roundToInt()
+    val status = when {
+        ratio >= 1.05f -> "Ahead"
+        ratio <= 0.95f -> "Behind"
+        else -> "On pace"
+    }
+    val sign = when {
+        percent > 0 -> "+"
+        percent < 0 -> "−"
+        else -> "±"
+    }
+    return ScoreDelta(
+        ratio = ratio,
+        percent = percent,
+        statusText = status,
+        percentText = "$sign${abs(percent)}%",
+    )
+}
+
+private fun Float.formatCompact(): String = String.format(Locale.US, "%.2f", this)
