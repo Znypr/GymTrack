@@ -216,7 +216,7 @@ fun ExerciseProgressCard(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = MaterialTheme.colorScheme.onSurface,
                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        focusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.24f),
                         unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.24f),
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
