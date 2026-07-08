@@ -64,7 +64,7 @@ private fun looksLikeSetLine(line: String): Boolean {
 
 internal fun HomeWorkoutStats.cardMetricLabel(metric: HomeCardMetric): String = when (metric) {
     HomeCardMetric.TOTAL_SETS -> if (setCount == 1) "1 set" else "$setCount sets"
-    HomeCardMetric.SETS_PER_MINUTE -> if (setsPerMinute > 0f) "${setsPerMinute.format1()} sets/min" else "No density"
+    HomeCardMetric.SETS_PER_MINUTE -> if (setsPerMinute > 0f) "${setsPerMinute.format2()} sets/min" else "No density"
     HomeCardMetric.EXERCISES -> if (exerciseCount == 1) "1 exercise" else "$exerciseCount exercises"
     HomeCardMetric.AVG_SETS_PER_EXERCISE -> if (avgSetsPerExercise > 0f) "${avgSetsPerExercise.format1()} sets/ex" else "No sets/ex"
 }
@@ -132,3 +132,5 @@ private fun Float.format1(): String {
     val rounded = (this * 10f).roundToInt() / 10f
     return if (rounded % 1f == 0f) rounded.toInt().toString() else rounded.toString()
 }
+
+private fun Float.format2(): String = "%.2f".format(this)
