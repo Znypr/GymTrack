@@ -1,7 +1,10 @@
 package com.example.gymtrack.feature.stats
 
+import com.example.gymtrack.core.data.ExerciseFlag
 import com.example.gymtrack.core.data.NoteLine
+import com.example.gymtrack.core.util.buildNoteRowMetadata
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Calendar
 
@@ -20,35 +23,82 @@ class StatsChartModelsTest {
     }
 
     @Test
-    fun buildVolumeByCategoryRanksLoadedSetsByVolume() {
-        val volume = buildVolumeByCategory(
+    fun buildTrainingInsightsComparesEarlyAndRecentWorkoutStrategy() {
+        val insights = buildTrainingInsights(
             listOf(
                 note(
-                    text = "Bench Press\n    8x 100kg\n    10x 90kg",
+                    text = "Bench Press\n    8x 80kg\n    8x 80kg",
+                    timestamp = localTimestamp(2024, 1, 1),
                     categoryName = "Push",
+                    duration = "1:00:00",
                 ),
                 note(
-                    text = "Row\n    10x 80kg",
-                    categoryName = "Pull",
+                    text = "Bench Press\n    8x 100kg\n    8x 100kg\nIncline Press\n    10x 70kg",
+                    timestamp = localTimestamp(2024, 1, 8),
+                    categoryName = "Push",
+                    duration = "0:50:00",
                 ),
             )
         )
 
-        assertEquals("Push", volume.first().category)
-        assertEquals(1_700f, volume.first().totalVolume)
-        assertEquals(2, volume.first().setCount)
+        val allWorkouts = insights.first()
+
+        assertEquals("All workouts", allWorkouts.category)
+        assertTrue(allWorkouts.strength.recent > allWorkouts.strength.baseline)
+        assertTrue(allWorkouts.density.recent > allWorkouts.density.baseline)
+        assertTrue(allWorkouts.duration.recent < allWorkouts.duration.baseline)
+    }
+
+    @Test
+    fun buildTrainingInsightsKeepsCategorySpecificRows() {
+        val insights = buildTrainingInsights(
+            listOf(
+                note(
+                    text = "Squat\n    8x 100kg",
+                    timestamp = localTimestamp(2024, 1, 1),
+                    categoryName = "Legs",
+                ),
+                note(
+                    text = "Squat\n    8x 120kg",
+                    timestamp = localTimestamp(2024, 1, 8),
+                    categoryName = "Legs",
+                ),
+                note(
+                    text = "Bench Press\n    8x 80kg",
+                    timestamp = localTimestamp(2024, 1, 2),
+                    categoryName = "Push",
+                ),
+                note(
+                    text = "Bench Press\n    8x 80kg",
+                    timestamp = localTimestamp(2024, 1, 9),
+                    categoryName = "Push",
+                ),
+            )
+        )
+
+        val legs = insights.single { it.category == "Legs" }
+        val push = insights.single { it.category == "Push" }
+
+        assertTrue(legs.strength.recent > legs.strength.baseline)
+        assertEquals(push.strength.baseline, push.strength.recent)
     }
 
     private fun note(
         text: String = "Bench Press\n    8x 100kg",
         timestamp: Long = 1L,
         categoryName: String? = null,
+        duration: String = "1:00:00",
     ): NoteLine {
+        val lineCount = text.lines().size
         return NoteLine(
             title = "Workout",
             text = text,
             timestamp = timestamp,
             categoryName = categoryName,
+            rowMetadata = buildNoteRowMetadata(
+                times = List(lineCount) { if (it == 0) duration else "" },
+                flags = List(lineCount) { ExerciseFlag.BILATERAL },
+            ),
         )
     }
 
