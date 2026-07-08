@@ -4,7 +4,6 @@ import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.util.WorkoutParser
 import com.example.gymtrack.core.util.parseDurationSeconds
 import com.example.gymtrack.core.util.parseNoteText
-import kotlin.math.abs
 
 data class WeeklyWorkoutCount(
     val weekStart: Long,
@@ -258,10 +257,12 @@ private fun summarizeDirection(
     }
 }
 
-private fun TrainingMetricShift.isMeaningfullyUp(): Boolean = meaningfulPercentChange()?.let { it >= 5f } ?: absoluteChange > 0f
-private fun TrainingMetricShift.isMeaningfullyDown(): Boolean = meaningfulPercentChange()?.let { it <= -5f } ?: absoluteChange < 0f
+private fun TrainingMetricShift.isMeaningfullyUp(): Boolean {
+    val change = percentChange
+    return if (change != null) change >= 5f else absoluteChange > 0f
+}
 
-private fun TrainingMetricShift.meaningfulPercentChange(): Float? {
-    val change = percentChange ?: return null
-    return if (abs(change) >= 5f) change else null
+private fun TrainingMetricShift.isMeaningfullyDown(): Boolean {
+    val change = percentChange
+    return if (change != null) change <= -5f else absoluteChange < 0f
 }
