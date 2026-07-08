@@ -3,6 +3,7 @@ package com.example.gymtrack.feature.editor.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -47,8 +48,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.ExerciseFlag
 import com.example.gymtrack.core.util.CapitalizeWordsTransformation
+import com.example.gymtrack.core.util.ExerciseIdentityResolver
 import com.example.gymtrack.core.util.SmallSecondsVisualTransformation
 import com.example.gymtrack.core.util.rememberRelativeTimeVisualTransformation
+import com.example.gymtrack.core.util.variantLabels
 import com.example.gymtrack.feature.editor.NoteEditorState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -163,10 +166,7 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                     Spacer(Modifier.width(8.dp))
 
                     // Input Field
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
+                    Column(modifier = Modifier.weight(1f)) {
                         BasicTextField(
                             value = row.text.value,
                             onValueChange = { state.onTextChange(index, it) },
@@ -190,6 +190,13 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                                     }
                                 },
                         )
+
+                        if (isMain && row.text.value.text.isNotBlank()) {
+                            ExerciseIdentityPreview(
+                                rawName = row.text.value.text,
+                                isUnilateral = row.flag.value == ExerciseFlag.UNILATERAL,
+                            )
+                        }
                     }
 
                     // Timestamp
@@ -206,6 +213,65 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ExerciseIdentityPreview(
+    rawName: String,
+    isUnilateral: Boolean,
+) {
+    val identity = remember(rawName, isUnilateral) {
+        ExerciseIdentityResolver.resolve(
+            rawName = rawName,
+            isUnilateral = isUnilateral,
+        )
+    }
+    val labels = identity.variantLabels()
+    val showCanonicalName = identity.canonicalName.isNotBlank() &&
+        !identity.canonicalName.equals(rawName.trim(), ignoreCase = true)
+    val shouldShow = showCanonicalName || labels.isNotEmpty()
+
+    if (shouldShow) {
+        Column(
+            modifier = Modifier.padding(top = 3.dp, bottom = 3.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            if (showCanonicalName) {
+                Text(
+                    text = identity.canonicalName,
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            if (labels.isNotEmpty()) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    labels.take(4).forEach { label ->
+                        InlineVariantChip(label)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InlineVariantChip(label: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f),
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        shape = MaterialTheme.shapes.extraSmall,
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Medium,
+        )
     }
 }
 
