@@ -56,14 +56,7 @@ private fun ExerciseProgressChartGraph(
     val timeRange = (maxTime - minTime).coerceAtLeast(1L)
 
     val theme = rememberChartTheme()
-    val colorScheme = MaterialTheme.colorScheme
-    val seriesColors = listOf(
-        colorScheme.primary,
-        colorScheme.tertiary,
-        colorScheme.secondary,
-        colorScheme.error,
-        colorScheme.onSurfaceVariant,
-    )
+    val seriesColors = exerciseProgressPalette()
     val dateFormatter = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
     val density = LocalDensity.current
     val textPaint = makeTextPaint(theme.label, with(density) { 10.sp.toPx() })
@@ -80,12 +73,15 @@ private fun ExerciseProgressChartGraph(
             drawYGridAndLabels(scaleY, theme, layout, textPaint)
 
             val anomalySet = anomalies.map { it.originTimestamp }.toSet()
-            val orderedSeries = series.sortedBy { if (focusedVariantKey != null && it.key == focusedVariantKey) 1 else 0 }
+            val indexedSeries = series.mapIndexed { index, currentSeries -> index to currentSeries }
+            val orderedSeries = indexedSeries.sortedBy { (_, currentSeries) ->
+                if (focusedVariantKey != null && currentSeries.key == focusedVariantKey) 1 else 0
+            }
 
-            orderedSeries.forEachIndexed { seriesIndex, currentSeries ->
+            orderedSeries.forEach { (originalIndex, currentSeries) ->
                 val isFocused = focusedVariantKey == null || currentSeries.key == focusedVariantKey
-                val alpha = if (isFocused) 1f else 0.22f
-                val color = seriesColors[seriesIndex % seriesColors.size].copy(alpha = alpha)
+                val alpha = if (isFocused) 1f else 0.20f
+                val color = seriesColors[originalIndex % seriesColors.size].copy(alpha = alpha)
                 val points = currentSeries.points.map { point ->
                     val fractionX = (point.originTimestamp - minTime) / timeRange.toFloat()
                     val x = x0 + fractionX * chartW
@@ -95,13 +91,13 @@ private fun ExerciseProgressChartGraph(
 
                 if (points.size >= 2) {
                     val linePath = createSmoothPath(points)
-                    val shouldFill = focusedVariantKey == currentSeries.key || (focusedVariantKey == null && seriesIndex == 0)
+                    val shouldFill = focusedVariantKey == currentSeries.key || (focusedVariantKey == null && series.size == 1)
                     if (shouldFill) {
                         val fillPath = createFillPath(linePath, size.width, y0)
                         drawPath(
                             path = fillPath,
                             brush = Brush.verticalGradient(
-                                colors = listOf(color.copy(alpha = 0.20f), Color.Transparent),
+                                colors = listOf(color.copy(alpha = 0.18f), Color.Transparent),
                                 startY = layout.topPad,
                                 endY = y0,
                             ),
@@ -110,7 +106,7 @@ private fun ExerciseProgressChartGraph(
                     drawPath(
                         path = linePath,
                         color = color,
-                        style = Stroke(width = if (isFocused) 5f else 4f),
+                        style = Stroke(width = if (isFocused) 5f else 3.5f),
                     )
                 } else {
                     points.firstOrNull()?.let { point ->
@@ -118,7 +114,7 @@ private fun ExerciseProgressChartGraph(
                     }
                 }
 
-                if (isFocused) {
+                if (isFocused && anomalies.isNotEmpty()) {
                     points.zip(currentSeries.points).forEach { (coord, raw) ->
                         if (raw.originTimestamp in anomalySet) {
                             drawCircle(anomalyColor, radius = 8f, center = Offset(coord.first, coord.second))
@@ -189,10 +185,10 @@ fun ExerciseProgressCard(
     }
 
     val anomalyInput = remember(filteredSeries, focusedVariantKey) {
-        if (focusedVariantKey == null) {
-            filteredSeries.flatMap { it.points }
-        } else {
-            filteredSeries.firstOrNull { it.key == focusedVariantKey }?.points.orEmpty()
+        when {
+            focusedVariantKey != null -> filteredSeries.firstOrNull { it.key == focusedVariantKey }?.points.orEmpty()
+            filteredSeries.size == 1 -> filteredSeries.single().points
+            else -> emptyList()
         }
     }
     val anomalies = remember(anomalyInput) { calculateExerciseOutliers(anomalyInput) }
@@ -279,20 +275,50 @@ fun ExerciseProgressCard(
 
 @Composable
 private fun ExerciseOptionLabel(exercise: ExerciseGroupWithCount) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    val summaryLabels = remember(exercise) { dropdownSummaryLabels(exercise) }
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(
             text = "${exercise.name} (${exercise.setTotalCount} sets)",
             color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
         )
-        if (exercise.variants.isNotEmpty()) {
-            VariantLabelRow(
-                variants = exercise.variants.take(3),
-                focusedVariantKey = null,
-                onVariantClick = null,
+        if (summaryLabels.isNotEmpty()) {
+            CompactVariantSummaryRow(summaryLabels)
+        }
+    }
+}
+
+@Composable
+private fun CompactVariantSummaryRow(labels: List<String>) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        labels.take(4).forEachIndexed { index, label ->
+            CompactVariantSummaryChip(
+                label = label,
+                accent = compactSummaryColor(index),
             )
         }
+    }
+}
+
+@Composable
+private fun CompactVariantSummaryChip(label: String, accent: Color) {
+    Surface(
+        color = Color.Transparent,
+        contentColor = accent,
+        shape = RoundedCornerShape(percent = 50),
+        border = BorderStroke(0.75.dp, accent.copy(alpha = 0.70f)),
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+            fontSize = 9.sp,
+            lineHeight = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
@@ -302,13 +328,15 @@ private fun VariantLabelRow(
     focusedVariantKey: String?,
     onVariantClick: ((ExerciseProgressVariant) -> Unit)?,
 ) {
+    val palette = exerciseProgressPalette()
     Row(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        variants.take(5).forEach { variant ->
+        variants.take(5).forEachIndexed { index, variant ->
             VariantLabelChip(
                 variant = variant,
+                accent = palette[index % palette.size],
                 selected = focusedVariantKey == variant.key,
                 dimmed = focusedVariantKey != null && focusedVariantKey != variant.key,
                 onClick = onVariantClick,
@@ -320,11 +348,11 @@ private fun VariantLabelRow(
 @Composable
 private fun VariantLabelChip(
     variant: ExerciseProgressVariant,
+    accent: Color,
     selected: Boolean,
     dimmed: Boolean,
     onClick: ((ExerciseProgressVariant) -> Unit)?,
 ) {
-    val accent = variantAccentColor(variant.label)
     val alpha = if (dimmed) 0.38f else 1f
     Surface(
         modifier = if (onClick != null) Modifier.clickable { onClick(variant) } else Modifier,
@@ -342,14 +370,50 @@ private fun VariantLabelChip(
     }
 }
 
-@Composable
-private fun variantAccentColor(label: String): Color {
+private fun dropdownSummaryLabels(exercise: ExerciseGroupWithCount): List<String> {
+    val rawLabels = exercise.variants
+        .flatMap { it.labels }
+        .map(String::trim)
+        .filter(String::isNotBlank)
+        .filterNot { it.equals("Unilateral", ignoreCase = true) || it.equals("Alternating", ignoreCase = true) }
+        .distinctBy { it.lowercase(Locale.getDefault()) }
+
+    val hasSpecificMachine = rawLabels.any { label ->
+        listOf("Prime", "Atlantis", "Hammer Strength", "Cybex", "Gym80", "Life Fitness", "Sygnum")
+            .any { label.equals(it, ignoreCase = true) }
+    }
+    val compact = rawLabels
+        .filterNot { hasSpecificMachine && it.equals("Machine", ignoreCase = true) }
+        .sortedBy(::dropdownLabelPriority)
+
+    val visible = compact.take(3).toMutableList()
+    val hiddenCount = (compact.size - visible.size).coerceAtLeast(0)
+    if (hiddenCount > 0) visible += "+$hiddenCount"
+    return visible
+}
+
+private fun dropdownLabelPriority(label: String): Int {
     val lower = label.lowercase(Locale.getDefault())
     return when {
-        listOf("prime", "atlantis", "hammer strength", "cybex", "gym80", "life fitness").any { lower.contains(it) } -> Color(0xFF2E7D32)
-        listOf("rope", "bar", "handle", "v-bar", "ez-bar").any { lower.contains(it) } -> Color(0xFF6A1B9A)
-        listOf("cable", "machine", "dumbbell", "barbell", "smith", "bodyweight").any { lower.contains(it) } -> Color(0xFF1565C0)
-        listOf("unilateral", "alternating").any { lower.contains(it) } -> Color(0xFFC62828)
-        else -> MaterialTheme.colorScheme.primary
+        listOf("dumbbell", "barbell", "smith", "cable", "machine", "bodyweight").any { lower == it } -> 0
+        listOf("straight bar", "rope", "v-bar", "ez-bar", "handle").any { lower == it } -> 1
+        else -> 2
     }
+}
+
+@Composable
+private fun exerciseProgressPalette(): List<Color> = listOf(
+    MaterialTheme.colorScheme.primary,
+    Color(0xFF8E24AA),
+    Color(0xFF00897B),
+    Color(0xFFEF6C00),
+    Color(0xFFD81B60),
+    Color(0xFF5E35B1),
+    Color(0xFF6D4C41),
+)
+
+@Composable
+private fun compactSummaryColor(index: Int): Color {
+    val palette = exerciseProgressPalette()
+    return palette[index % palette.size]
 }
