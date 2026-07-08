@@ -1,32 +1,32 @@
 package com.example.gymtrack.core.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.text.selection.LocalTextSelectionColors
+import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.foundation.text.selection.LocalTextSelectionColors
-import androidx.compose.foundation.text.selection.TextSelectionColors
 
 private val DarkColorScheme = darkColorScheme(
-    primary = SpotGreen,
+    primary = GymAccent,
     background = SpotBlack,
     surface = SpotDarkGray,
     onPrimary = SpotBlack,
     onSurface = SpotWhite,
-    onBackground = SpotWhite
+    onBackground = SpotWhite,
 )
 
 private val LightColorScheme = lightColorScheme(
     primary = AppleBlack,
     onPrimary = TextWhite,
-    secondary = NeonGreen,
-    background = AppleWhite,        // <--- Apple style Light Gray background
-    surface = AppleLightCard,       // <--- White cards
+    secondary = GymAccent,
+    background = AppleWhite,
+    surface = AppleLightCard,
     surfaceVariant = AppleWhite,
     onSurface = TextBlack,
-    onBackground = TextBlack
+    onBackground = TextBlack,
 )
 
 @Composable
@@ -37,8 +37,8 @@ fun GymTrackTheme(
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
     val selectionColors = TextSelectionColors(
-        handleColor = NeonGreen,
-        backgroundColor = NeonGreen.copy(alpha = 0.4f)
+        handleColor = GymAccent,
+        backgroundColor = GymAccent.copy(alpha = 0.4f),
     )
 
     CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
@@ -46,7 +46,7 @@ fun GymTrackTheme(
             colorScheme = colorScheme,
             typography = Typography,
             shapes = AppShapes,
-            content = content
+            content = content,
         )
     }
 }
