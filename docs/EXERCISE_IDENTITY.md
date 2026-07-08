@@ -85,6 +85,15 @@ This is now applied in two places:
 - **Stats exercise-progress selector:** grouped by load-compatible progress identity, with variant chips under the option.
 - **Note editor exercise headers:** raw text remains stored, but the header visually renders as the canonical name with outlined pill chips underneath.
 
+For example, `Tbar Rows Prime` should visually render as:
+
+```text
+T-Bar Row
+[Prime] [Machine]
+```
+
+not as both raw and canonical names.
+
 ## Grouping examples
 
 | Raw wording | Canonical name | Variant fields | Prediction grouping | Progress grouping |
