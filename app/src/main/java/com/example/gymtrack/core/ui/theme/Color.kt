@@ -7,7 +7,7 @@ val SpotBlack = Color(0xFF121212)       // Main Background
 val SpotDarkGray = Color(0xFF212121)    // Card Surface
 val SpotLightGray = Color(0xFF535353)   // Secondary Text
 val SpotWhite = Color(0xFFFFFFFF)       // Primary Text
-val SpotGreen = Color(0xFF1DB954)       // Primary Action (GymTrack Green)
+val SpotGreen = Color(0xFF1DB954)       // Legacy green accent, kept for compatibility
 
 // Category Gradients (For "Album Art" look)
 val PushGradient = listOf(Color(0xFFFF3B30), Color(0xFF991812))
@@ -27,6 +27,7 @@ val AppleLightCard = Color(0xFFFFFFFF)   // Cards (Pure white)
 val TextBlack = Color(0xFF000000)
 
 // --- ACCENTS (Shared) ---
+val GymAccent = Color(0xFFE85D3F)        // Muted red-orange training accent
 val NeonGreen = Color(0xFF34C759)
 val NeonRed = Color(0xFFFF3B30)
 val NeonPurple = Color(0xFFAF52DE)
