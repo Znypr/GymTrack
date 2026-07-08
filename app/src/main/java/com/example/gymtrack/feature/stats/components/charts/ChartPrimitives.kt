@@ -13,7 +13,6 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import kotlin.math.ceil
 
-// --- THEME ---
 val SpotifyGreen = Color(0xFF1DB954)
 
 data class ChartTheme(
@@ -29,30 +28,27 @@ fun rememberChartTheme(): ChartTheme {
     val isDark = isSystemInDarkTheme()
     val colorScheme = MaterialTheme.colorScheme
 
-    // Use deep dark background in dark mode, surface in light mode
-    val bg = if (isDark) Color(0xFF181818) else colorScheme.surface
-
     return remember(isDark, colorScheme) {
+        val labelAlpha = if (isDark) 0.78f else 0.72f
+        val gridAlpha = if (isDark) 0.12f else 0.10f
         ChartTheme(
-            label = if (isDark) Color.White.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.6f),
-            grid = if (isDark) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.05f),
+            label = colorScheme.onSurface.copy(alpha = labelAlpha),
+            grid = colorScheme.onSurface.copy(alpha = gridAlpha),
             axis = Color.Transparent,
             primary = SpotifyGreen,
-            background = bg
+            background = colorScheme.surface
         )
     }
 }
 
-// --- LAYOUT & SCALING ---
-
 data class ChartLayout(
     val leftPad: Float = 60f,
-    val rightPad: Float = 16f,
+    val rightPad: Float = 40f,
     val topPad: Float = 16f,
-    val bottomPad: Float = 32f
+    val bottomPad: Float = 36f
 ) {
     fun width(totalW: Float) = totalW - leftPad - rightPad
-    fun height(totalH: Float) = totalH
+    fun height(totalH: Float) = totalH - topPad - bottomPad
     fun originX() = leftPad
     fun originY(totalH: Float) = totalH - bottomPad
 }
@@ -80,9 +76,6 @@ fun makeTextPaint(color: Color, textSizePx: Float): Paint {
     }
 }
 
-// --- DRAWING PRIMITIVES (Fixed as DrawScope Extensions) ---
-
-// Fixes "drawAxes" or "drawYGridAndLabels" unresolved errors
 fun DrawScope.drawYGridAndLabels(
     scale: ScaleY,
     theme: ChartTheme,
@@ -99,7 +92,6 @@ fun DrawScope.drawYGridAndLabels(
         val value = stepVal * i
         val y = scale.yToPx(value, yOrigin, layout.topPad)
 
-        // Draw Grid Line (Compose)
         drawLine(
             color = theme.grid,
             start = Offset(xStart, y),
@@ -107,16 +99,13 @@ fun DrawScope.drawYGridAndLabels(
             strokeWidth = 1f
         )
 
-        // Draw Label (Native)
         val label = if (value % 1.0f == 0f) value.toInt().toString() else String.format("%.1f", value)
         val p = textPaint
         val w = p.measureText(label)
-        // Draw text slightly to the left of the Y-axis
         drawContext.canvas.nativeCanvas.drawText(label, xStart - w - 12f, y + (p.textSize / 3), p)
     }
 }
 
-// Fixes "drawXTickLabel" unresolved error
 fun DrawScope.drawXTickLabel(
     label: String,
     x: Float,
@@ -125,11 +114,9 @@ fun DrawScope.drawXTickLabel(
 ) {
     val p = textPaint
     val w = p.measureText(label)
-    // Draw text centered at X, below Y-axis
-    drawContext.canvas.nativeCanvas.drawText(label, x - (w / 2), yOrigin + p.textSize + 12f, p)
+    val safeX = (x - (w / 2)).coerceIn(0f, size.width - w)
+    drawContext.canvas.nativeCanvas.drawText(label, safeX, yOrigin + p.textSize + 12f, p)
 }
-
-// --- PATH HELPERS ---
 
 fun createSmoothPath(points: List<Pair<Float, Float>>): Path {
     val path = Path()
