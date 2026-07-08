@@ -27,12 +27,64 @@ enum class WeightUnit(val storageValue: String, val displayLabel: String) {
     }
 }
 
+enum class HomeCardMetric(val storageValue: String, val displayLabel: String) {
+    TOTAL_SETS("TOTAL_SETS", "Sets"),
+    SETS_PER_MINUTE("SETS_PER_MINUTE", "Sets/min"),
+    EXERCISES("EXERCISES", "Exercises"),
+    AVG_SETS_PER_EXERCISE("AVG_SETS_PER_EXERCISE", "Sets/exercise");
+
+    companion object {
+        fun fromStorage(value: String?): HomeCardMetric = entries.firstOrNull {
+            it.storageValue == value?.trim()?.uppercase()
+        } ?: SETS_PER_MINUTE
+    }
+}
+
+enum class WorkoutIntensityFormula(val storageValue: String, val displayLabel: String, val description: String) {
+    SET_DENSITY(
+        storageValue = "SET_DENSITY",
+        displayLabel = "Density",
+        description = "Flames compare sets per minute against recent workouts in the same category.",
+    ),
+    SET_VOLUME(
+        storageValue = "SET_VOLUME",
+        displayLabel = "Volume",
+        description = "Flames compare total set count against recent workouts in the same category.",
+    ),
+    AVG_SETS_PER_EXERCISE(
+        storageValue = "AVG_SETS_PER_EXERCISE",
+        displayLabel = "Depth",
+        description = "Flames compare average sets per exercise against recent workouts in the same category.",
+    );
+
+    companion object {
+        fun fromStorage(value: String?): WorkoutIntensityFormula = entries.firstOrNull {
+            it.storageValue == value?.trim()?.uppercase()
+        } ?: SET_DENSITY
+    }
+}
+
+enum class HomeOverviewWidget(val storageValue: String, val displayLabel: String) {
+    LAST_WORKOUT("LAST_WORKOUT", "Last workout"),
+    RECENT_INTENSITY("RECENT_INTENSITY", "Recent intensity"),
+    QUICK_START("QUICK_START", "Quick start");
+
+    companion object {
+        fun fromStorage(value: String?): HomeOverviewWidget = entries.firstOrNull {
+            it.storageValue == value?.trim()?.uppercase()
+        } ?: LAST_WORKOUT
+    }
+}
+
 data class Settings(
     val is24Hour: Boolean = true,
     val roundingSeconds: Int = 5,
     val darkMode: Boolean = true,
     val categories: List<Category> = DEFAULT_CATEGORIES,
     val defaultWeightUnit: WeightUnit = WeightUnit.KG,
+    val homeCardMetric: HomeCardMetric = HomeCardMetric.SETS_PER_MINUTE,
+    val workoutIntensityFormula: WorkoutIntensityFormula = WorkoutIntensityFormula.SET_DENSITY,
+    val homeOverviewWidget: HomeOverviewWidget = HomeOverviewWidget.LAST_WORKOUT,
 )
 
 data class NoteLine(
