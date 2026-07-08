@@ -198,7 +198,6 @@ fun NotesScreen(
                         widget = settings.homeOverviewWidget,
                         allWorkouts = sortedNotes,
                         statsByNote = statsByNote,
-                        flamesByNote = flamesByNote,
                         settings = settings,
                         onStartWorkout = onCreate,
                     )
@@ -285,7 +284,6 @@ private fun HomeTrainingOverview(
     widget: HomeOverviewWidget,
     allWorkouts: List<NoteLine>,
     statsByNote: Map<NoteLine, HomeWorkoutStats>,
-    flamesByNote: Map<NoteLine, Int>,
     settings: Settings,
     onStartWorkout: () -> Unit,
 ) {
@@ -293,7 +291,6 @@ private fun HomeTrainingOverview(
         HomeOverviewWidget.LAST_WORKOUT -> TodayTargetOverview(
             allWorkouts = allWorkouts,
             statsByNote = statsByNote,
-            settings = settings,
         )
         HomeOverviewWidget.RECENT_INTENSITY -> RecentIntensityOverview(
             allWorkouts = allWorkouts,
@@ -303,7 +300,6 @@ private fun HomeTrainingOverview(
         HomeOverviewWidget.CYCLE_PROGRESS -> CycleProgressOverview(
             allWorkouts = allWorkouts,
             statsByNote = statsByNote,
-            settings = settings,
         )
         HomeOverviewWidget.QUICK_START -> QuickStartOverview(onStartWorkout = onStartWorkout)
     }
@@ -313,19 +309,15 @@ private fun HomeTrainingOverview(
 private fun TodayTargetOverview(
     allWorkouts: List<NoteLine>,
     statsByNote: Map<NoteLine, HomeWorkoutStats>,
-    settings: Settings,
 ) {
     val accent = MaterialTheme.colorScheme.primary
     val targetCategory = inferNextPplCategory(allWorkouts)
-    val baselineWorkout = targetCategory?.let { latestSameCategoryWorkout(it, allWorkouts) }
-    val baselineStats = baselineWorkout?.let { statsByNote[it] }
-    val baselineScore = baselineStats?.intensityScore(settings.workoutIntensityFormula) ?: 0f
-    val targetScore = baselineScore * 1.05f
+    val actionTarget = targetCategory?.let { buildTodayActionTarget(it, allWorkouts, statsByNote) }
 
     OverviewCard {
         Text("TODAY TARGET", color = accent, style = MaterialTheme.typography.labelLarge)
         Spacer(Modifier.height(8.dp))
-        if (targetCategory == null) {
+        if (targetCategory == null || actionTarget == null) {
             Text(
                 text = "Start your first cycle",
                 color = MaterialTheme.colorScheme.onSurface,
@@ -334,24 +326,27 @@ private fun TodayTargetOverview(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "After a few Push/Pull/Legs workouts, this will suggest what to beat today.",
+                text = "Log Push, Pull, and Legs once. Then this will suggest one concrete target for today.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
             )
         } else {
             Text(
-                text = "Likely next: $targetCategory",
+                text = "Today: $targetCategory",
                 color = MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.ExtraBold,
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = if (baselineStats == null || baselineScore <= 0f) {
-                    "Log today to create your first $targetCategory baseline."
-                } else {
-                    "Beat your last $targetCategory using ${settings.workoutIntensityFormula.displayLabel.lowercase()} as the target."
-                },
+                text = actionTarget.headline,
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = actionTarget.instruction,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -361,11 +356,8 @@ private fun TodayTargetOverview(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                MetricPill("Last", baselineStats?.formulaLabel(settings.workoutIntensityFormula) ?: "none")
-                MetricPill(
-                    "Target",
-                    if (targetScore > 0f) "> ${scoreLabel(targetScore, settings.workoutIntensityFormula)}" else "baseline",
-                )
+                MetricPill(actionTarget.baselineLabel, actionTarget.baselineValue)
+                MetricPill(actionTarget.targetLabel, actionTarget.targetValue)
             }
         }
     }
@@ -386,7 +378,7 @@ private fun RecentIntensityOverview(
         Text("INTENSITY TREND", color = accent, style = MaterialTheme.typography.labelLarge)
         Spacer(Modifier.height(8.dp))
         Text(
-            text = "Beat your recent baseline today",
+            text = "Last 30 days",
             color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.ExtraBold,
@@ -396,25 +388,25 @@ private fun RecentIntensityOverview(
             Text("No workout intensity data yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             val average = trend.map { it.score }.average().toFloat()
-            val last = trend.first().score
-            val delta = scoreDeltaPercent(last, average)
+            val latest = trend.maxByOrNull { it.note.timestamp }?.score ?: trend.first().score
+            val delta = scoreDeltaPercent(latest, average)
             Text(
-                text = "Last ${trend.size} workouts · each bar = 1 workout · ${settings.workoutIntensityFormula.displayLabel}",
+                text = "1 bar = 1 workout · ${formulaExplanation(settings.workoutIntensityFormula)}",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = delta?.let { "Latest is ${it.percentText} vs recent average." } ?: "Recent average appears after more logged workouts.",
+                text = delta?.let { "Latest: ${it.percentText} vs 30-day average." } ?: "Average appears after more logged workouts.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
             Spacer(Modifier.height(14.dp))
-            MiniIntensityBars(trend = trend.reversed())
+            MiniIntensityBars(trend = trend.sortedBy { it.note.timestamp })
             Spacer(Modifier.height(4.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Older", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
-                Text("Latest", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                Text("30 days ago", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                Text("Today", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
             }
         }
     }
@@ -424,42 +416,91 @@ private fun RecentIntensityOverview(
 private fun CycleProgressOverview(
     allWorkouts: List<NoteLine>,
     statsByNote: Map<NoteLine, HomeWorkoutStats>,
-    settings: Settings,
 ) {
     val accent = MaterialTheme.colorScheme.primary
     val targetCategory = remember(allWorkouts) { inferNextPplCategory(allWorkouts) }
-    val rows = remember(allWorkouts, statsByNote, settings.workoutIntensityFormula) {
-        buildCycleRows(allWorkouts, statsByNote, settings.workoutIntensityFormula, targetCategory)
+    val rows = remember(allWorkouts, statsByNote, targetCategory) {
+        buildCycleRows(allWorkouts, statsByNote, targetCategory)
     }
     val todayTarget = rows.firstOrNull { it.isTodayTarget }
-    val ahead = rows.count { !it.isTodayTarget && (it.delta?.ratio ?: 0f) >= 1.05f }
 
     OverviewCard {
         Text("CYCLE PROGRESS", color = accent, style = MaterialTheme.typography.labelLarge)
         Spacer(Modifier.height(8.dp))
         Text(
-            text = todayTarget?.let { "Today: ${it.category}" } ?: if (ahead >= 2) "This cycle is ahead" else "Build the next cycle",
+            text = todayTarget?.let { "Today: ${it.category}" } ?: "Build the next cycle",
             color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.ExtraBold,
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "Full bar = matched previous same-category baseline. Target row shows what to beat today.",
+            text = "Main row = what to improve today. Other rows show this cycle versus the last one.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall,
         )
         Spacer(Modifier.height(10.dp))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             rows.forEach { row ->
-                CycleRowView(row = row, settings = settings)
+                CycleRowView(row = row)
             }
         }
     }
 }
 
 @Composable
-private fun CycleRowView(row: CycleComparisonRow, settings: Settings) {
+private fun CycleRowView(row: CycleComparisonRow) {
+    if (row.isTodayTarget) {
+        Surface(
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.13f),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = row.category,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                    Text("TODAY", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = row.actionTarget?.headline ?: "Create today's baseline",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = row.actionTarget?.targetValue?.let { "Aim: $it" } ?: "Log this workout first.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
+        return
+    }
+
+    val delta = row.delta
+    val statusColor = when {
+        delta == null -> MaterialTheme.colorScheme.onSurfaceVariant
+        delta.ratio >= 1.05f -> MaterialTheme.colorScheme.primary
+        delta.ratio <= 0.95f -> MaterialTheme.colorScheme.error.copy(alpha = 0.72f)
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val arrow = when {
+        delta == null -> "—"
+        delta.ratio >= 1.05f -> "↑"
+        delta.ratio <= 0.95f -> "↓"
+        else -> "→"
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -472,65 +513,41 @@ private fun CycleRowView(row: CycleComparisonRow, settings: Settings) {
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.width(46.dp),
         )
-
-        if (row.isTodayTarget) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Today target",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    text = row.previousStats?.let { "Beat ${it.formulaLabel(settings.workoutIntensityFormula)}" } ?: "Create baseline",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
-            Text("→", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
-        } else {
-            Column(modifier = Modifier.weight(1f)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                ) {
-                    val fill = (row.delta?.ratio ?: 0f).coerceIn(0f, 1f)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(fill)
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(MaterialTheme.colorScheme.primary),
-                    )
-                }
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    text = listOfNotNull(
-                        row.currentStats?.let { "Now ${it.formulaLabel(settings.workoutIntensityFormula)}" },
-                        row.previousStats?.let { "target ${it.formulaLabel(settings.workoutIntensityFormula)}" },
-                    ).joinToString(" · ").ifBlank { "Need more data" },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
-            Spacer(Modifier.width(10.dp))
-            Column(horizontalAlignment = Alignment.End, modifier = Modifier.width(62.dp)) {
-                Text(
-                    text = row.delta?.statusText ?: if (row.current == null) "Missing" else "Baseline",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    text = row.delta?.percentText ?: "—",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelSmall,
-                    textAlign = TextAlign.End,
-                )
-            }
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(8.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+        ) {
+            val fill = (delta?.ratio ?: 0f).coerceIn(0f, 1f)
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(fill)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(statusColor.copy(alpha = 0.72f)),
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        Row(
+            modifier = Modifier.width(66.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = arrow,
+                color = statusColor,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(
+                text = delta?.percentText ?: "—",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelSmall,
+                textAlign = TextAlign.End,
+            )
         }
     }
 }
@@ -558,15 +575,16 @@ private fun QuickStartOverview(onStartWorkout: () -> Unit) {
 
 @Composable
 private fun MiniIntensityBars(trend: List<IntensityPoint>) {
-    val maxScore = trend.maxOfOrNull { it.score }?.takeIf { it > 0f } ?: 1f
+    val visibleTrend = trend.takeLast(24)
+    val maxScore = visibleTrend.maxOfOrNull { it.score }?.takeIf { it > 0f } ?: 1f
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(54.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
-        trend.takeLast(12).forEach { point ->
+        visibleTrend.forEach { point ->
             val heightFraction = (point.score / maxScore).coerceIn(0.08f, 1f)
             Box(
                 modifier = Modifier
@@ -578,8 +596,8 @@ private fun MiniIntensityBars(trend: List<IntensityPoint>) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .fillMaxHeight(heightFraction)
-                        .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = if (point.isLatest) 1f else 0.42f)),
+                        .clip(RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = if (point.isLatest) 0.95f else 0.34f)),
                 )
             }
         }
@@ -658,6 +676,16 @@ private data class CycleComparisonRow(
     val previousStats: HomeWorkoutStats?,
     val delta: ScoreDelta?,
     val isTodayTarget: Boolean,
+    val actionTarget: TodayActionTarget?,
+)
+
+private data class TodayActionTarget(
+    val headline: String,
+    val instruction: String,
+    val baselineLabel: String,
+    val baselineValue: String,
+    val targetLabel: String,
+    val targetValue: String,
 )
 
 private fun inferNextPplCategory(allWorkouts: List<NoteLine>): String? {
@@ -671,34 +699,103 @@ private fun latestSameCategoryWorkout(category: String, allWorkouts: List<NoteLi
     return allWorkouts.firstOrNull { it.categoryName.equals(category, ignoreCase = true) }
 }
 
+private fun buildTodayActionTarget(
+    category: String,
+    allWorkouts: List<NoteLine>,
+    statsByNote: Map<NoteLine, HomeWorkoutStats>,
+): TodayActionTarget? {
+    val sameCategory = allWorkouts
+        .filter { it.categoryName.equals(category, ignoreCase = true) }
+        .sortedByDescending { it.timestamp }
+    val baseline = sameCategory.firstOrNull()?.let { statsByNote[it] } ?: return null
+    val peers = sameCategory.drop(1).take(5).mapNotNull { statsByNote[it] }
+    val avgDuration = peers.map { it.durationMinutes }.filter { it > 0 }.averageOrNull()
+    val avgSets = peers.map { it.setCount }.filter { it > 0 }.averageOrNull()
+    val avgReps = peers.map { it.totalReps }.filter { it > 0 }.averageOrNull()
+
+    if (baseline.durationMinutes > 0 && avgDuration != null && baseline.durationMinutes > avgDuration * 1.08) {
+        val targetMinutes = minOf((baseline.durationMinutes * 0.95f).roundToInt(), avgDuration.roundToInt()).coerceAtLeast(1)
+        return TodayActionTarget(
+            headline = "Keep rests shorter",
+            instruction = "Use the elapsed timer. Start the next set sooner and finish the same work faster.",
+            baselineLabel = "Last",
+            baselineValue = "${baseline.durationMinutes} min",
+            targetLabel = "Aim",
+            targetValue = "≤ $targetMinutes min",
+        )
+    }
+
+    if (avgSets != null && baseline.setCount > 0 && baseline.setCount < avgSets * 0.92) {
+        return TodayActionTarget(
+            headline = "Add 1 quality set",
+            instruction = "Do not add junk volume. Add one clean set to an exercise that still feels strong.",
+            baselineLabel = "Last",
+            baselineValue = "${baseline.setCount} sets",
+            targetLabel = "Aim",
+            targetValue = "${baseline.setCount + 1} sets",
+        )
+    }
+
+    if (avgReps != null && baseline.totalReps > 0 && baseline.totalReps < avgReps * 0.92) {
+        val targetReps = (baseline.totalReps + 5).coerceAtLeast((avgReps * 0.95).roundToInt())
+        return TodayActionTarget(
+            headline = "Beat total reps",
+            instruction = "Keep form clean and try to add reps across your working sets.",
+            baselineLabel = "Last",
+            baselineValue = "${baseline.totalReps} reps",
+            targetLabel = "Aim",
+            targetValue = "≥ $targetReps reps",
+        )
+    }
+
+    if (baseline.durationMinutes > 0 && baseline.setCount > 0) {
+        val targetMinutes = (baseline.durationMinutes * 0.95f).roundToInt().coerceAtLeast(1)
+        return TodayActionTarget(
+            headline = "Same work, less time",
+            instruction = "Match last workout's sets, but keep pauses tighter and finish faster.",
+            baselineLabel = "Last",
+            baselineValue = "${baseline.setCount} sets · ${baseline.durationMinutes} min",
+            targetLabel = "Aim",
+            targetValue = "${baseline.setCount} sets ≤ $targetMinutes min",
+        )
+    }
+
+    return TodayActionTarget(
+        headline = "Create today's baseline",
+        instruction = "Log this session normally. The app will give a concrete target next time.",
+        baselineLabel = "Last",
+        baselineValue = "none",
+        targetLabel = "Aim",
+        targetValue = "log cleanly",
+    )
+}
+
 private fun recentIntensityTrend(
     allWorkouts: List<NoteLine>,
     statsByNote: Map<NoteLine, HomeWorkoutStats>,
     formula: WorkoutIntensityFormula,
 ): List<IntensityPoint> {
     val latestTimestamp = allWorkouts.maxOfOrNull { it.timestamp } ?: return emptyList()
-    val ninetyDaysMs = 90L * 24L * 60L * 60L * 1000L
+    val thirtyDaysMs = 30L * 24L * 60L * 60L * 1000L
     val recent = allWorkouts
-        .filter { it.timestamp >= latestTimestamp - ninetyDaysMs }
-        .sortedByDescending { it.timestamp }
-        .take(12)
-        .ifEmpty { allWorkouts.sortedByDescending { it.timestamp }.take(12) }
+        .filter { it.timestamp >= latestTimestamp - thirtyDaysMs }
+        .sortedBy { it.timestamp }
 
-    return recent.mapIndexedNotNull { index, note ->
-        val score = statsByNote[note]?.intensityScore(formula) ?: return@mapIndexedNotNull null
-        if (score <= 0f) return@mapIndexedNotNull null
-        IntensityPoint(note = note, score = score, isLatest = index == 0)
+    return recent.mapNotNull { note ->
+        val score = statsByNote[note]?.intensityScore(formula) ?: return@mapNotNull null
+        if (score <= 0f) return@mapNotNull null
+        IntensityPoint(note = note, score = score, isLatest = note.timestamp == latestTimestamp)
     }
 }
 
 private fun buildCycleRows(
     allWorkouts: List<NoteLine>,
     statsByNote: Map<NoteLine, HomeWorkoutStats>,
-    formula: WorkoutIntensityFormula,
     targetCategory: String?,
 ): List<CycleComparisonRow> {
     val cycleCategories = listOf("Push", "Pull", "Legs")
-    return cycleCategories.map { category ->
+    val orderedCategories = cycleCategories.sortedBy { if (it.equals(targetCategory, ignoreCase = true)) 0 else 1 }
+    return orderedCategories.map { category ->
         val categoryWorkouts = allWorkouts
             .filter { it.categoryName.equals(category, ignoreCase = true) }
             .sortedByDescending { it.timestamp }
@@ -707,8 +804,9 @@ private fun buildCycleRows(
         val previous = if (isTarget) categoryWorkouts.getOrNull(0) else categoryWorkouts.getOrNull(1)
         val currentStats = current?.let { statsByNote[it] }
         val previousStats = previous?.let { statsByNote[it] }
-        val currentScore = currentStats?.intensityScore(formula) ?: 0f
-        val previousScore = previousStats?.intensityScore(formula) ?: 0f
+        val actionTarget = if (isTarget) buildTodayActionTarget(category, allWorkouts, statsByNote) else null
+        val currentScore = currentStats?.simpleCycleScore() ?: 0f
+        val previousScore = previousStats?.simpleCycleScore() ?: 0f
         CycleComparisonRow(
             category = category,
             current = current,
@@ -717,8 +815,20 @@ private fun buildCycleRows(
             previousStats = previousStats,
             delta = scoreDeltaPercent(currentScore, previousScore),
             isTodayTarget = isTarget,
+            actionTarget = actionTarget,
         )
     }
+}
+
+private fun HomeWorkoutStats.simpleCycleScore(): Float {
+    if (durationMinutes <= 0) return setCount.toFloat()
+    return setCount * 10f + totalReps * 0.25f - durationMinutes * 0.25f
+}
+
+private fun formulaExplanation(formula: WorkoutIntensityFormula): String = when (formula) {
+    WorkoutIntensityFormula.SET_DENSITY -> "Density = sets/min"
+    WorkoutIntensityFormula.SET_VOLUME -> "Volume = total sets"
+    WorkoutIntensityFormula.AVG_SETS_PER_EXERCISE -> "Depth = sets/exercise"
 }
 
 private fun scoreDeltaPercent(current: Float, previous: Float): ScoreDelta? {
@@ -751,6 +861,10 @@ private fun scoreLabel(score: Float, formula: WorkoutIntensityFormula): String =
     WorkoutIntensityFormula.SET_DENSITY -> "${score.format2()} sets/min"
     WorkoutIntensityFormula.SET_VOLUME -> "${score.roundToInt()} sets"
     WorkoutIntensityFormula.AVG_SETS_PER_EXERCISE -> "${score.format1()} sets/ex"
+}
+
+private fun List<Int>.averageOrNull(): Double? {
+    return if (isEmpty()) null else average()
 }
 
 private fun Float.format1(): String = String.format(Locale.US, "%.1f", this)
