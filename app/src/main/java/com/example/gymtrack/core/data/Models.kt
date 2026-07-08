@@ -67,6 +67,7 @@ enum class WorkoutIntensityFormula(val storageValue: String, val displayLabel: S
 enum class HomeOverviewWidget(val storageValue: String, val displayLabel: String) {
     LAST_WORKOUT("LAST_WORKOUT", "Last workout"),
     RECENT_INTENSITY("RECENT_INTENSITY", "Recent intensity"),
+    CYCLE_PROGRESS("CYCLE_PROGRESS", "Cycle progress"),
     QUICK_START("QUICK_START", "Quick start");
 
     companion object {
