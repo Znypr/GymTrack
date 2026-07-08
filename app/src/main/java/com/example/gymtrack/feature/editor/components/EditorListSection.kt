@@ -38,6 +38,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
@@ -50,9 +51,11 @@ import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.ExerciseFlag
 import com.example.gymtrack.core.util.CanonicalExerciseVisualTransformation
 import com.example.gymtrack.core.util.ExerciseIdentityResolver
+import com.example.gymtrack.core.util.ExerciseVariantLabel
+import com.example.gymtrack.core.util.ExerciseVariantLabelKind
 import com.example.gymtrack.core.util.SmallSecondsVisualTransformation
 import com.example.gymtrack.core.util.rememberRelativeTimeVisualTransformation
-import com.example.gymtrack.core.util.variantLabels
+import com.example.gymtrack.core.util.variantLabelSpecs
 import com.example.gymtrack.feature.editor.NoteEditorState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -167,7 +170,14 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                     Spacer(Modifier.width(8.dp))
 
                     // Input Field
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(
+                                top = if (isMain) 8.dp else 0.dp,
+                                bottom = if (isMain) 6.dp else 0.dp,
+                            ),
+                    ) {
                         BasicTextField(
                             value = row.text.value,
                             onValueChange = { state.onTextChange(index, it) },
@@ -226,12 +236,13 @@ private fun ExerciseIdentityPreview(
         ExerciseIdentityResolver.resolve(
             rawName = rawName,
             isUnilateral = isUnilateral,
-        ).variantLabels()
+        ).variantLabelSpecs()
+            .filterNot { it.kind == ExerciseVariantLabelKind.SIDE }
     }
 
     if (labels.isNotEmpty()) {
         Row(
-            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
+            modifier = Modifier.padding(top = 5.dp, bottom = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -243,21 +254,30 @@ private fun ExerciseIdentityPreview(
 }
 
 @Composable
-private fun InlineVariantChip(label: String) {
-    val borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
+private fun InlineVariantChip(label: ExerciseVariantLabel) {
+    val accent = editorVariantAccentColor(label.kind)
     Surface(
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.0f),
-        contentColor = MaterialTheme.colorScheme.primary,
+        color = Color.Transparent,
+        contentColor = accent,
         shape = RoundedCornerShape(percent = 50),
-        border = BorderStroke(1.dp, borderColor),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.82f)),
     ) {
         Text(
-            text = label,
+            text = label.text,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
         )
     }
+}
+
+@Composable
+private fun editorVariantAccentColor(kind: ExerciseVariantLabelKind): Color = when (kind) {
+    ExerciseVariantLabelKind.BRAND -> Color(0xFF2E7D32)
+    ExerciseVariantLabelKind.ATTACHMENT -> Color(0xFF6A1B9A)
+    ExerciseVariantLabelKind.EQUIPMENT -> Color(0xFF1565C0)
+    ExerciseVariantLabelKind.SIDE -> Color(0xFFC62828)
+    ExerciseVariantLabelKind.WARNING -> MaterialTheme.colorScheme.error
 }
 
 @Composable
