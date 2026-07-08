@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -22,7 +23,6 @@ import com.example.gymtrack.core.util.formatTime
 import com.example.gymtrack.core.util.formatWeekRelativeTime
 import com.example.gymtrack.feature.home.HomeWorkoutStats
 import com.example.gymtrack.feature.home.cardMetricLabel
-import com.example.gymtrack.feature.home.flameText
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -52,7 +52,6 @@ fun WorkoutAlbumCard(
     }
     val displaySubtitle = if (note.title.isNotBlank()) formatWeekRelativeTime(note.timestamp, settings) else formatTime(note.timestamp, settings)
     val cardMetric = stats.cardMetricLabel(settings.homeCardMetric)
-    val flameLabel = flameText(flames)
 
     Card(
         modifier = Modifier
@@ -96,13 +95,9 @@ fun WorkoutAlbumCard(
                     color = categoryColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
-                if (flameLabel.isNotBlank()) {
-                    Text(
-                        text = flameLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
+                CompactIntensityMark(flames = flames)
             }
 
             Spacer(Modifier.height(8.dp))
@@ -148,6 +143,34 @@ fun WorkoutAlbumCard(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CompactIntensityMark(flames: Int) {
+    val count = flames.coerceIn(0, 3)
+    if (count == 0) return
+
+    Row(
+        horizontalArrangement = Arrangement.spacedBy((-2).dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(start = 4.dp),
+    ) {
+        repeat(3) { index ->
+            val active = index < count
+            Box(
+                modifier = Modifier
+                    .size(if (active) 7.dp else 5.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (active) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.58f)
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.20f)
+                        },
+                    ),
+            )
         }
     }
 }
