@@ -19,21 +19,11 @@ import com.example.gymtrack.core.data.GraphPoint
 import com.example.gymtrack.core.data.WorkoutRepository
 import com.example.gymtrack.feature.stats.AdaptiveCard
 import com.example.gymtrack.feature.stats.TimeRange
+import com.example.gymtrack.feature.stats.calculateExerciseOutliers
 import kotlinx.coroutines.flow.flowOf
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
-
-private fun calculateOutliers(data: List<GraphPoint>): List<GraphPoint> {
-    if (data.size < 5) return emptyList()
-    val values = data.map { it.avgVal }.sorted()
-    val q1 = values[values.size / 4]
-    val q3 = values[values.size * 3 / 4]
-    val iqr = q3 - q1
-    val lower = q1 - 1.5f * iqr
-    val upper = q3 + 1.5f * iqr
-    return data.filter { it.avgVal < lower || it.avgVal > upper }
-}
 
 @Composable
 private fun ExerciseProgressChartGraph(
@@ -156,7 +146,7 @@ fun ExerciseProgressCard(
         else fullGraphData.filter { it.originTimestamp >= cutoffTimestamp }
     }
 
-    val anomalies = remember(filteredGraphData) { calculateOutliers(filteredGraphData) }
+    val anomalies = remember(filteredGraphData) { calculateExerciseOutliers(filteredGraphData) }
 
     AdaptiveCard(modifier = modifier) {
         Column(Modifier.padding(16.dp)) {
@@ -208,7 +198,7 @@ fun ExerciseProgressCard(
             if (anomalies.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "⚠ ${anomalies.size} Anomalies Detected",
+                    "⚠ ${anomalies.size} conservative anomaly${if (anomalies.size == 1) "" else "ies"} detected",
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold
