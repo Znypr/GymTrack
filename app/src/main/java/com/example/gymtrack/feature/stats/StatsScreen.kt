@@ -126,20 +126,17 @@ fun StatsScreen(
             }
 
             item {
-                AdaptiveCard(height = 300.dp) {
+                AdaptiveCard {
                     Column(Modifier.padding(16.dp)) {
-                        WeeklyConsistencyChart(data = state.weeklyWorkoutCounts)
+                        TrainingInsightsPanel(data = state.trainingInsights)
                     }
                 }
             }
 
             item {
-                AdaptiveCard {
+                AdaptiveCard(height = 300.dp) {
                     Column(Modifier.padding(16.dp)) {
-                        CategoryVolumeChart(
-                            data = state.volumeByCategory,
-                            unitLabel = "${settings.defaultWeightUnit.displayLabel}·reps"
-                        )
+                        WeeklyConsistencyChart(data = state.weeklyWorkoutCounts)
                     }
                 }
             }
