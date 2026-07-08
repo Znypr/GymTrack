@@ -5,8 +5,10 @@ import com.example.gymtrack.core.data.canonical.toDomain
 import com.example.gymtrack.core.data.transition.CanonicalExerciseCatalog
 import com.example.gymtrack.core.data.transition.CanonicalKeys
 import com.example.gymtrack.core.data.transition.LegacyWorkoutProjector
+import com.example.gymtrack.core.util.ExerciseIdentityResolver
 import com.example.gymtrack.core.util.ParsedSetDTO
 import com.example.gymtrack.core.util.WorkoutParser
+import com.example.gymtrack.core.util.variantLabels
 import com.example.gymtrack.domain.model.WorkoutDetails
 import com.example.gymtrack.domain.model.WorkoutRecord
 import com.example.gymtrack.domain.model.WorkoutStatus
@@ -15,6 +17,8 @@ import com.example.gymtrack.domain.summary.TrainingSummaryJson
 import com.example.gymtrack.domain.summary.TrainingSummaryOutboxEntry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import java.time.ZoneId
 
 class WorkoutRepository(
@@ -39,8 +43,41 @@ class WorkoutRepository(
         }
     }
 
+    fun getExerciseGroupsSortedByCount(minTimestamp: Long = 0): Flow<List<ExerciseGroupWithCount>> {
+        return getExercisesSortedByCount(minTimestamp).map { exercises ->
+            exercises
+                .groupBy { exercise -> ExerciseIdentityResolver.resolve(exercise.name).baseComparisonKey }
+                .values
+                .map { group ->
+                    val identities = group.map { exercise -> exercise to ExerciseIdentityResolver.resolve(exercise.name) }
+                    val primary = identities.maxBy { it.first.setTotalCount }.second
+                    ExerciseGroupWithCount(
+                        exerciseIds = group.map { it.exerciseId }.distinct(),
+                        name = primary.canonicalName,
+                        setTotalCount = group.sumOf { it.setTotalCount },
+                        variantLabels = identities
+                            .flatMap { it.second.variantLabels() }
+                            .distinct()
+                            .take(4),
+                    )
+                }
+                .sortedWith(
+                    compareByDescending<ExerciseGroupWithCount> { it.setTotalCount }
+                        .thenBy { it.name },
+                )
+        }
+    }
+
     fun getWeightHistory(exerciseId: Long): Flow<List<GraphPoint>> {
         return setDao.getAverageWeightHistory(exerciseId)
+    }
+
+    fun getWeightHistory(exerciseIds: List<Long>): Flow<List<GraphPoint>> {
+        return if (exerciseIds.isEmpty()) {
+            flowOf(emptyList())
+        } else {
+            setDao.getAverageWeightHistoryForExercises(exerciseIds)
+        }
     }
 
     suspend fun cleanUpOrphans() {
