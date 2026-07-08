@@ -55,6 +55,13 @@ data class ExerciseIdentity(
         sideMode.takeUnless { it == ExerciseSideMode.UNKNOWN }?.name?.lowercase(),
     ).joinToString(":")
 
+    /**
+     * Weight/progress charts must not merge load-incompatible variants. A dumbbell lateral
+     * raise, machine lateral raise, cable lateral raise, unilateral variant, or brand-specific
+     * machine can share the base exercise for prediction, but not the same progress series.
+     */
+    val progressComparisonKey: String = strictComparisonKey.ifBlank { baseComparisonKey }
+
     companion object {
         fun unknown(rawName: String): ExerciseIdentity {
             val displayName = rawName.trim().ifBlank { "Unknown exercise" }
