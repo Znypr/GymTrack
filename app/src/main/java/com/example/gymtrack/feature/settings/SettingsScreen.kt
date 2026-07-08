@@ -23,8 +23,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.Category
+import com.example.gymtrack.core.data.HomeCardMetric
+import com.example.gymtrack.core.data.HomeOverviewWidget
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.data.WeightUnit
+import com.example.gymtrack.core.data.WorkoutIntensityFormula
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,6 +82,38 @@ fun SettingsScreen(
                     SettingsWeightUnitRow(
                         selected = settings.defaultWeightUnit,
                         onSelected = { unit -> update { copy(defaultWeightUnit = unit) } },
+                    )
+                }
+            }
+
+            item {
+                SettingsSectionTitle("Home")
+                SettingsCard {
+                    SettingsChoiceRow(
+                        title = "Workout card metric",
+                        subtitle = "Controls the bottom-left metric shown on workout cards.",
+                        options = HomeCardMetric.entries,
+                        selected = settings.homeCardMetric,
+                        label = { it.displayLabel },
+                        onSelected = { metric -> update { copy(homeCardMetric = metric) } },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
+                    SettingsChoiceRow(
+                        title = "Intensity flames",
+                        subtitle = settings.workoutIntensityFormula.description + "\n🔥 light · 🔥🔥 normal · 🔥🔥🔥 strong reference.",
+                        options = WorkoutIntensityFormula.entries,
+                        selected = settings.workoutIntensityFormula,
+                        label = { it.displayLabel },
+                        onSelected = { formula -> update { copy(workoutIntensityFormula = formula) } },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
+                    SettingsChoiceRow(
+                        title = "Default home overview",
+                        subtitle = "Choose the top Home widget. No random cycling; this is deterministic.",
+                        options = HomeOverviewWidget.entries,
+                        selected = settings.homeOverviewWidget,
+                        label = { it.displayLabel },
+                        onSelected = { widget -> update { copy(homeOverviewWidget = widget) } },
                     )
                 }
             }
@@ -214,6 +249,44 @@ private fun SettingsWeightUnitRow(
                     onClick = { onSelected(unit) },
                     label = { Text(unit.displayLabel) },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun <T> SettingsChoiceRow(
+    title: String,
+    subtitle: String,
+    options: List<T>,
+    selected: T,
+    label: (T) -> String,
+    onSelected: (T) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        Text(
+            text = title,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = subtitle,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Spacer(Modifier.height(12.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            options.chunked(2).forEach { rowOptions ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    rowOptions.forEach { option ->
+                        FilterChip(
+                            selected = option == selected,
+                            onClick = { onSelected(option) },
+                            label = { Text(label(option)) },
+                        )
+                    }
+                }
             }
         }
     }
