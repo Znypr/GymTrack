@@ -35,6 +35,7 @@ private fun ExerciseProgressChartGraph(
     series: List<ExerciseProgressSeries>,
     focusedVariantKey: String?,
     anomalies: List<GraphPoint>,
+    weightUnitLabel: String,
     modifier: Modifier = Modifier,
 ) {
     val allPoints = series.flatMap { it.points }
@@ -65,12 +66,18 @@ private fun ExerciseProgressChartGraph(
 
     Column(modifier.fillMaxWidth()) {
         Canvas(modifier = modifier) {
-            val layout = ChartLayout()
+            val layout = ChartLayout(leftPad = 72f)
             val chartW = layout.width(size.width)
             val x0 = layout.originX()
             val y0 = layout.originY(size.height)
 
-            drawYGridAndLabels(scaleY, theme, layout, textPaint)
+            drawYGridAndLabels(scaleY, theme, layout, textPaint) { value ->
+                if (value % 1.0f == 0f) {
+                    "${value.toInt()} $weightUnitLabel"
+                } else {
+                    String.format(Locale.getDefault(), "%.1f %s", value, weightUnitLabel)
+                }
+            }
 
             val anomalySet = anomalies.map { it.originTimestamp }.toSet()
             val indexedSeries = series.mapIndexed { index, currentSeries -> index to currentSeries }
@@ -135,6 +142,7 @@ private fun ExerciseProgressChartGraph(
 fun ExerciseProgressCard(
     repository: WorkoutRepository?,
     timeRange: TimeRange,
+    weightUnitLabel: String,
     modifier: Modifier = Modifier,
 ) {
     val cutoffTimestamp = remember(timeRange) {
@@ -200,6 +208,12 @@ fun ExerciseProgressCard(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Weighted avg working weight · $weightUnitLabel",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
             )
             Spacer(Modifier.height(12.dp))
 
@@ -267,6 +281,7 @@ fun ExerciseProgressCard(
                 series = filteredSeries,
                 focusedVariantKey = focusedVariantKey,
                 anomalies = anomalies,
+                weightUnitLabel = weightUnitLabel,
                 modifier = Modifier.fillMaxWidth().height(200.dp),
             )
         }
