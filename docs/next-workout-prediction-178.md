@@ -61,18 +61,18 @@ The default history window is 24 saved workouts. This is intentionally small and
 
 ## Slice 3: Home suggestion surface
 
-The first UI surface shows the next workout and optional exercise-order preview:
+The Home surface stays category-level only:
 
 - Home loads the current prediction into `HomeViewModel` state.
 - `NotesScreen` shows a dismissible "Likely next workout" card when a suggestion exists.
-- The card shows the predicted label, reason, confidence, and suggested exercise order when stable enough.
-- The action opens an editable suggested draft only after explicit user tap.
+- The card shows only the predicted label, reason, and confidence.
+- The action opens the existing blank editor flow with the predicted category selected.
 
-This slice does not save history automatically and does not suggest weights/reps.
+The Home card must not show an exercise-order preview. It also must not bulk-prefill exercises into the editor, because that marks every prefilled exercise as current timed content.
 
-## Slice 4: Exercise-order suggestion
+## Slice 4: Exercise-order suggestion backend
 
-`ExerciseOrderSuggestionService` derives editable exercise rows from matching saved workouts for the predicted label.
+`ExerciseOrderSuggestionService` can derive stable exercise order from matching saved workouts for a predicted label, but it is not surfaced as a bulk prefill.
 
 Rules:
 
@@ -80,9 +80,11 @@ Rules:
 2. Require at least two matching workouts.
 3. Include exercises that appear repeatedly or in at least half of matching workouts.
 4. Order exercises by observed median position.
-5. Limit to six exercises for the initial draft.
+5. Limit to six exercises for the initial suggestion list.
 
-The editor draft contains exercise names only, separated as editable rows. Sets, weights, reps, RPE, and progression targets remain out of scope.
+The correct UX is one-at-a-time editor assistance: suggest the next exercise only when the user is ready for the next exercise row. It must not create multiple timed exercise rows at once.
+
+Sets, weights, reps, RPE, and progression targets remain out of scope.
 
 ## Product boundary
 
@@ -97,6 +99,6 @@ No suggestion modifies history or creates a workout without user confirmation.
 
 ## Next slices
 
+- Add one-at-a-time next-exercise suggestions inside the editor.
 - Add explicit accept/reject/replace feedback separately from workout history.
-- Add better accept/edit tracking for suggested exercise drafts.
 - Defer load/rep targets until progression policy, units, and safety rules are defined.
