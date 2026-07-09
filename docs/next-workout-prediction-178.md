@@ -54,6 +54,17 @@ A suggestion contains:
 
 The default history window is 24 completed workouts. This is intentionally small and deterministic for the initial baseline.
 
+## Slice 3: Home suggestion surface
+
+The first UI surface is intentionally minimal:
+
+- Home loads the current prediction into `HomeViewModel` state.
+- `NotesScreen` shows a dismissible "Likely next workout" card when a suggestion exists.
+- The card shows the predicted label, reason, and confidence.
+- The action is `Start blank`, which opens the existing blank editor flow.
+
+This slice does not create a prefilled workout, does not save history, and does not silently apply the predicted label.
+
 ## Product boundary
 
 This is a logging accelerator, not a coach.
@@ -67,7 +78,7 @@ No suggestion modifies history or creates a workout without user confirmation.
 
 ## Next slices
 
-- Surface the suggestion in Home or the start-workout flow on the #178 integration branch.
-- Record accept/reject/replace feedback separately from workout history.
+- Add explicit accept/reject/replace feedback separately from workout history.
+- Create a confirmed suggested workout only after explicit user acceptance.
 - Prefill editable exercise rows only after explicit user acceptance.
 - Defer load/rep targets until progression policy, units, and safety rules are defined.
