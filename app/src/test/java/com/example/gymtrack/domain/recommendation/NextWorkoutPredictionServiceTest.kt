@@ -103,7 +103,7 @@ class NextWorkoutPredictionServiceTest {
         assertEquals(SuggestionConfidence.LOW, suggestion.confidence)
         assertEquals(PredictionBasis.LEAST_RECENT_RECURRING_WORKOUT, suggestion.evidence.basis)
         assertEquals("Core", suggestion.evidence.previousWorkoutLabel)
-        assertEquals(3, suggestion.evidence.daysSinceSuggested)
+        assertEquals(3L, suggestion.evidence.daysSinceSuggested)
     }
 
     @Test
@@ -121,7 +121,7 @@ class NextWorkoutPredictionServiceTest {
         assertEquals("Full Body", suggestion.workoutLabel)
         assertEquals(SuggestionConfidence.MEDIUM, suggestion.confidence)
         assertEquals(PredictionBasis.SINGLE_OBSERVED_WORKOUT, suggestion.evidence.basis)
-        assertEquals(2, suggestion.evidence.daysSinceSuggested)
+        assertEquals(2L, suggestion.evidence.daysSinceSuggested)
     }
 
     private fun workoutDetails(
