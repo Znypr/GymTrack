@@ -1,6 +1,8 @@
 package com.example.gymtrack.domain.recommendation
 
 import com.example.gymtrack.domain.model.Category
+import com.example.gymtrack.domain.model.LegacyMigrationStatus
+import com.example.gymtrack.domain.model.LegacyWorkoutCompatibility
 import com.example.gymtrack.domain.model.Workout
 import com.example.gymtrack.domain.model.WorkoutDetails
 import com.example.gymtrack.domain.model.WorkoutRecord
@@ -13,7 +15,7 @@ class NextWorkoutPredictionServiceTest {
     private val service = NextWorkoutPredictionService()
 
     @Test
-    fun returnsNullWithoutCompletedLabeledHistory() {
+    fun returnsNullWithoutPredictionEligibleLabeledHistory() {
         val suggestion = service.predictNextWorkout(
             workouts = listOf(
                 workoutDetails(label = "Push", status = WorkoutStatus.DRAFT, day = 1),
@@ -45,6 +47,50 @@ class NextWorkoutPredictionServiceTest {
         assertEquals("Pull", suggestion.evidence.previousWorkoutLabel)
         assertEquals(1, suggestion.evidence.matchingTransitionCount)
         assertEquals(1, suggestion.evidence.totalTransitionCount)
+    }
+
+    @Test
+    fun includesMigratedLegacyBackedPartialWorkoutsAsSavedHistory() {
+        val suggestion = service.predictNextWorkout(
+            workouts = listOf(
+                workoutDetails(
+                    label = "Push",
+                    status = WorkoutStatus.PARTIAL,
+                    legacyMigrationStatus = LegacyMigrationStatus.MIGRATED,
+                    day = 1,
+                ),
+                workoutDetails(
+                    label = "Pull",
+                    status = WorkoutStatus.PARTIAL,
+                    legacyMigrationStatus = LegacyMigrationStatus.MIGRATED,
+                    day = 2,
+                ),
+                workoutDetails(
+                    label = "Legs",
+                    status = WorkoutStatus.PARTIAL,
+                    legacyMigrationStatus = LegacyMigrationStatus.NEEDS_REVIEW,
+                    day = 3,
+                ),
+                workoutDetails(
+                    label = "Push",
+                    status = WorkoutStatus.PARTIAL,
+                    legacyMigrationStatus = LegacyMigrationStatus.MIGRATED,
+                    day = 4,
+                ),
+                workoutDetails(
+                    label = "Pull",
+                    status = WorkoutStatus.PARTIAL,
+                    legacyMigrationStatus = LegacyMigrationStatus.MIGRATED,
+                    day = 5,
+                ),
+            ),
+            nowEpochMillis = dayMillis(6),
+        )
+
+        requireNotNull(suggestion)
+        assertEquals("Legs", suggestion.workoutLabel)
+        assertEquals(PredictionBasis.HISTORICAL_TRANSITION, suggestion.evidence.basis)
+        assertEquals(listOf("Push", "Pull", "Legs", "Push", "Pull"), suggestion.evidence.recentLabels)
     }
 
     @Test
@@ -129,6 +175,7 @@ class NextWorkoutPredictionServiceTest {
         day: Int,
         status: WorkoutStatus = WorkoutStatus.COMPLETED,
         categoryName: String? = null,
+        legacyMigrationStatus: LegacyMigrationStatus? = null,
     ): WorkoutDetails {
         val start = dayMillis(day)
         val category = categoryName?.let {
@@ -150,6 +197,13 @@ class NextWorkoutPredictionServiceTest {
                     status = status,
                     createdAtEpochMillis = start,
                     updatedAtEpochMillis = start,
+                    legacyCompatibility = legacyMigrationStatus?.let { migrationStatus ->
+                        LegacyWorkoutCompatibility(
+                            legacyTimestamp = start,
+                            rawDraftText = label,
+                            migrationStatus = migrationStatus,
+                        )
+                    },
                 ),
                 exercises = emptyList(),
                 sets = emptyList(),
