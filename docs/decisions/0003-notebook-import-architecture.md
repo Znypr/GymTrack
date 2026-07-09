@@ -120,6 +120,12 @@ The first resumability layer is a pure state model, not persistence. It records:
 
 Recoverable page failures keep the batch resumable and return it to review. Fatal batch failures and user cancellation are terminal. Marking a batch ready or imported is rejected unless pages are processed and every import draft is confirmed.
 
+### Page preprocessing and ordering
+
+Preprocessing records deterministic page metadata and review hints without mutating source images. It can capture dimensions, orientation, rotation, quality issues, detected page numbers, and detected dates.
+
+Page ordering produces proposals, not automatic canonical decisions. Detected page numbers sort before dates; dates sort before original upload order. Reordered pages and low-confidence ordering proposals require review. Original upload order remains available as provenance.
+
 Later implementation should add:
 
 - Room or DataStore persistence for batch state;
@@ -127,6 +133,7 @@ Later implementation should add:
 - workout-level review status indexes;
 - source fingerprint indexes;
 - perceptual page duplicate hints;
+- image preprocessing adapters that produce page metadata without storing transformed images by default;
 - canonical duplicate checks based on date, exercise order, set values, and provenance.
 
 ## Initial implementation slices
@@ -136,6 +143,8 @@ The first slice adds a pure Kotlin draft domain model and JVM tests. It intentio
 The second slice adds pure Kotlin page intake and exact-byte fingerprinting. Android camera/gallery code should read bytes outside the domain layer and pass them to the intake helper. The helper returns `NotebookPageDraft` records with deterministic positions, metadata, and SHA-256 fingerprints.
 
 The third slice adds pure Kotlin resumable batch state. It defines progress and terminal-state semantics without choosing the later persistence backend.
+
+The fourth slice adds pure Kotlin preprocessing metadata and page-order proposals. It does not decode bitmaps or modify images.
 
 This keeps the high-risk invariants testable before UI, storage, or recognition implementation starts.
 
@@ -171,6 +180,7 @@ Trade-offs:
 - this adds a new draft layer before user-visible functionality exists;
 - cloud accuracy decisions are deferred until the consent and provider boundary is implemented;
 - exact-byte fingerprints do not catch every visual duplicate;
+- preprocessing metadata is not actual image enhancement yet;
 - the first slices will not yet import real notebook photos end-to-end.
 
 ## Validation
