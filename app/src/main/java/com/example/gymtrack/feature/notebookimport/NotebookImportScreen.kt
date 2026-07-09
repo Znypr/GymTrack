@@ -58,6 +58,7 @@ import com.example.gymtrack.domain.notebookimport.NotebookPageProcessingStatus
 import com.example.gymtrack.domain.notebookimport.NotebookPageSource
 import com.example.gymtrack.domain.notebookimport.NotebookRecognitionOutput
 import com.example.gymtrack.domain.notebookimport.NotebookRecognitionRequest
+import com.example.gymtrack.domain.notebookimport.NotebookReviewItem
 import com.example.gymtrack.domain.notebookimport.NotebookReviewQueue
 import com.example.gymtrack.domain.notebookimport.NotebookTextInterpreter
 import com.example.gymtrack.domain.notebookimport.NotebookWorkoutDuplicateDetector
@@ -225,17 +226,7 @@ fun NotebookImportScreen(
                         items(current.reviewQueue.items) { reviewItem ->
                             StatusCard(
                                 title = reviewItem.label,
-                                body = buildString {
-                                    reviewItem.currentValue?.let { append("Value: $it\n") }
-                                    reviewItem.confidence?.let { append("Confidence: ${"%.0f".format(it.value * 100)}%\n") }
-                                    reviewItem.pageId?.let { pageId ->
-                                        append("Source: $pageId")
-                                        reviewItem.lineNumber?.let { append(":$it") }
-                                    }
-                                    if (isBlank()) {
-                                        append("Needs explicit confirmation before import.")
-                                    }
-                                },
+                                body = reviewItem.descriptionForDisplay(),
                             )
                         }
                     }
@@ -316,6 +307,15 @@ private fun StatusCard(
             )
         }
     }
+}
+
+private fun NotebookReviewItem.descriptionForDisplay(): String {
+    val details = buildList {
+        currentValue?.let { add("Value: $it") }
+        confidence?.let { add("Confidence: ${"%.0f".format(it.value * 100)}%") }
+        pageId?.let { page -> add("Source: $page${lineNumber?.let { ":$it" }.orEmpty()}") }
+    }
+    return details.ifEmpty { listOf("Needs explicit confirmation before import.") }.joinToString("\n")
 }
 
 private suspend fun processNotebookImages(
