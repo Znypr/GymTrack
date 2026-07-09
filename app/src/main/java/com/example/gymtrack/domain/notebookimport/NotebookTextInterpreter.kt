@@ -68,9 +68,7 @@ object NotebookTextInterpreter {
         }) { "Recognition output can only reference pages from the interpretation request" }
 
         val warnings = mutableListOf<String>()
-        val workouts = output.recognizedPages.mapNotNull { page ->
-            interpretPage(page, warnings)
-        }
+        val workouts = output.recognizedPages.mapNotNull { page -> interpretPage(page, warnings) }
 
         return NotebookTextInterpretationResult(
             batch = request.batch.copy(workouts = workouts),
@@ -99,19 +97,13 @@ object NotebookTextInterpreter {
                 isoDateLine.matches(text) -> {
                     val match = isoDateLine.matchEntire(text) ?: error("Date match disappeared")
                     startedAt = parseIsoDateField(match, line)
-                    match.groupValues.getOrNull(4)
-                        ?.trim()
-                        ?.takeIf { it.isNotBlank() }
-                        ?.let { parsedTitle -> title = field(parsedTitle, line) }
+                    match.groupValues.getOrNull(4)?.trim()?.takeIf { it.isNotBlank() }?.let { title = field(it, line) }
                     consumedLineIds += line.id
                 }
                 europeanDateLine.matches(text) -> {
                     val match = europeanDateLine.matchEntire(text) ?: error("Date match disappeared")
                     startedAt = parseEuropeanDateField(match, line)
-                    match.groupValues.getOrNull(4)
-                        ?.trim()
-                        ?.takeIf { it.isNotBlank() }
-                        ?.let { parsedTitle -> title = field(parsedTitle, line) }
+                    match.groupValues.getOrNull(4)?.trim()?.takeIf { it.isNotBlank() }?.let { title = field(it, line) }
                     consumedLineIds += line.id
                 }
                 standaloneTitleLine.matches(text) -> {
@@ -120,11 +112,7 @@ object NotebookTextInterpreter {
                 }
                 titledLine.matches(text) -> {
                     val parsedTitle = titledLine.matchEntire(text)?.groupValues?.get(1)?.trim()
-                    if (parsedTitle.isNullOrBlank()) {
-                        warnings += warning(line, "Title line was empty")
-                    } else {
-                        title = field(parsedTitle, line)
-                    }
+                    if (parsedTitle.isNullOrBlank()) warnings += warning(line, "Title line was empty") else title = field(parsedTitle, line)
                     consumedLineIds += line.id
                 }
                 setLine.matches(text) -> {
@@ -141,12 +129,7 @@ object NotebookTextInterpreter {
                                 provenance = line.provenance,
                                 confidence = line.confidence,
                             ).also { exercises += it }
-                        builder.sets += setDraft(
-                            id = "set-${page.pageId}-${builder.sets.size + 1}",
-                            position = builder.sets.size,
-                            match = match,
-                            line = line,
-                        )
+                        builder.sets += setDraft("set-${page.pageId}-${builder.sets.size + 1}", builder.sets.size, match, line)
                     }
                     consumedLineIds += line.id
                 }
@@ -179,36 +162,19 @@ object NotebookTextInterpreter {
         )
     }
 
-    private fun parseTitleDateLine(
-        text: String,
-        line: RecognizedNotebookLine,
-    ): ParsedTitleDate? {
+    private fun parseTitleDateLine(text: String, line: RecognizedNotebookLine): ParsedTitleDate? {
         val match = titleDateLine.matchEntire(text) ?: return null
-        val title = match.groupValues[1].trim().replaceFirstChar { it.uppercase() }
-        val dateText = match.groupValues[2].trim()
-        val dateMatch = europeanDateLine.matchEntire(dateText) ?: return null
+        val dateMatch = europeanDateLine.matchEntire(match.groupValues[2].trim()) ?: return null
         return ParsedTitleDate(
-            title = title,
+            title = match.groupValues[1].trim().replaceFirstChar { it.uppercase() },
             date = parseEuropeanDateField(dateMatch, line),
         )
     }
 
-    private fun parseIsoDateField(
-        match: MatchResult,
-        line: RecognizedNotebookLine,
-    ): RecognizedField<Long> {
-        val year = match.groupValues[1].toInt()
-        val month = match.groupValues[2].toInt()
-        val day = match.groupValues[3].toInt()
-        return dateField(year, month, day, line)
-    }
+    private fun parseIsoDateField(match: MatchResult, line: RecognizedNotebookLine): RecognizedField<Long> =
+        dateField(match.groupValues[1].toInt(), match.groupValues[2].toInt(), match.groupValues[3].toInt(), line)
 
-    private fun parseEuropeanDateField(
-        match: MatchResult,
-        line: RecognizedNotebookLine,
-    ): RecognizedField<Long> {
-        val day = match.groupValues[1].toInt()
-        val month = match.groupValues[2].toInt()
+    private fun parseEuropeanDateField(match: MatchResult, line: RecognizedNotebookLine): RecognizedField<Long> {
         val rawYear = match.groupValues.getOrNull(3).orEmpty().trim()
         if (rawYear.isBlank()) {
             return RecognizedField(
@@ -219,15 +185,10 @@ object NotebookTextInterpreter {
             )
         }
         val year = rawYear.toInt().let { if (it < 100) 2000 + it else it }
-        return dateField(year, month, day, line)
+        return dateField(year, match.groupValues[2].toInt(), match.groupValues[1].toInt(), line)
     }
 
-    private fun dateField(
-        year: Int,
-        month: Int,
-        day: Int,
-        line: RecognizedNotebookLine,
-    ): RecognizedField<Long> {
+    private fun dateField(year: Int, month: Int, day: Int, line: RecognizedNotebookLine): RecognizedField<Long> {
         val millis = runCatching { utcStartOfDayMillis(year, month, day) }.getOrNull()
         return RecognizedField(
             value = millis,
@@ -237,11 +198,7 @@ object NotebookTextInterpreter {
         )
     }
 
-    private fun interpretTableRows(
-        page: RecognizedNotebookPage,
-        lines: List<RecognizedNotebookLine>,
-        startPosition: Int,
-    ): TableInterpretationResult {
+    private fun interpretTableRows(page: RecognizedNotebookPage, lines: List<RecognizedNotebookLine>, startPosition: Int): TableInterpretationResult {
         val exercises = mutableListOf<ExerciseBuilder>()
         val consumed = mutableSetOf<String>()
         var index = 0
@@ -255,32 +212,27 @@ object NotebookTextInterpreter {
                 isExerciseNameCandidate(text) -> text.cleanedExerciseName()
                 else -> null
             }
-
             if (name == null) {
                 index += 1
                 continue
             }
 
+            val candidateConsumed = mutableSetOf(line.id)
             val numericRows = mutableListOf<NumericRow>()
-            mixed?.values?.takeIf { it.isNotEmpty() }?.let { values ->
-                numericRows += NumericRow(values = values)
-            }
-            consumed += line.id
+            mixed?.values?.takeIf { it.isNotEmpty() }?.let { numericRows += NumericRow(values = it) }
 
             var lookahead = index + 1
             while (lookahead < lines.size) {
                 val next = lines[lookahead]
                 val nextText = next.text.trim()
-                if (parseMixedNameAndNumbers(next)?.name?.isNotBlank() == true || isExerciseNameCandidate(nextText)) {
-                    break
-                }
+                if (parseMixedNameAndNumbers(next)?.name?.isNotBlank() == true || isExerciseNameCandidate(nextText)) break
                 val values = parseNumberSequence(next)
                 if (values.isNotEmpty()) {
                     numericRows += NumericRow(values = values)
-                    consumed += next.id
+                    candidateConsumed += next.id
                     lookahead += 1
                 } else if (isBoilerplate(nextText)) {
-                    consumed += next.id
+                    candidateConsumed += next.id
                     lookahead += 1
                 } else {
                     break
@@ -294,47 +246,31 @@ object NotebookTextInterpreter {
                 provenance = line.provenance,
                 confidence = line.confidence,
             )
-            builder.sets += tableSets(
-                pageId = page.pageId,
-                builder = builder,
-                rows = numericRows,
-            )
-            if (builder.sets.isNotEmpty()) {
+            val parsedSets = tableSets(page.pageId, builder, numericRows)
+            if (parsedSets.isNotEmpty()) {
+                builder.sets += parsedSets
                 exercises += builder
+                consumed += candidateConsumed
             }
             index = lookahead
         }
 
-        return TableInterpretationResult(
-            exercises = exercises,
-            consumedLineIds = consumed,
-        )
+        return TableInterpretationResult(exercises = exercises, consumedLineIds = consumed)
     }
 
-    private fun tableSets(
-        pageId: String,
-        builder: ExerciseBuilder,
-        rows: List<NumericRow>,
-    ): List<NotebookSetDraft> {
+    private fun tableSets(pageId: String, builder: ExerciseBuilder, rows: List<NumericRow>): List<NotebookSetDraft> {
         if (rows.isEmpty()) return emptyList()
         val first = rows.first()
         val second = rows.getOrNull(1)
-
         val pair = when {
             second != null -> RepWeightRows(reps = first, weights = second)
             looksLikeCombinedRepWeightRow(first.values) -> {
                 val split = first.values.size / 2
-                RepWeightRows(
-                    reps = first.copy(values = first.values.take(split)),
-                    weights = first.copy(values = first.values.drop(split)),
-                )
+                RepWeightRows(reps = first.copy(values = first.values.take(split)), weights = first.copy(values = first.values.drop(split)))
             }
-            first.values.all { it.isUnknown || (it.value != null && it.value <= 35.0) } -> {
-                RepWeightRows(reps = first, weights = null)
-            }
+            first.values.all { it.isUnknown || (it.value != null && it.value <= 35.0) } -> RepWeightRows(reps = first, weights = null)
             else -> RepWeightRows(reps = null, weights = first)
         }
-
         val count = maxOf(pair.reps?.values?.size ?: 0, pair.weights?.values?.size ?: 0)
         return (0 until count).map { position ->
             val repValue = pair.reps?.values?.getOrNull(position)
@@ -370,20 +306,12 @@ object NotebookTextInterpreter {
         }
     }
 
-    private fun confidenceFor(
-        value: NumericValue?,
-        fallback: RecognitionConfidence,
-    ): RecognitionConfidence = when {
+    private fun confidenceFor(value: NumericValue?, fallback: RecognitionConfidence): RecognitionConfidence = when {
         value == null || value.isUnknown || value.value == null -> RecognitionConfidence(0.0)
         else -> fallback
     }
 
-    private fun setDraft(
-        id: String,
-        position: Int,
-        match: MatchResult,
-        line: RecognizedNotebookLine,
-    ): NotebookSetDraft {
+    private fun setDraft(id: String, position: Int, match: MatchResult, line: RecognizedNotebookLine): NotebookSetDraft {
         val rawWeight = match.groupValues[2]
         val rawUnit = match.groupValues[3]
         val rawReps = match.groupValues[4]
@@ -395,42 +323,18 @@ object NotebookTextInterpreter {
             "" -> if (weight == null) null else WeightUnit.UNKNOWN
             else -> WeightUnit.UNKNOWN
         }
-
         return NotebookSetDraft(
             id = id,
             position = position,
-            repetitions = RecognizedField(
-                value = reps,
-                confidence = if (reps == null) RecognitionConfidence(0.0) else line.confidence,
-                reviewState = ReviewState.NEEDS_REVIEW,
-                provenance = line.provenance,
-            ),
-            weight = RecognizedField(
-                value = weight,
-                confidence = if (weight == null) RecognitionConfidence(0.0) else line.confidence,
-                reviewState = ReviewState.NEEDS_REVIEW,
-                provenance = line.provenance,
-            ),
-            weightUnit = unit?.let {
-                RecognizedField(
-                    value = it,
-                    confidence = if (it == WeightUnit.UNKNOWN) RecognitionConfidence(0.0) else line.confidence,
-                    reviewState = ReviewState.NEEDS_REVIEW,
-                    provenance = line.provenance,
-                )
-            },
+            repetitions = RecognizedField(reps, if (reps == null) RecognitionConfidence(0.0) else line.confidence, ReviewState.NEEDS_REVIEW, line.provenance),
+            weight = RecognizedField(weight, if (weight == null) RecognitionConfidence(0.0) else line.confidence, ReviewState.NEEDS_REVIEW, line.provenance),
+            weightUnit = unit?.let { RecognizedField(it, if (it == WeightUnit.UNKNOWN) RecognitionConfidence(0.0) else line.confidence, ReviewState.NEEDS_REVIEW, line.provenance) },
             reviewState = ReviewState.NEEDS_REVIEW,
         )
     }
 
     private fun parseNumberSequence(line: RecognizedNotebookLine): List<NumericValue> = numberToken.findAll(line.text)
-        .map { match ->
-            NumericValue(
-                raw = match.value,
-                value = match.value.toDoubleOrNullLenient(),
-                line = line,
-            )
-        }
+        .map { NumericValue(raw = it.value, value = it.value.toDoubleOrNullLenient(), line = line) }
         .toList()
 
     private fun parseMixedNameAndNumbers(line: RecognizedNotebookLine): MixedNameNumbers? {
@@ -438,7 +342,7 @@ object NotebookTextInterpreter {
         val name = line.text.substring(0, firstNumber.range.first).cleanedExerciseName()
         if (name.isBlank()) return null
         val values = numberToken.findAll(line.text.substring(firstNumber.range.first))
-            .map { match -> NumericValue(raw = match.value, value = match.value.toDoubleOrNullLenient(), line = line) }
+            .map { NumericValue(raw = it.value, value = it.value.toDoubleOrNullLenient(), line = line) }
             .toList()
         return MixedNameNumbers(name = name, values = values)
     }
@@ -452,9 +356,7 @@ object NotebookTextInterpreter {
     }
 
     private fun isBoilerplate(text: String): Boolean {
-        val normalized = text.lowercase()
-            .replace(Regex("""[^a-zäöüß0-9]+"""), " ")
-            .trim()
+        val normalized = text.lowercase().replace(Regex("""[^a-zäöüß0-9]+"""), " ").trim()
         if (normalized in boilerplate) return true
         if (normalized.isBlank()) return true
         return normalized.split(" ").all { it in boilerplate }
@@ -479,28 +381,17 @@ object NotebookTextInterpreter {
         return calendar.timeInMillis
     }
 
-    private fun <T> field(value: T, line: RecognizedNotebookLine): RecognizedField<T> = RecognizedField(
-        value = value,
-        confidence = line.confidence,
-        reviewState = ReviewState.NEEDS_REVIEW,
-        provenance = line.provenance,
-    )
+    private fun <T> field(value: T, line: RecognizedNotebookLine): RecognizedField<T> =
+        RecognizedField(value, line.confidence, ReviewState.NEEDS_REVIEW, line.provenance)
 
-    private fun unresolvedField(provenance: NotebookLineProvenance): RecognizedField<Long> = RecognizedField(
-        value = null,
-        confidence = RecognitionConfidence(0.0),
-        reviewState = ReviewState.NEEDS_REVIEW,
-        provenance = provenance,
-    )
+    private fun unresolvedField(provenance: NotebookLineProvenance): RecognizedField<Long> =
+        RecognizedField(null, RecognitionConfidence(0.0), ReviewState.NEEDS_REVIEW, provenance)
 
-    private fun warning(line: RecognizedNotebookLine, message: String): String =
-        "$message at ${line.pageId}:${line.lineNumber}"
+    private fun warning(line: RecognizedNotebookLine, message: String): String = "$message at ${line.pageId}:${line.lineNumber}"
 
-    private fun String.toDoubleOrNullLenient(): Double? =
-        takeUnless { it == "?" }?.replace(',', '.')?.toDoubleOrNull()
+    private fun String.toDoubleOrNullLenient(): Double? = takeUnless { it == "?" }?.replace(',', '.')?.toDoubleOrNull()
 
-    private fun Double.toWholeIntOrNull(): Int? =
-        takeIf { it >= 0.0 && it == roundToInt().toDouble() }?.roundToInt()
+    private fun Double.toWholeIntOrNull(): Int? = takeIf { it >= 0.0 && it == roundToInt().toDouble() }?.roundToInt()
 
     private fun String.cleanedExerciseName(): String = trim()
         .replace(Regex("""^[\-–—:=•\s]+"""), "")
@@ -508,38 +399,14 @@ object NotebookTextInterpreter {
         .replace(Regex("""\s+"""), " ")
         .trim()
 
-    private data class ParsedTitleDate(
-        val title: String,
-        val date: RecognizedField<Long>,
-    )
-
-    private data class MixedNameNumbers(
-        val name: String,
-        val values: List<NumericValue>,
-    )
-
-    private data class NumericValue(
-        val raw: String,
-        val value: Double?,
-        val line: RecognizedNotebookLine,
-    ) {
-        val isUnknown: Boolean
-            get() = raw == "?"
+    private data class ParsedTitleDate(val title: String, val date: RecognizedField<Long>)
+    private data class MixedNameNumbers(val name: String, val values: List<NumericValue>)
+    private data class NumericValue(val raw: String, val value: Double?, val line: RecognizedNotebookLine) {
+        val isUnknown: Boolean get() = raw == "?"
     }
-
-    private data class NumericRow(
-        val values: List<NumericValue>,
-    )
-
-    private data class RepWeightRows(
-        val reps: NumericRow?,
-        val weights: NumericRow?,
-    )
-
-    private data class TableInterpretationResult(
-        val exercises: List<ExerciseBuilder>,
-        val consumedLineIds: Set<String>,
-    )
+    private data class NumericRow(val values: List<NumericValue>)
+    private data class RepWeightRows(val reps: NumericRow?, val weights: NumericRow?)
+    private data class TableInterpretationResult(val exercises: List<ExerciseBuilder>, val consumedLineIds: Set<String>)
 
     private data class ExerciseBuilder(
         val id: String,
@@ -560,18 +427,8 @@ object NotebookTextInterpreter {
         fun toDraft(): NotebookExerciseDraft = NotebookExerciseDraft(
             id = id,
             position = position,
-            recognizedName = RecognizedField(
-                value = name,
-                confidence = confidence,
-                reviewState = ReviewState.NEEDS_REVIEW,
-                provenance = provenance,
-            ),
-            recognizedMode = RecognizedField(
-                value = null,
-                confidence = RecognitionConfidence(0.0),
-                reviewState = ReviewState.NEEDS_REVIEW,
-                provenance = provenance,
-            ),
+            recognizedName = RecognizedField(name, confidence, ReviewState.NEEDS_REVIEW, provenance),
+            recognizedMode = RecognizedField(null, RecognitionConfidence(0.0), ReviewState.NEEDS_REVIEW, provenance),
             exerciseResolution = ExerciseResolution(),
             sets = sets,
             reviewState = ReviewState.NEEDS_REVIEW,
