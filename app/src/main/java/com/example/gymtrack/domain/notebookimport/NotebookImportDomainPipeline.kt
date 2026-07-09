@@ -38,7 +38,10 @@ object NotebookImportDomainPipeline {
         existingHistory: List<WorkoutRecord> = emptyList(),
         fixtureExpectation: NotebookFixtureExpectation? = null,
     ): NotebookImportDomainPipelineResult {
-        NotebookRecognitionProviderPolicy.validateProviderAllowed(provider, request.batch.consent)
+        NotebookRecognitionProviderPolicy.validateProviderAllowed(
+            provider = provider.descriptor,
+            consent = request.batch.consent,
+        )
         val recognitionOutput = provider.recognize(request)
         val interpretationResult = NotebookTextInterpreter.interpret(request, recognitionOutput)
         val matchingResult = NotebookExerciseMatcher.matchExercises(
