@@ -12,7 +12,7 @@ class NextWorkoutPredictionProvider(
     }
 
     suspend fun getSuggestion(nowEpochMillis: Long): NextWorkoutSuggestion? {
-        val history = repository.getRecentCompleted(historyLimit)
+        val history = repository.getRecentPredictionHistory(historyLimit)
         return predictionService.predictNextWorkout(
             workouts = history,
             nowEpochMillis = nowEpochMillis,
