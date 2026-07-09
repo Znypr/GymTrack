@@ -54,6 +54,8 @@ class SummaryServiceTest {
 
         override suspend fun getByLegacyTimestamp(legacyTimestamp: Long): WorkoutDetails? = null
 
+        override suspend fun getRecentCompleted(limit: Int): List<WorkoutDetails> = emptyList()
+
         override suspend fun save(details: WorkoutDetails) = Unit
     }
 }

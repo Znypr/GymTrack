@@ -7,6 +7,8 @@ interface CanonicalWorkoutRepository {
 
     suspend fun getByLegacyTimestamp(legacyTimestamp: Long): WorkoutDetails?
 
+    suspend fun getRecentCompleted(limit: Int): List<WorkoutDetails>
+
     suspend fun save(details: WorkoutDetails)
 }
 

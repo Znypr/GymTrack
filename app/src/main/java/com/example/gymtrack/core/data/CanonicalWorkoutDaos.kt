@@ -20,6 +20,16 @@ interface CanonicalWorkoutDao {
     @Query("SELECT * FROM workouts WHERE legacy_timestamp = :legacyTimestamp LIMIT 1")
     suspend fun getByLegacyTimestamp(legacyTimestamp: Long): CanonicalWorkoutEntity?
 
+    @Query(
+        """
+        SELECT * FROM workouts
+        WHERE status = :completedStatus
+        ORDER BY started_at DESC, id DESC
+        LIMIT :limit
+        """,
+    )
+    suspend fun getRecentCompleted(completedStatus: String, limit: Int): List<CanonicalWorkoutEntity>
+
     @Query("DELETE FROM workouts WHERE id = :id")
     suspend fun deleteById(id: String)
 
