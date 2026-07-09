@@ -16,9 +16,13 @@ import kotlin.math.roundToInt
 data class NotebookTextInterpretationResult(
     val batch: NotebookImportBatchDraft,
     val warnings: List<String> = emptyList(),
+    val formatProfilesByPageId: Map<String, NotebookFormatDetectionResult> = emptyMap(),
 ) {
     init {
         require(warnings.none { it.isBlank() }) { "Interpretation warnings must not be blank" }
+        require(formatProfilesByPageId.keys.none { it.isBlank() }) {
+            "Notebook format profile page ids must not be blank"
+        }
     }
 
     val requiresReview: Boolean
@@ -29,7 +33,7 @@ object NotebookTextInterpreter {
     private val isoDateLine = Regex("""^(\d{4})-(\d{2})-(\d{2})(?:\s+(.+))?$""")
     private val europeanDateLine = Regex("""^(\d{1,2})\.(\d{1,2})\.?(?:\s*(\d{2,4}))?(?:\s+(.+))?$""")
     private val titleDateLine = Regex(
-        """^(push|pull|beine|legs|upper|lower|full\s*body)\s+(\d{1,2}\.\d{1,2}\.?(?:\s*\d{2,4})?)$""",
+        """^(push|pull|beine|legs|upper|lower|full\s*body)\s+(.+)$""",
         RegexOption.IGNORE_CASE,
     )
     private val standaloneTitleLine = Regex(
@@ -68,11 +72,15 @@ object NotebookTextInterpreter {
         }) { "Recognition output can only reference pages from the interpretation request" }
 
         val warnings = mutableListOf<String>()
+        val formatProfiles = output.recognizedPages.associate { page ->
+            page.pageId to NotebookFormatDetector.detect(page.lines)
+        }
         val workouts = output.recognizedPages.mapNotNull { page -> interpretPage(page, warnings) }
 
         return NotebookTextInterpretationResult(
             batch = request.batch.copy(workouts = workouts),
             warnings = warnings,
+            formatProfilesByPageId = formatProfiles,
         )
     }
 
@@ -164,7 +172,8 @@ object NotebookTextInterpreter {
 
     private fun parseTitleDateLine(text: String, line: RecognizedNotebookLine): ParsedTitleDate? {
         val match = titleDateLine.matchEntire(text) ?: return null
-        val dateMatch = europeanDateLine.matchEntire(match.groupValues[2].trim()) ?: return null
+        val dateText = match.groupValues[2].trim().trimEnd(',', ';')
+        val dateMatch = europeanDateLine.matchEntire(dateText) ?: return null
         return ParsedTitleDate(
             title = match.groupValues[1].trim().replaceFirstChar { it.uppercase() },
             date = parseEuropeanDateField(dateMatch, line),
