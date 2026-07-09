@@ -1,0 +1,13 @@
+Title,Category,Timestamp,Learnings
+Push,Push,01/07/2026 18:00,Seed data for #178 prediction QA
+Main Index,Main Entry,Time,Flag
+0,Bench Press,18:05,bi
+1,Incline Dumbbell Press,18:22,bi
+2,Triceps Pushdown,18:40,bi
+Main Index,Sub Entry,Time,Flag
+0,80kg x 8,18:08,1x
+0,80kg x 7,18:12,1x
+0,75kg x 9,18:16,1x
+1,30kg x 10,18:25,1x
+1,30kg x 9,18:30,1x
+2,35kg x 12,18:43,1x
