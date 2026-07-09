@@ -24,11 +24,16 @@ interface CanonicalWorkoutDao {
         """
         SELECT * FROM workouts
         WHERE status = :completedStatus
+            OR legacy_migration_status IN (:eligibleLegacyMigrationStatuses)
         ORDER BY started_at DESC, id DESC
         LIMIT :limit
         """,
     )
-    suspend fun getRecentCompleted(completedStatus: String, limit: Int): List<CanonicalWorkoutEntity>
+    suspend fun getRecentPredictionHistory(
+        completedStatus: String,
+        eligibleLegacyMigrationStatuses: List<String>,
+        limit: Int,
+    ): List<CanonicalWorkoutEntity>
 
     @Query("DELETE FROM workouts WHERE id = :id")
     suspend fun deleteById(id: String)
