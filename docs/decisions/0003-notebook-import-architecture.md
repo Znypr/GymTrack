@@ -159,6 +159,14 @@ Fixture metrics compare expected workout, exercise, set, and unresolved-field co
 
 The import planner turns a fully reviewed batch into canonical-workout-shaped plan data. It rejects unconfirmed batches, unconfirmed optional fields, unresolved mappings, unknown weighted units, and unresolved duplicate candidates. The planner does not allocate database IDs or write Room entities.
 
+### Persistence, deletion, and canonical duplicates
+
+The domain exposes persistence boundaries for saving import state, deleting import intermediates, and committing validated import plans. Data-layer implementations will adapt these interfaces to Room, files, or DataStore later.
+
+Deletion planning keeps source image deletion and intermediate import-data deletion explicit. Deletion plans never include canonical workouts.
+
+Canonical duplicate detection compares validated import plans against existing workout records and reports exact or same-start candidates. It still only blocks preflight; it does not merge, delete, reject, or write workouts.
+
 Later implementation should add:
 
 - Room or DataStore persistence for batch state;
@@ -169,7 +177,6 @@ Later implementation should add:
 - image preprocessing adapters that produce page metadata without storing transformed images by default;
 - on-device OCR provider implementation behind the provider boundary;
 - richer notation parsing for supersets, unilateral work, bodyweight sets, notes, crossed-out values, and personal abbreviations;
-- canonical duplicate checks based on date, exercise order, set values, and provenance;
 - repository transaction that consumes a validated import plan.
 
 ## Initial implementation slices
@@ -191,6 +198,8 @@ The seventh slice adds pure Kotlin recognized-text interpretation into reviewabl
 The eighth slice adds pure Kotlin exercise matching, draft duplicate detection, and fixture accuracy metrics. It does not confirm mappings, mutate persisted workouts, or compare against canonical history.
 
 The ninth slice adds pure Kotlin explicit review transitions and validated canonical import-plan generation. It does not write canonical data or create Room entities.
+
+The tenth slice adds pure Kotlin persistence boundaries, deletion planning, and canonical duplicate preflight checks. It does not implement Room/filesystem deletion or commit transactions.
 
 This keeps the high-risk invariants testable before UI, storage, or recognition implementation starts.
 
@@ -231,6 +240,7 @@ Trade-offs:
 - the first text interpreter intentionally supports only narrow fixture patterns;
 - matching and duplicates are draft-level only until review UI and canonical import exist;
 - import planning exists before the final repository transaction;
+- persistence interfaces exist before concrete Room/file implementations;
 - the first slices will not yet import real notebook photos end-to-end.
 
 ## Validation
