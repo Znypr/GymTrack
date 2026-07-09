@@ -44,6 +44,19 @@ class ExerciseIdentityResolverTest {
     }
 
     @Test
+    fun editorSuggestionMatchingCanIgnoreMachineBrandWhenSkippingUsedBaseExercise() {
+        val typedWithBrand = ExerciseIdentityResolver.resolve(rawName = "pec deck rl")
+        val plainSuggestion = ExerciseIdentityResolver.resolve(rawName = "Pec Deck")
+        val machineSuggestion = ExerciseIdentityResolver.resolve(rawName = "Pec Deck Machine")
+
+        assertEquals("Pec Deck", typedWithBrand.canonicalName)
+        assertEquals("Realleader", typedWithBrand.brand)
+        assertEquals(plainSuggestion.baseComparisonKey, typedWithBrand.baseComparisonKey)
+        assertEquals(machineSuggestion.baseComparisonKey, typedWithBrand.baseComparisonKey)
+        assertNotEquals(plainSuggestion.progressComparisonKey, typedWithBrand.progressComparisonKey)
+    }
+
+    @Test
     fun sygTokenResolvesAsGym80MachineBrandLikeG80() {
         val syg = ExerciseIdentityResolver.resolve(rawName = "leg extension syg")
         val g80 = ExerciseIdentityResolver.resolve(rawName = "leg extension g80")

@@ -29,8 +29,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.example.gymtrack.core.backup.BackupManifest
 import com.example.gymtrack.core.backup.BackupRepository
 import com.example.gymtrack.core.data.NoteLine
@@ -78,6 +80,7 @@ fun NavigationHost(
             val notes by homeViewModel.notes.collectAsState()
             val importSummary by homeViewModel.legacyCsvImportSummary.collectAsState()
             val importProgress by homeViewModel.legacyCsvImportProgress.collectAsState()
+            val nextWorkoutSuggestion by homeViewModel.nextWorkoutSuggestion.collectAsState()
 
             LaunchedEffect(importSummary) {
                 val summary = importSummary ?: return@LaunchedEffect
@@ -133,6 +136,19 @@ fun NavigationHost(
                 },
                 legacyCsvImportProgress = importProgress,
                 showLegacyCsvImport = BuildConfig.DEBUG,
+                nextWorkoutSuggestion = nextWorkoutSuggestion,
+                onDismissNextWorkoutSuggestion = homeViewModel::dismissNextWorkoutSuggestion,
+                onStartSuggestedWorkout = { suggestion ->
+                    val encodedCategory = Uri.encode(suggestion.workoutLabel)
+                    Toast.makeText(
+                        context,
+                        "Opening blank workout. Suggested label: ${suggestion.workoutLabel}",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                    navController.navigate(
+                        "editor?noteId=-1&suggestedCategory=$encodedCategory&suggestedText=",
+                    )
+                },
                 onOpenSettings = { navController.navigate("settings") },
                 onOpenStats = { navController.navigate("stats") },
                 onSwipeRight = {},
@@ -140,9 +156,28 @@ fun NavigationHost(
             )
         }
 
-        composable("editor?noteId={noteId}") { backStackEntry ->
+        composable(
+            route = "editor?noteId={noteId}&suggestedCategory={suggestedCategory}&suggestedText={suggestedText}",
+            arguments = listOf(
+                navArgument("noteId") {
+                    type = NavType.StringType
+                    defaultValue = "-1"
+                },
+                navArgument("suggestedCategory") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+                navArgument("suggestedText") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+            ),
+        ) { backStackEntry ->
             val context = LocalContext.current
             val noteId = backStackEntry.arguments?.getString("noteId")?.toLongOrNull() ?: -1L
+            val suggestedCategory = backStackEntry.arguments?.getString("suggestedCategory")
+                ?.takeIf { it.isNotBlank() }
+            val suggestedText = backStackEntry.arguments?.getString("suggestedText").orEmpty()
             val timerStates = remember(context) { NoteTimerStore.observe(context) }
             val timerState by timerStates.collectAsState(initial = NoteTimerState())
             val isActiveWorkout = shouldShowActiveWorkoutControls(
@@ -152,9 +187,11 @@ fun NavigationHost(
 
             val editorViewModel: EditorViewModel = viewModel(
                 factory = EditorViewModel.Factory(
-                    noteId,
-                    noteRepository,
-                    workoutRepository,
+                    noteId = noteId,
+                    noteRepo = noteRepository,
+                    workoutRepo = workoutRepository,
+                    suggestedCategoryName = suggestedCategory,
+                    suggestedDraftText = suggestedText,
                 ),
             )
 

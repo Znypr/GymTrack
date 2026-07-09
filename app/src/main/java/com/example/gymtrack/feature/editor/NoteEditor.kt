@@ -43,6 +43,7 @@ fun NoteEditor(
 ) {
     val note by viewModel.uiState.collectAsState()
     val saveError by viewModel.saveError.collectAsState()
+    val exerciseSuggestions by viewModel.exerciseSuggestions.collectAsState()
     val isEditingExisting = viewModel.currentId != -1L
     val startTimerOnOpen = remember(viewModel) { viewModel.currentId == -1L }
 
@@ -77,6 +78,7 @@ fun NoteEditor(
     var selectedCategory by remember(note) {
         mutableStateOf(
             settings.categories.find { it.name == note?.categoryName }
+                ?: viewModel.currentCategory
                 ?: Category("Push", 0xFFFF3B30),
         )
     }
@@ -85,7 +87,10 @@ fun NoteEditor(
     }
     var showLearnings by remember { mutableStateOf(false) }
 
-    LaunchedEffect(selectedCategory) { viewModel.currentCategory = selectedCategory }
+    LaunchedEffect(selectedCategory) {
+        viewModel.currentCategory = selectedCategory
+        viewModel.refreshExerciseSuggestionsForCategory(selectedCategory.name)
+    }
     LaunchedEffect(learningsValue.text) { viewModel.currentLearnings = learningsValue.text }
     LaunchedEffect(note) { note?.let { viewModel.currentTitle = it.title } }
 
@@ -155,6 +160,7 @@ fun NoteEditor(
                     onCategorySelect = {
                         selectedCategory = it
                         viewModel.currentCategory = it
+                        viewModel.refreshExerciseSuggestionsForCategory(it.name)
                         state.markDirty()
                     },
                     topPadding = padding.calculateTopPadding(),
@@ -183,7 +189,11 @@ fun NoteEditor(
                         .padding(horizontal = 16.dp),
                 ) {
                     Spacer(Modifier.height(16.dp))
-                    EditorListSection(state, modifier = Modifier.fillMaxSize())
+                    EditorListSection(
+                        state = state,
+                        suggestedExercises = exerciseSuggestions,
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 }
             }
 

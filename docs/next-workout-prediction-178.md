@@ -12,11 +12,16 @@ Small implementation PRs should target `feature/178-workout-prediction`, not `ma
 
 The baseline is intentionally deterministic and backend-only.
 
-It predicts a likely next workout label from confirmed completed workout history. It does not prefill the editor, suggest exercises, suggest weights, or make coaching claims.
+It predicts a likely next workout label from saved workout history. It does not suggest weights or make coaching claims.
 
 ### Inputs
 
-The prediction service accepts canonical `WorkoutDetails` records and uses only completed workouts with a usable label.
+The prediction service accepts canonical `WorkoutDetails` records and uses only prediction-eligible workouts with a usable label.
+
+Prediction-eligible means:
+
+1. canonical `COMPLETED`; or
+2. legacy-backed canonical history with migration status `MIGRATED` or `NEEDS_REVIEW`.
 
 Label selection:
 
@@ -24,14 +29,14 @@ Label selection:
 2. workout title, when category is absent;
 3. ignored when both are blank.
 
-Draft and partial workouts are ignored so transient autosave state does not train suggestions.
+Draft workouts, pending legacy migrations, and blank-label records are ignored so transient or unverified state does not train suggestions.
 
 ### Prediction rules
 
-1. If all completed labeled workouts share one label, suggest that label with low or medium confidence depending on sample size.
-2. Otherwise, use historical transitions from the latest completed workout label to the next label.
+1. If all saved labeled workouts share one label, suggest that label with low or medium confidence depending on sample size.
+2. Otherwise, use historical transitions from the latest saved workout label to the next label.
 3. If the latest label has no repeated transition history, fall back to the least recently trained recurring workout.
-4. Return no suggestion when there is no completed labeled history or no defensible fallback.
+4. Return no suggestion when there is no prediction-eligible labeled history or no defensible fallback.
 
 ### Output
 
@@ -42,17 +47,53 @@ A suggestion contains:
 - plain reason text;
 - evidence including recent labels, basis, transition counts, previous label, and days since the suggested label.
 
-## Slice 2: recent completed history source
+## Slice 2: recent prediction-history source
 
-`CanonicalWorkoutRepository.getRecentCompleted(limit)` exposes a bounded, newest-first list of completed canonical workouts.
+`CanonicalWorkoutRepository.getRecentPredictionHistory(limit)` exposes a bounded, newest-first list of prediction-eligible canonical workouts.
 
 `NextWorkoutPredictionProvider` is the bridge from stored history to the deterministic prediction service:
 
-1. load recent completed canonical workouts;
+1. load recent prediction-eligible canonical workouts;
 2. pass them into `NextWorkoutPredictionService`;
 3. return the suggestion without persisting learned state or changing workout history.
 
-The default history window is 24 completed workouts. This is intentionally small and deterministic for the initial baseline.
+The default history window is 24 saved workouts. This is intentionally small and deterministic for the initial baseline.
+
+## Slice 3: Home suggestion surface
+
+The Home surface stays category-level only:
+
+- Home loads the current prediction into `HomeViewModel` state.
+- `NotesScreen` shows a dismissible "Likely next workout" card when a suggestion exists.
+- The card shows only the predicted label, reason, and confidence.
+- The action opens the existing blank editor flow with the predicted category selected.
+
+The Home card must not show an exercise-order preview. It also must not bulk-prefill exercises into the editor, because that marks every prefilled exercise as current timed content.
+
+## Slice 4: Exercise-order suggestion backend
+
+`ExerciseOrderSuggestionService` can derive stable exercise order from matching saved workouts for a predicted label, but it is not surfaced as a bulk prefill.
+
+Rules:
+
+1. Use category/title label matching.
+2. Require at least two matching workouts.
+3. Include exercises that appear repeatedly or in at least half of matching workouts.
+4. Order exercises by observed median position.
+5. Limit to six exercises for the initial suggestion list.
+
+## Slice 5: One-at-a-time editor exercise suggestions
+
+The editor consumes the exercise-order suggestion list one exercise at a time:
+
+- suggestions are loaded for the currently selected category;
+- the UI only shows a suggestion when the current row is an empty main-exercise row;
+- accepting a suggestion inserts exactly one exercise name into that row;
+- accepted suggestions already present in the draft are skipped;
+- used-suggestion matching compares canonical base exercise identity, so typed variants like machine/brand/cable labels do not make the same base exercise appear again;
+- no set rows, weights, reps, RPE, or progression targets are inserted.
+
+This avoids creating multiple timed exercise rows at once.
 
 ## Product boundary
 
@@ -67,7 +108,5 @@ No suggestion modifies history or creates a workout without user confirmation.
 
 ## Next slices
 
-- Surface the suggestion in Home or the start-workout flow on the #178 integration branch.
-- Record accept/reject/replace feedback separately from workout history.
-- Prefill editable exercise rows only after explicit user acceptance.
+- Add explicit accept/reject/replace feedback separately from workout history.
 - Defer load/rep targets until progression policy, units, and safety rules are defined.

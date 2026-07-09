@@ -13,6 +13,8 @@ import com.example.gymtrack.core.data.repository.NoteRepository
 import com.example.gymtrack.core.data.repository.toEntity
 import com.example.gymtrack.core.util.exportNote
 import com.example.gymtrack.core.util.importNote
+import com.example.gymtrack.domain.recommendation.NextWorkoutSuggestion
+import com.example.gymtrack.domain.recommendation.SuggestionConfidence
 import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
@@ -73,6 +75,12 @@ data class LegacyCsvImportProgress(
     }
 }
 
+data class NextWorkoutHomeSuggestion(
+    val workoutLabel: String,
+    val confidenceLabel: String,
+    val reason: String,
+)
+
 class HomeViewModel(
     private val repository: NoteRepository,
     private val workoutRepository: WorkoutRepository,
@@ -87,8 +95,32 @@ class HomeViewModel(
     private val _legacyCsvImportProgress = MutableStateFlow<LegacyCsvImportProgress?>(null)
     val legacyCsvImportProgress = _legacyCsvImportProgress.asStateFlow()
 
+    private val _nextWorkoutSuggestion = MutableStateFlow<NextWorkoutHomeSuggestion?>(null)
+    val nextWorkoutSuggestion = _nextWorkoutSuggestion.asStateFlow()
+
+    private var nextWorkoutSuggestionDismissed = false
+
+    init {
+        refreshNextWorkoutSuggestion()
+    }
+
     fun clearLegacyCsvImportSummary() {
         _legacyCsvImportSummary.value = null
+    }
+
+    fun dismissNextWorkoutSuggestion() {
+        nextWorkoutSuggestionDismissed = true
+        _nextWorkoutSuggestion.value = null
+    }
+
+    fun refreshNextWorkoutSuggestion() {
+        if (nextWorkoutSuggestionDismissed) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val suggestion = runCatching {
+                workoutRepository.getNextWorkoutSuggestion(System.currentTimeMillis())
+            }.getOrNull()
+            _nextWorkoutSuggestion.value = suggestion?.toHomeSuggestion()
+        }
     }
 
     fun deleteNotes(notes: Set<NoteLine>) {
@@ -96,6 +128,7 @@ class HomeViewModel(
             notes.forEach { note ->
                 workoutRepository.deleteWorkout(note.toEntity())
             }
+            refreshNextWorkoutSuggestion()
         }
     }
 
@@ -250,9 +283,20 @@ class HomeViewModel(
                 )
             } finally {
                 _legacyCsvImportProgress.value = null
+                refreshNextWorkoutSuggestion()
             }
         }
     }
+
+    private fun NextWorkoutSuggestion.toHomeSuggestion(): NextWorkoutHomeSuggestion = NextWorkoutHomeSuggestion(
+        workoutLabel = workoutLabel,
+        confidenceLabel = when (confidence) {
+            SuggestionConfidence.LOW -> "Low confidence"
+            SuggestionConfidence.MEDIUM -> "Medium confidence"
+            SuggestionConfidence.HIGH -> "High confidence"
+        },
+        reason = reason,
+    )
 
     private fun displayName(context: Context, uri: Uri): String {
         return runCatching {

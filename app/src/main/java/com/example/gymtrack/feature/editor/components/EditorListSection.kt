@@ -22,8 +22,10 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -63,10 +65,15 @@ import kotlinx.coroutines.launch
 
 internal const val EDITOR_FIRST_INPUT_TEST_TAG = "editor-first-input"
 internal const val EDITOR_EMPTY_AFFORDANCE_TEST_TAG = "editor-empty-affordance"
+internal const val EDITOR_EXERCISE_SUGGESTION_TEST_TAG = "editor-exercise-suggestion"
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
-fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
+fun EditorListSection(
+    state: NoteEditorState,
+    suggestedExercises: List<String> = emptyList(),
+    modifier: Modifier = Modifier,
+) {
     val coroutineScope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -82,6 +89,11 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
             val bringIntoViewRequester = remember { BringIntoViewRequester() }
             val isMain = index == 0 || state.lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
             val isFirstEmptyInput = index == 0 && state.lines.size == 1 && row.text.value.text.isBlank()
+            val nextExerciseSuggestion = if (isMain && row.text.value.text.isBlank()) {
+                state.nextExerciseSuggestion(suggestedExercises)
+            } else {
+                null
+            }
             var isFocused by remember(row.id) { mutableStateOf(false) }
 
             LaunchedEffect(isFirstEmptyInput, row.id) {
@@ -121,6 +133,13 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                     decorationBox = { innerTextField ->
                         StarterInputAffordance(
                             isFocused = isFocused,
+                            suggestion = nextExerciseSuggestion,
+                            onAcceptSuggestion = nextExerciseSuggestion?.let { suggestion ->
+                                {
+                                    state.acceptExerciseSuggestion(index, suggestion)
+                                    keyboardController?.show()
+                                }
+                            },
                             innerTextField = innerTextField,
                         )
                     },
@@ -151,7 +170,6 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                         .bringIntoViewRequester(bringIntoViewRequester),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // Flag / Tag Column
                     Box(
                         modifier = Modifier.width(50.dp),
                         contentAlignment = Alignment.CenterStart,
@@ -174,7 +192,6 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
 
                     Spacer(Modifier.width(8.dp))
 
-                    // Input Field
                     Column(
                         modifier = Modifier
                             .weight(1f)
@@ -183,6 +200,16 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                                 bottom = if (isMain) 6.dp else 0.dp,
                             ),
                     ) {
+                        nextExerciseSuggestion?.let { suggestion ->
+                            NextExerciseSuggestionButton(
+                                exerciseName = suggestion,
+                                onClick = {
+                                    state.acceptExerciseSuggestion(index, suggestion)
+                                    keyboardController?.show()
+                                },
+                                modifier = Modifier.padding(bottom = 8.dp),
+                            )
+                        }
                         BasicTextField(
                             value = row.text.value,
                             onValueChange = { state.onTextChange(index, it) },
@@ -215,7 +242,6 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                         }
                     }
 
-                    // Timestamp
                     val absText = state.timestamps.getOrElse(index) { "" }
                     if (absText.isNotBlank()) {
                         val absAnnotated = SmallSecondsVisualTransformation(14.sp).filter(AnnotatedString(absText)).text
@@ -229,6 +255,23 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun NextExerciseSuggestionButton(
+    exerciseName: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier.testTag(EDITOR_EXERCISE_SUGGESTION_TEST_TAG),
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = MaterialTheme.colorScheme.primary,
+        ),
+    ) {
+        Text("Suggest next: $exerciseName")
     }
 }
 
@@ -288,6 +331,8 @@ private fun editorVariantAccentColor(kind: ExerciseVariantLabelKind): Color = wh
 @Composable
 internal fun StarterInputAffordance(
     isFocused: Boolean,
+    suggestion: String? = null,
+    onAcceptSuggestion: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     innerTextField: @Composable () -> Unit = {},
 ) {
@@ -338,6 +383,13 @@ internal fun StarterInputAffordance(
                     )
                 }
                 innerTextField()
+            }
+            if (suggestion != null && onAcceptSuggestion != null) {
+                NextExerciseSuggestionButton(
+                    exerciseName = suggestion,
+                    onClick = onAcceptSuggestion,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
             }
             Text(
                 text = "Press Enter after each exercise or set.",

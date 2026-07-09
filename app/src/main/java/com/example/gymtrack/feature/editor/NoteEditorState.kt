@@ -12,6 +12,7 @@ import com.example.gymtrack.core.data.ExerciseFlag
 import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.timer.NoteTimerStore
+import com.example.gymtrack.core.util.ExerciseIdentityResolver
 import com.example.gymtrack.core.util.buildNoteRowMetadata
 import com.example.gymtrack.core.util.formatElapsedMinutesSeconds
 import com.example.gymtrack.core.util.formatSecondsToMinutesSeconds
@@ -136,6 +137,35 @@ class NoteEditorState(
         }
     }
 
+    fun nextExerciseSuggestion(suggestedExercises: List<String>): String? {
+        if (suggestedExercises.isEmpty()) return null
+        val used = lines
+            .mapIndexedNotNull { index, row ->
+                val text = row.text.value.text.trim()
+                if (text.isBlank() || !isMainExerciseRow(index)) return@mapIndexedNotNull null
+                text.exerciseSuggestionComparisonKey()
+            }
+            .toSet()
+        return suggestedExercises.firstOrNull { suggestion ->
+            suggestion.exerciseSuggestionComparisonKey() !in used
+        }
+    }
+
+    fun acceptExerciseSuggestion(index: Int, exerciseName: String) {
+        if (finishing || exerciseName.isBlank()) return
+        val row = lines.getOrNull(index) ?: return
+        if (!isMainExerciseRow(index) || row.text.value.text.isNotBlank()) return
+        markDirty()
+        val cleanName = exerciseName.trim()
+        row.text.value = TextFieldValue(cleanName, TextRange(cleanName.length))
+        ensureListSize(index)
+        flags[index] = row.flag.value
+        scope.launch {
+            delay(50L)
+            row.focusRequester.requestFocus()
+        }
+    }
+
     fun toggleFlag(index: Int) {
         if (finishing) return
         markDirty()
@@ -216,6 +246,17 @@ class NoteEditorState(
         while (flags.size < lines.size) flags.add(ExerciseFlag.BILATERAL)
         while (flags.size > lines.size) flags.removeAt(flags.lastIndex)
     }
+
+    private fun isMainExerciseRow(index: Int): Boolean =
+        index == 0 || lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
+
+    private fun String.exerciseSuggestionComparisonKey(): String = ExerciseIdentityResolver
+        .resolve(cleanExerciseSuggestionText())
+        .baseComparisonKey
+
+    private fun String.cleanExerciseSuggestionText(): String =
+        replace(Regex("""\s*\(\d+'\d{2}''\)$"""), "")
+            .trim()
 }
 
 @Composable

@@ -1,6 +1,7 @@
 package com.example.gymtrack.core.data
 
 import androidx.room.withTransaction
+import com.example.gymtrack.core.data.canonical.RoomCanonicalWorkoutRepository
 import com.example.gymtrack.core.data.canonical.toDomain
 import com.example.gymtrack.core.data.transition.CanonicalExerciseCatalog
 import com.example.gymtrack.core.data.transition.CanonicalKeys
@@ -13,6 +14,9 @@ import com.example.gymtrack.core.util.variantLabels
 import com.example.gymtrack.domain.model.WorkoutDetails
 import com.example.gymtrack.domain.model.WorkoutRecord
 import com.example.gymtrack.domain.model.WorkoutStatus
+import com.example.gymtrack.domain.recommendation.ExerciseOrderSuggestion
+import com.example.gymtrack.domain.recommendation.NextWorkoutPredictionProvider
+import com.example.gymtrack.domain.recommendation.NextWorkoutSuggestion
 import com.example.gymtrack.domain.summary.TrainingSummaryBuilder
 import com.example.gymtrack.domain.summary.TrainingSummaryJson
 import com.example.gymtrack.domain.summary.TrainingSummaryOutboxEntry
@@ -31,6 +35,9 @@ class WorkoutRepository(
     private val parser = WorkoutParser()
     private val canonicalProjector = LegacyWorkoutProjector()
     private val summaryBuilder = TrainingSummaryBuilder()
+    private val predictionProvider = NextWorkoutPredictionProvider(
+        repository = RoomCanonicalWorkoutRepository(database),
+    )
 
     fun getAllExercises(): Flow<List<ExerciseEntity>> {
         return exerciseDao.getAllExercises()
@@ -136,6 +143,14 @@ class WorkoutRepository(
 
     suspend fun cleanUpOrphans() {
         setDao.deleteOrphanedSets()
+    }
+
+    suspend fun getNextWorkoutSuggestion(nowEpochMillis: Long): NextWorkoutSuggestion? {
+        return predictionProvider.getSuggestion(nowEpochMillis)
+    }
+
+    suspend fun getSuggestedExerciseOrder(workoutLabel: String): ExerciseOrderSuggestion? {
+        return predictionProvider.getExerciseOrderSuggestion(workoutLabel)
     }
 
     suspend fun deleteWorkout(timestamp: Long) {

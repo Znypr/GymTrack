@@ -1,0 +1,13 @@
+Title,Category,Timestamp,Learnings
+Legs,Legs,03/07/2026 18:00,Seed data for #178 prediction QA
+Main Index,Main Entry,Time,Flag
+0,Squat,18:07,bi
+1,Leg Press,18:30,bi
+2,Leg Curl,18:52,bi
+Main Index,Sub Entry,Time,Flag
+0,100kg x 6,18:10,1x
+0,100kg x 6,18:15,1x
+0,95kg x 8,18:20,1x
+1,180kg x 12,18:34,1x
+1,180kg x 11,18:40,1x
+2,55kg x 12,18:55,1x

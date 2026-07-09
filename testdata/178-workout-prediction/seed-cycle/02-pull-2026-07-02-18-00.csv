@@ -1,0 +1,13 @@
+Title,Category,Timestamp,Learnings
+Pull,Pull,02/07/2026 18:00,Seed data for #178 prediction QA
+Main Index,Main Entry,Time,Flag
+0,Lat Pulldown,18:06,bi
+1,Seated Cable Row,18:24,bi
+2,Rear Delt Fly,18:44,bi
+Main Index,Sub Entry,Time,Flag
+0,70kg x 10,18:09,1x
+0,70kg x 9,18:13,1x
+0,65kg x 11,18:17,1x
+1,75kg x 10,18:27,1x
+1,75kg x 9,18:32,1x
+2,12kg x 15,18:47,1x

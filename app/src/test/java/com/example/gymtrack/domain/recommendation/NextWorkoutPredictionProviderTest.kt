@@ -15,7 +15,7 @@ class NextWorkoutPredictionProviderTest {
     @Test
     fun loadsConfiguredRecentHistoryLimitAndReturnsSuggestion() = runBlocking {
         val repository = Repository(
-            recentCompleted = listOf(
+            recentHistory = listOf(
                 workoutDetails(label = "Push", day = 1),
                 workoutDetails(label = "Pull", day = 2),
                 workoutDetails(label = "Push", day = 3),
@@ -30,18 +30,18 @@ class NextWorkoutPredictionProviderTest {
 
         requireNotNull(suggestion)
         assertEquals("Pull", suggestion.workoutLabel)
-        assertEquals(listOf(12), repository.recentCompletedRequests)
+        assertEquals(listOf(12), repository.recentHistoryRequests)
     }
 
     @Test
     fun returnsNullWhenRecentHistoryHasNoDefensibleSuggestion() = runBlocking {
-        val repository = Repository(recentCompleted = emptyList())
+        val repository = Repository(recentHistory = emptyList())
         val provider = NextWorkoutPredictionProvider(repository = repository)
 
         assertNull(provider.getSuggestion(nowEpochMillis = dayMillis(4)))
         assertEquals(
             listOf(NextWorkoutPredictionProvider.DEFAULT_HISTORY_LIMIT),
-            repository.recentCompletedRequests,
+            repository.recentHistoryRequests,
         )
     }
 
@@ -49,24 +49,24 @@ class NextWorkoutPredictionProviderTest {
     fun rejectsNonPositiveHistoryLimit() {
         assertThrows(IllegalArgumentException::class.java) {
             NextWorkoutPredictionProvider(
-                repository = Repository(recentCompleted = emptyList()),
+                repository = Repository(recentHistory = emptyList()),
                 historyLimit = 0,
             )
         }
     }
 
     private class Repository(
-        private val recentCompleted: List<WorkoutDetails>,
+        private val recentHistory: List<WorkoutDetails>,
     ) : CanonicalWorkoutRepository {
-        val recentCompletedRequests = mutableListOf<Int>()
+        val recentHistoryRequests = mutableListOf<Int>()
 
         override suspend fun getById(workoutId: String): WorkoutDetails? = null
 
         override suspend fun getByLegacyTimestamp(legacyTimestamp: Long): WorkoutDetails? = null
 
-        override suspend fun getRecentCompleted(limit: Int): List<WorkoutDetails> {
-            recentCompletedRequests += limit
-            return recentCompleted.take(limit)
+        override suspend fun getRecentPredictionHistory(limit: Int): List<WorkoutDetails> {
+            recentHistoryRequests += limit
+            return recentHistory.take(limit)
         }
 
         override suspend fun save(details: WorkoutDetails) = Unit

@@ -44,6 +44,9 @@ fun NotesScreen(
     onImport: (List<Uri>) -> Unit,
     legacyCsvImportProgress: LegacyCsvImportProgress? = null,
     showLegacyCsvImport: Boolean = false,
+    nextWorkoutSuggestion: NextWorkoutHomeSuggestion? = null,
+    onDismissNextWorkoutSuggestion: () -> Unit = {},
+    onStartSuggestedWorkout: (NextWorkoutHomeSuggestion) -> Unit = {},
     onOpenSettings: () -> Unit,
     onOpenStats: () -> Unit,
     onSwipeRight: () -> Unit,
@@ -176,6 +179,17 @@ fun NotesScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
+                nextWorkoutSuggestion?.let { suggestion ->
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        NextWorkoutSuggestionCard(
+                            suggestion = suggestion,
+                            onStart = { onStartSuggestedWorkout(suggestion) },
+                            onDismiss = onDismissNextWorkoutSuggestion,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Row(
                         modifier = Modifier
@@ -247,6 +261,72 @@ fun NotesScreen(
                         .padding(horizontal = 16.dp, vertical = 12.dp)
                         .fillMaxWidth(),
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NextWorkoutSuggestionCard(
+    suggestion: NextWorkoutHomeSuggestion,
+    onStart: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(20.dp),
+        tonalElevation = 2.dp,
+        color = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "Likely next workout",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = suggestion.workoutLabel,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "Dismiss workout suggestion",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Text(
+                text = suggestion.reason,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = suggestion.confidenceLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(onClick = onStart) {
+                    Text("Start blank")
+                }
             }
         }
     }

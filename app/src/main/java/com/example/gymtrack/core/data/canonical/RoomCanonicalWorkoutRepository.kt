@@ -7,6 +7,7 @@ import com.example.gymtrack.core.data.CanonicalWorkoutEntity
 import com.example.gymtrack.core.data.NoteDatabase
 import com.example.gymtrack.core.data.transition.CanonicalKeys
 import com.example.gymtrack.domain.model.Exercise
+import com.example.gymtrack.domain.model.LegacyMigrationStatus
 import com.example.gymtrack.domain.model.WorkoutDetails
 import com.example.gymtrack.domain.model.WorkoutRecord
 import com.example.gymtrack.domain.model.WorkoutStatus
@@ -24,12 +25,16 @@ class RoomCanonicalWorkoutRepository(
             database.canonicalWorkoutDao().getByLegacyTimestamp(legacyTimestamp)?.let { load(it) }
         }
 
-    override suspend fun getRecentCompleted(limit: Int): List<WorkoutDetails> {
+    override suspend fun getRecentPredictionHistory(limit: Int): List<WorkoutDetails> {
         if (limit <= 0) return emptyList()
         return database.withTransaction {
             database.canonicalWorkoutDao()
-                .getRecentCompleted(
+                .getRecentPredictionHistory(
                     completedStatus = WorkoutStatus.COMPLETED.name,
+                    eligibleLegacyMigrationStatuses = listOf(
+                        LegacyMigrationStatus.MIGRATED.name,
+                        LegacyMigrationStatus.NEEDS_REVIEW.name,
+                    ),
                     limit = limit,
                 )
                 .map { load(it) }
