@@ -30,6 +30,7 @@ Notebook images
   -> page draft records and fingerprints
   -> preprocessing and page ordering
   -> recognition output with confidence and provenance
+  -> format/profile detection
   -> proposed workout drafts
   -> review queue and session summary
   -> user review and exercise mapping
@@ -146,6 +147,17 @@ Preprocessing records deterministic page metadata and review hints without mutat
 
 Page ordering produces proposals, not automatic canonical decisions. Detected page numbers sort before dates; dates sort before original upload order. Reordered pages and low-confidence ordering proposals require review. Original upload order remains available as provenance.
 
+### Format detection
+
+The interpreter detects broad notebook format profiles per page before interpreting rows:
+
+- predefined workout notebooks with printed table headers or exercise rows followed by numeric set rows;
+- compact handwritten rows such as `Exercise 80 kg x 8`;
+- freeform handwritten logs with longer text notes;
+- mixed or unknown layouts.
+
+The detected profile is only a routing and UI hint. It does not confirm values, suppress review, or write canonical workouts.
+
 ### Text interpretation
 
 The first text interpreter consumes recognized page lines and produces reviewable workout drafts. It recognizes fixture-safe date, title, simple set-line patterns, and the printed notebook table style visible in real sample photos: title/date headers, exercise-name rows, separate reps rows, separate weight rows, and combined exercise/value rows. Missing years, unknown weights, unknown repetitions, unknown units, unresolved exercise modes, and unmatched exercises remain unresolved.
@@ -223,6 +235,8 @@ The twelfth slice adds ML Kit OCR, camera/gallery image intake, and a temporary 
 
 The thirteenth slice adds table-style parser support for the real uploaded notebook examples. It does not confirm values or write canonical history.
 
+The fourteenth slice adds notebook format profile detection for predefined table notebooks, compact handwritten rows, freeform handwritten logs, and unknown/custom formats. It does not use profile detection to bypass review.
+
 This keeps the high-risk invariants testable before storage and canonical writes start.
 
 ## Child issue split after this ADR
@@ -261,6 +275,7 @@ Trade-offs:
 - preprocessing metadata is not actual image enhancement yet;
 - privacy copy is modeled before the final UI wording and layout are designed;
 - the first text interpreter intentionally supports only narrow and sample-backed patterns;
+- format detection is a heuristic until more real sample fixtures exist;
 - matching and duplicates are draft-level only until review UI and canonical import exist;
 - import planning exists before the final repository transaction;
 - persistence interfaces exist before concrete Room/file implementations;
