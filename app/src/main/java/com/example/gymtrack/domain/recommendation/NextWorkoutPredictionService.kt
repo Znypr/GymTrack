@@ -1,5 +1,6 @@
 package com.example.gymtrack.domain.recommendation
 
+import com.example.gymtrack.domain.model.LegacyMigrationStatus
 import com.example.gymtrack.domain.model.WorkoutDetails
 import com.example.gymtrack.domain.model.WorkoutStatus
 import kotlin.math.roundToInt
@@ -30,7 +31,7 @@ class NextWorkoutPredictionService {
                 } else {
                     SuggestionConfidence.LOW
                 },
-                reason = "Only $label appears in completed workout history.",
+                reason = "Only $label appears in saved workout history.",
                 evidence = NextWorkoutEvidence(
                     completedWorkoutCount = entries.size,
                     recentLabels = recentLabels,
@@ -64,7 +65,7 @@ class NextWorkoutPredictionService {
                     transitionCount = transitions.size,
                     completedWorkoutCount = entries.size,
                 ),
-                reason = "Completed history most often follows $lastLabel with ${best.key} (${best.value}/${transitions.size} transitions, $supportPercent%).",
+                reason = "Saved history most often follows $lastLabel with ${best.key} (${best.value}/${transitions.size} transitions, $supportPercent%).",
                 evidence = NextWorkoutEvidence(
                     completedWorkoutCount = entries.size,
                     recentLabels = recentLabels,
@@ -111,7 +112,7 @@ class NextWorkoutPredictionService {
 
     private fun toHistoryEntry(details: WorkoutDetails): WorkoutHistoryEntry? {
         val workout = details.record.workout
-        if (workout.status != WorkoutStatus.COMPLETED) return null
+        if (!workout.isPredictionHistoryEligible()) return null
         val label = details.category?.name
             ?.trim()
             ?.takeIf { it.isNotBlank() }
@@ -123,6 +124,11 @@ class NextWorkoutPredictionService {
             label = label,
             startedAtEpochMillis = workout.startedAtEpochMillis,
         )
+    }
+
+    private fun com.example.gymtrack.domain.model.Workout.isPredictionHistoryEligible(): Boolean {
+        if (status == WorkoutStatus.COMPLETED) return true
+        return legacyCompatibility?.migrationStatus in legacyPredictionStatuses
     }
 
     private fun transitionConfidence(
@@ -150,6 +156,10 @@ class NextWorkoutPredictionService {
     )
 
     private companion object {
+        val legacyPredictionStatuses = setOf(
+            LegacyMigrationStatus.MIGRATED,
+            LegacyMigrationStatus.NEEDS_REVIEW,
+        )
         const val MAX_RECENT_LABELS = 8
         const val SINGLE_LABEL_MEDIUM_SAMPLE_SIZE = 3
         const val RECURRING_LABEL_MIN_COUNT = 2
