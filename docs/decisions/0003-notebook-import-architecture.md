@@ -1,0 +1,159 @@
+# ADR 0003: Notebook Import Processing Architecture
+
+**Status:** Proposed  
+**Date:** 2026-07-09  
+**Issue:** #177  
+**Related:** #125, #176
+
+## Context
+
+GymTrack needs a path for importing handwritten notebook history without turning photos or OCR output into a second workout database.
+
+The parent issue requires:
+
+- user confirmation before canonical workout writes;
+- clear distinction between source images, extracted text, confidence data, review state, and canonical workouts;
+- explicit unit handling;
+- duplicate detection;
+- resumable batches;
+- privacy, retention, and diagnostics behavior;
+- compatibility with the canonical workout model and typed editor/import state.
+
+The current architecture already treats canonical workout, exercise, occurrence, set, exercise alias, and category data as typed storage rather than note text. Notebook import must feed that model only after review.
+
+## Decision
+
+Use a review-first, hybrid-capable import pipeline.
+
+```text
+Notebook images
+  -> page draft records and fingerprints
+  -> preprocessing and page ordering
+  -> recognition output with confidence and provenance
+  -> proposed workout drafts
+  -> user review and exercise mapping
+  -> explicit confirmation
+  -> single canonical import transaction
+```
+
+Recognition may be implemented on-device first, with optional cloud or hybrid processing later. Any path that sends source images or extracted notebook content off-device must require explicit user consent before processing.
+
+The import draft model is separate from canonical storage. It may store unknown values, low-confidence values, rejected values, source text, and provenance. Canonical workout history can only be written from fully confirmed draft workouts.
+
+## Processing architecture
+
+### Default path
+
+The default product behavior is local-first:
+
+- normal workout logging remains fully offline;
+- notebook import can exist as an optional migration flow;
+- failed recognition must not affect existing workouts;
+- no source image leaves the device without explicit opt-in.
+
+### Optional external path
+
+A more accurate external/AI path can be added behind explicit consent. The first implementation must keep processing location visible in the import session state so the UI can explain whether processing is on-device or external.
+
+External processing is not a canonical data source. It only produces proposed draft data for review.
+
+## Privacy and retention
+
+The initial retention policy is explicit and conservative:
+
+- source images default to `DELETE_AFTER_CONFIRMATION`;
+- users may choose to keep source images until manual deletion if an audit trail is wanted;
+- users may choose not to store source images after extraction;
+- extracted text, confidence values, and draft data are deletion targets separate from canonical workouts;
+- diagnostics must not include raw notebook images or full extracted text unless the user explicitly exports a diagnostic bundle.
+
+## Review and correction model
+
+Each recognized field carries:
+
+- proposed value;
+- confidence score;
+- review state;
+- page and line provenance;
+- original source text when available.
+
+Low confidence alone does not write data. A low-confidence value can become importable only after user confirmation or correction.
+
+Exercise names are resolved separately from recognized text. A proposed exercise must be mapped to an existing exercise or explicitly confirmed as a new exercise before canonical import.
+
+## Canonical import rules
+
+A notebook workout can be written to canonical storage only when:
+
+- the workout-level review state is confirmed;
+- the workout date/start time is confirmed;
+- every exercise is confirmed;
+- every exercise mapping is resolved;
+- every set selected for import has confirmed performance data;
+- weighted sets have an explicit known unit, not `UNKNOWN`;
+- all referenced source pages belong to the same import batch.
+
+The write itself must be one transaction. Partial failure must leave canonical history unchanged.
+
+## Duplicate and resumability strategy
+
+The import batch tracks source page fingerprints before workout interpretation. Duplicate page fingerprints must be resolved before import continues.
+
+Later implementation should add:
+
+- persisted batch state;
+- page-level processing status;
+- workout-level review status;
+- source fingerprint indexes;
+- canonical duplicate checks based on date, exercise order, set values, and provenance.
+
+## Initial implementation slice
+
+The first slice adds a pure Kotlin draft domain model and JVM tests. It intentionally does not add OCR, image capture, Room tables, network calls, or canonical writes.
+
+This keeps the high-risk invariants testable before UI, storage, or recognition implementation starts.
+
+## Child issue split after this ADR
+
+The parent #177 should be decomposed into reviewable subtasks in this order:
+
+1. capture/upload notebook pages and compute fingerprints;
+2. persist resumable import batch state;
+3. add page preprocessing and ordering;
+4. add recognition provider abstraction and on-device prototype;
+5. add optional external processing consent and privacy copy;
+6. interpret recognized text into workout draft rows;
+7. add exercise matching and alias review;
+8. add review/correction UI;
+9. add confirmed canonical import transaction;
+10. add duplicate workout resolution;
+11. add retention/deletion controls and diagnostics rules;
+12. add representative notebook fixtures and accuracy metrics.
+
+## Consequences
+
+Positive:
+
+- uncertain recognition remains visible rather than silently guessed;
+- privacy choices are modeled before external processing exists;
+- duplicate page checks can happen before expensive interpretation;
+- canonical workout history stays protected behind confirmation and transaction boundaries;
+- tests can validate import safety before Compose and Room work.
+
+Trade-offs:
+
+- this adds a new draft layer before user-visible functionality exists;
+- cloud accuracy decisions are deferred until the consent and provider boundary is implemented;
+- the first slices will not yet import real notebook photos end-to-end.
+
+## Validation
+
+Before this feature is ready for master, validate:
+
+- clear, messy, abbreviated, corrected, mixed-unit, and multi-page notebook samples;
+- pages without dates;
+- pages uploaded out of order;
+- interrupted imports and app restart;
+- duplicate page and duplicate workout attempts;
+- explicit deletion of source images and extracted draft data;
+- imported workouts appearing correctly in history, statistics, and exercise history.
