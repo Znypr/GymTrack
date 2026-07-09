@@ -58,6 +58,7 @@ import com.example.gymtrack.domain.notebookimport.NotebookPageProcessingStatus
 import com.example.gymtrack.domain.notebookimport.NotebookPageSource
 import com.example.gymtrack.domain.notebookimport.NotebookRecognitionOutput
 import com.example.gymtrack.domain.notebookimport.NotebookRecognitionRequest
+import com.example.gymtrack.domain.notebookimport.NotebookReviewQueue
 import com.example.gymtrack.domain.notebookimport.NotebookTextInterpreter
 import com.example.gymtrack.domain.notebookimport.NotebookWorkoutDuplicateDetector
 import java.io.IOException
@@ -71,6 +72,7 @@ private sealed interface NotebookImportUiState {
     data class Result(
         val summary: NotebookImportSessionSummary,
         val recognitionOutput: NotebookRecognitionOutput,
+        val reviewQueue: NotebookReviewQueue,
         val warnings: List<String>,
     ) : NotebookImportUiState
     data class Error(val message: String) : NotebookImportUiState
@@ -212,6 +214,31 @@ fun NotebookImportScreen(
                 }
                 is NotebookImportUiState.Result -> {
                     item { SummaryCard(current.summary) }
+                    if (current.reviewQueue.items.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "Review queue",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                        items(current.reviewQueue.items) { reviewItem ->
+                            StatusCard(
+                                title = reviewItem.label,
+                                body = buildString {
+                                    reviewItem.currentValue?.let { append("Value: $it\n") }
+                                    reviewItem.confidence?.let { append("Confidence: ${"%.0f".format(it.value * 100)}%\n") }
+                                    reviewItem.pageId?.let { pageId ->
+                                        append("Source: $pageId")
+                                        reviewItem.lineNumber?.let { append(":$it") }
+                                    }
+                                    if (isBlank()) {
+                                        append("Needs explicit confirmation before import.")
+                                    }
+                                },
+                            )
+                        }
+                    }
                     if (current.warnings.isNotEmpty()) {
                         item {
                             StatusCard(
@@ -344,6 +371,7 @@ private suspend fun processNotebookImages(
     return NotebookImportUiState.Result(
         summary = summary,
         recognitionOutput = ocrOutput,
+        reviewQueue = reviewQueue,
         warnings = ocrOutput.warnings + interpretation.warnings + matching.warnings,
     )
 }
