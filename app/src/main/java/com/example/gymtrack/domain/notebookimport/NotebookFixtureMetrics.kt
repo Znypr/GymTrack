@@ -93,8 +93,11 @@ object NotebookFixtureMetrics {
                 stateUnresolved(workout.reviewState)
         } + stateUnresolved(reviewState)
 
-    private fun fieldUnresolved(field: RecognizedField<*>?): Int =
-        if (field?.needsReview == true || field?.isLowConfidence == true || field?.value == null) 1 else 0
+    private fun fieldUnresolved(field: RecognizedField<*>?): Int = when {
+        field == null -> 0
+        field.needsReview || field.isLowConfidence || field.value == null -> 1
+        else -> 0
+    }
 
     private fun resolutionUnresolved(resolution: ExerciseResolution): Int =
         if (!resolution.isResolvedForImport) 1 else 0
