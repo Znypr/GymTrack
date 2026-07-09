@@ -52,6 +52,7 @@ See [work-tracking rules](docs/TICKET_BOARD.md) and [CONTRIBUTING.md](CONTRIBUTI
 - [Training-summary contract](docs/TRAINING_SUMMARY.md)
 - [Backup format](docs/BACKUP_FORMAT.md)
 - [Release app handoff](docs/RELEASE_HANDOFF.md)
+- [Old CSV consolidation runbook](docs/OLD_CSV_CONSOLIDATION.md)
 - [Testing strategy](docs/TESTING.md)
 - [Repository settings](docs/REPOSITORY_SETTINGS.md)
 - [Work-item automation](docs/WORK_ITEM_AUTOMATION.md)
