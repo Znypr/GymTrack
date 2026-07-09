@@ -31,6 +31,7 @@ Notebook images
   -> preprocessing and page ordering
   -> recognition output with confidence and provenance
   -> proposed workout drafts
+  -> review queue and session summary
   -> user review and exercise mapping
   -> explicit confirmation
   -> validated canonical import plan
@@ -94,6 +95,8 @@ Low confidence alone does not write data. A low-confidence value can become impo
 Exercise names are resolved separately from recognized text. A proposed exercise may be matched to an existing exercise by canonical name or alias, proposed as a new exercise, or left unresolved when ambiguous. Matching proposals are never confirmed automatically.
 
 Explicit review transitions produce immutable draft copies with confirmed, corrected, or rejected fields. Confirmation helpers are domain-only and do not persist data.
+
+A review queue flattens unresolved work into stable item identifiers for future UI. Queue IDs include workout, exercise, and set path segments because draft IDs are only guaranteed unique within their parent scope.
 
 ## Canonical import rules
 
@@ -167,6 +170,14 @@ Deletion planning keeps source image deletion and intermediate import-data delet
 
 Canonical duplicate detection compares validated import plans against existing workout records and reports exact or same-start candidates. It still only blocks preflight; it does not merge, delete, reject, or write workouts.
 
+### End-to-end domain pipeline
+
+The pure-domain pipeline composes provider validation, recognition, text interpretation, exercise matching, duplicate detection, review queue generation, and fixture metrics. It does not make unconfirmed drafts importable; it only returns reviewable state for later UI/use cases.
+
+A session summary exposes counts, resume status, privacy copy, duplicate counts, and commit readiness without mutating state.
+
+Representative fixtures cover clean input, missing date input, and ambiguous set-value input.
+
 Later implementation should add:
 
 - Room or DataStore persistence for batch state;
@@ -200,6 +211,8 @@ The eighth slice adds pure Kotlin exercise matching, draft duplicate detection, 
 The ninth slice adds pure Kotlin explicit review transitions and validated canonical import-plan generation. It does not write canonical data or create Room entities.
 
 The tenth slice adds pure Kotlin persistence boundaries, deletion planning, and canonical duplicate preflight checks. It does not implement Room/filesystem deletion or commit transactions.
+
+The eleventh slice adds pure Kotlin review queue, session summary, end-to-end domain pipeline, and representative fixture tests. It does not add UI, OCR, or storage.
 
 This keeps the high-risk invariants testable before UI, storage, or recognition implementation starts.
 
@@ -241,6 +254,7 @@ Trade-offs:
 - matching and duplicates are draft-level only until review UI and canonical import exist;
 - import planning exists before the final repository transaction;
 - persistence interfaces exist before concrete Room/file implementations;
+- domain pipeline exists before real OCR/UI/storage adapters;
 - the first slices will not yet import real notebook photos end-to-end.
 
 ## Validation
