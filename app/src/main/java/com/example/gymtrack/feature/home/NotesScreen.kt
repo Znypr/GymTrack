@@ -44,6 +44,7 @@ fun NotesScreen(
     onImport: (List<Uri>) -> Unit,
     legacyCsvImportProgress: LegacyCsvImportProgress? = null,
     showLegacyCsvImport: Boolean = false,
+    onOpenNotebookImport: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenStats: () -> Unit,
     onSwipeRight: () -> Unit,
@@ -91,6 +92,13 @@ fun NotesScreen(
                     actions = {
                         IconButton(onClick = onOpenStats) {
                             Icon(Icons.Default.BarChart, contentDescription = "Stats", tint = MaterialTheme.colorScheme.onBackground)
+                        }
+                        IconButton(onClick = onOpenNotebookImport) {
+                            Icon(
+                                Icons.Default.PhotoCamera,
+                                contentDescription = "Import notebook photos",
+                                tint = MaterialTheme.colorScheme.onBackground,
+                            )
                         }
                         if (showLegacyCsvImport) {
                             IconButton(
@@ -259,45 +267,34 @@ private fun LegacyCsvImportProgressCard(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        tonalElevation = 6.dp,
-        shadowElevation = 6.dp,
+        shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 6.dp,
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = progress.phase,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = progress.detailMessage(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            LinearProgressIndicator(
-                progress = progress.progressFraction,
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f),
+            Text(
+                text = "Importing legacy CSV files",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
             )
-            progress.currentWorkoutLabel?.let { workoutLabel ->
+            Text(
+                text = "${progress.processedFiles}/${progress.totalFiles} files processed",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            LinearProgressIndicator(
+                progress = { progress.fraction },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            progress.currentFileName?.let { fileName ->
                 Text(
-                    text = workoutLabel,
-                    style = MaterialTheme.typography.labelSmall,
+                    text = fileName,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
                 )
             }
         }
