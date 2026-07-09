@@ -12,7 +12,7 @@ Small implementation PRs should target `feature/178-workout-prediction`, not `ma
 
 The baseline is intentionally deterministic and backend-only.
 
-It predicts a likely next workout label from saved workout history. It does not prefill the editor, suggest exercises, suggest weights, or make coaching claims.
+It predicts a likely next workout label from saved workout history. It does not suggest weights or make coaching claims.
 
 ### Inputs
 
@@ -61,14 +61,28 @@ The default history window is 24 saved workouts. This is intentionally small and
 
 ## Slice 3: Home suggestion surface
 
-The first UI surface is intentionally minimal:
+The first UI surface shows the next workout and optional exercise-order preview:
 
 - Home loads the current prediction into `HomeViewModel` state.
 - `NotesScreen` shows a dismissible "Likely next workout" card when a suggestion exists.
-- The card shows the predicted label, reason, and confidence.
-- The action is `Start blank`, which opens the existing blank editor flow.
+- The card shows the predicted label, reason, confidence, and suggested exercise order when stable enough.
+- The action opens an editable suggested draft only after explicit user tap.
 
-This slice does not create a prefilled workout, does not save history, and does not silently apply the predicted label.
+This slice does not save history automatically and does not suggest weights/reps.
+
+## Slice 4: Exercise-order suggestion
+
+`ExerciseOrderSuggestionService` derives editable exercise rows from matching saved workouts for the predicted label.
+
+Rules:
+
+1. Use category/title label matching.
+2. Require at least two matching workouts.
+3. Include exercises that appear repeatedly or in at least half of matching workouts.
+4. Order exercises by observed median position.
+5. Limit to six exercises for the initial draft.
+
+The editor draft contains exercise names only, separated as editable rows. Sets, weights, reps, RPE, and progression targets remain out of scope.
 
 ## Product boundary
 
@@ -84,6 +98,5 @@ No suggestion modifies history or creates a workout without user confirmation.
 ## Next slices
 
 - Add explicit accept/reject/replace feedback separately from workout history.
-- Create a confirmed suggested workout only after explicit user acceptance.
-- Prefill editable exercise rows only after explicit user acceptance.
+- Add better accept/edit tracking for suggested exercise drafts.
 - Defer load/rep targets until progression policy, units, and safety rules are defined.
