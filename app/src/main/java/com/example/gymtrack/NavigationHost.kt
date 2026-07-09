@@ -139,20 +139,14 @@ fun NavigationHost(
                 nextWorkoutSuggestion = nextWorkoutSuggestion,
                 onDismissNextWorkoutSuggestion = homeViewModel::dismissNextWorkoutSuggestion,
                 onStartSuggestedWorkout = { suggestion ->
-                    val draftText = suggestion.suggestedExercises.joinToString("\n\n")
                     val encodedCategory = Uri.encode(suggestion.workoutLabel)
-                    val encodedDraftText = Uri.encode(draftText)
                     Toast.makeText(
                         context,
-                        if (suggestion.suggestedExercises.isEmpty()) {
-                            "Opening blank workout. Suggested label: ${suggestion.workoutLabel}"
-                        } else {
-                            "Opening ${suggestion.workoutLabel} draft with ${suggestion.suggestedExercises.size} exercises"
-                        },
+                        "Opening blank workout. Suggested label: ${suggestion.workoutLabel}",
                         Toast.LENGTH_SHORT,
                     ).show()
                     navController.navigate(
-                        "editor?noteId=-1&suggestedCategory=$encodedCategory&suggestedText=$encodedDraftText",
+                        "editor?noteId=-1&suggestedCategory=$encodedCategory&suggestedText=",
                     )
                 },
                 onOpenSettings = { navController.navigate("settings") },
