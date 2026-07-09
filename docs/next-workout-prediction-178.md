@@ -90,6 +90,7 @@ The editor consumes the exercise-order suggestion list one exercise at a time:
 - the UI only shows a suggestion when the current row is an empty main-exercise row;
 - accepting a suggestion inserts exactly one exercise name into that row;
 - accepted suggestions already present in the draft are skipped;
+- used-suggestion matching compares canonical base exercise identity, so typed variants like machine/brand/cable labels do not make the same base exercise appear again;
 - no set rows, weights, reps, RPE, or progression targets are inserted.
 
 This avoids creating multiple timed exercise rows at once.
