@@ -26,6 +26,8 @@ Run on every #178 slice branch:
 
 Required result: all pass.
 
+For the Home suggestion slice, `testDebugUnitTest` includes `WorkoutPredictionSeedFixtureTest`, which parses the checked-in seed CSVs and verifies they predict `Legs` after the seeded `Push -> Pull -> Legs -> Push -> Pull` cycle.
+
 ### 2. Instrumented persistence checks
 
 Run when a slice touches Room, DAO, backup/restore, import, or canonical repository code:
