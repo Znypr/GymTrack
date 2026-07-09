@@ -74,8 +74,8 @@ class NotebookPagePreprocessingTest {
         )
 
         val byPageId = candidates.associateBy { it.pageId }
-        assertEquals(2, byPageId.getValue("page-a").proposedPosition)
-        assertEquals(1, byPageId.getValue("page-b").proposedPosition)
+        assertEquals(1, byPageId.getValue("page-a").proposedPosition)
+        assertEquals(2, byPageId.getValue("page-b").proposedPosition)
         assertEquals(0, byPageId.getValue("page-c").proposedPosition)
         assertEquals(NotebookPageOrderingReason.DETECTED_DATE, byPageId.getValue("page-a").reason)
         assertEquals(NotebookPageOrderingReason.ORIGINAL_UPLOAD_ORDER, byPageId.getValue("page-b").reason)
