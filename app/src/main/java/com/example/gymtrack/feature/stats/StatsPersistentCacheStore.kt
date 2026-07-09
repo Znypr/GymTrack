@@ -13,7 +13,11 @@ class StatsPersistentCacheStore(context: Context) {
 
     fun read(storageKey: String): StatsState? {
         val raw = preferences.getString(storageKey(storageKey), null) ?: return null
-        return runCatching { JSONObject(raw).toStatsState() }.getOrNull()
+        return runCatching {
+            val json = JSONObject(raw)
+            if (json.optInt("cacheVersion") != CACHE_VERSION) return null
+            json.toStatsState()
+        }.getOrNull()
     }
 
     fun write(storageKey: String, state: StatsState) {
@@ -55,7 +59,6 @@ class StatsPersistentCacheStore(context: Context) {
     }
 
     private fun JSONObject.toStatsState(): StatsState {
-        if (optInt("cacheVersion") != CACHE_VERSION) return StatsState()
         return StatsState(
             totalNotes = optInt("totalNotes"),
             avgWorkoutsPerWeek = optFloat("avgWorkoutsPerWeek"),
@@ -85,7 +88,7 @@ class StatsPersistentCacheStore(context: Context) {
     private fun Array<IntArray>.toJson(): JSONArray = JSONArray().also { rows ->
         forEach { row ->
             rows.put(JSONArray().also { values ->
-                row.forEach(values::put)
+                row.forEach { value -> values.put(value) }
             })
         }
     }
