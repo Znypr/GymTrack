@@ -33,12 +33,13 @@ Notebook images
   -> proposed workout drafts
   -> user review and exercise mapping
   -> explicit confirmation
+  -> validated canonical import plan
   -> single canonical import transaction
 ```
 
 Recognition may be implemented on-device first, with optional cloud or hybrid processing later. Any path that sends source images or extracted notebook content off-device must require explicit user consent before processing.
 
-The import draft model is separate from canonical storage. It may store unknown values, low-confidence values, rejected values, source text, and provenance. Canonical workout history can only be written from fully confirmed draft workouts.
+The import draft model is separate from canonical storage. It may store unknown values, low-confidence values, rejected values, source text, and provenance. Canonical workout history can only be written after a fully confirmed draft batch produces a validated import plan.
 
 ## Processing architecture
 
@@ -92,9 +93,11 @@ Low confidence alone does not write data. A low-confidence value can become impo
 
 Exercise names are resolved separately from recognized text. A proposed exercise may be matched to an existing exercise by canonical name or alias, proposed as a new exercise, or left unresolved when ambiguous. Matching proposals are never confirmed automatically.
 
+Explicit review transitions produce immutable draft copies with confirmed, corrected, or rejected fields. Confirmation helpers are domain-only and do not persist data.
+
 ## Canonical import rules
 
-A notebook workout can be written to canonical storage only when:
+A notebook workout can be planned for canonical storage only when:
 
 - the batch-level review state is confirmed;
 - the workout-level review state is confirmed;
@@ -103,9 +106,10 @@ A notebook workout can be written to canonical storage only when:
 - every exercise mapping is resolved;
 - every set selected for import has confirmed performance data;
 - weighted sets have an explicit known unit, not `UNKNOWN`;
-- all referenced source pages belong to the same import batch.
+- all referenced source pages belong to the same import batch;
+- duplicate candidates have been resolved.
 
-The write itself must be one transaction. Partial failure must leave canonical history unchanged.
+The import plan is not a database write. It is the validated payload for a later single transaction. Partial failure must leave canonical history unchanged.
 
 ## Duplicate and resumability strategy
 
@@ -151,6 +155,10 @@ Draft duplicate detection can flag exact reconstructed workout duplicates and sa
 
 Fixture metrics compare expected workout, exercise, set, and unresolved-field counts for representative samples. These metrics are deterministic and can run before real OCR exists.
 
+### Import planning
+
+The import planner turns a fully reviewed batch into canonical-workout-shaped plan data. It rejects unconfirmed batches, unconfirmed optional fields, unresolved mappings, unknown weighted units, and unresolved duplicate candidates. The planner does not allocate database IDs or write Room entities.
+
 Later implementation should add:
 
 - Room or DataStore persistence for batch state;
@@ -161,7 +169,8 @@ Later implementation should add:
 - image preprocessing adapters that produce page metadata without storing transformed images by default;
 - on-device OCR provider implementation behind the provider boundary;
 - richer notation parsing for supersets, unilateral work, bodyweight sets, notes, crossed-out values, and personal abbreviations;
-- canonical duplicate checks based on date, exercise order, set values, and provenance.
+- canonical duplicate checks based on date, exercise order, set values, and provenance;
+- repository transaction that consumes a validated import plan.
 
 ## Initial implementation slices
 
@@ -180,6 +189,8 @@ The sixth slice adds pure Kotlin privacy policy, consent copy, deletion-target m
 The seventh slice adds pure Kotlin recognized-text interpretation into reviewable draft rows. It does not match exercises, confirm fields, or write canonical data.
 
 The eighth slice adds pure Kotlin exercise matching, draft duplicate detection, and fixture accuracy metrics. It does not confirm mappings, mutate persisted workouts, or compare against canonical history.
+
+The ninth slice adds pure Kotlin explicit review transitions and validated canonical import-plan generation. It does not write canonical data or create Room entities.
 
 This keeps the high-risk invariants testable before UI, storage, or recognition implementation starts.
 
@@ -219,6 +230,7 @@ Trade-offs:
 - privacy copy is modeled before the final UI wording and layout are designed;
 - the first text interpreter intentionally supports only narrow fixture patterns;
 - matching and duplicates are draft-level only until review UI and canonical import exist;
+- import planning exists before the final repository transaction;
 - the first slices will not yet import real notebook photos end-to-end.
 
 ## Validation
