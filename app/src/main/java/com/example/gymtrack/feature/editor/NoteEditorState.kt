@@ -136,6 +136,35 @@ class NoteEditorState(
         }
     }
 
+    fun nextExerciseSuggestion(suggestedExercises: List<String>): String? {
+        if (suggestedExercises.isEmpty()) return null
+        val used = lines
+            .mapIndexedNotNull { index, row ->
+                val text = row.text.value.text.trim()
+                if (text.isBlank() || !isMainExerciseRow(index)) return@mapIndexedNotNull null
+                text.normalizedExerciseSuggestionName()
+            }
+            .toSet()
+        return suggestedExercises.firstOrNull { suggestion ->
+            suggestion.normalizedExerciseSuggestionName() !in used
+        }
+    }
+
+    fun acceptExerciseSuggestion(index: Int, exerciseName: String) {
+        if (finishing || exerciseName.isBlank()) return
+        val row = lines.getOrNull(index) ?: return
+        if (!isMainExerciseRow(index) || row.text.value.text.isNotBlank()) return
+        markDirty()
+        val cleanName = exerciseName.trim()
+        row.text.value = TextFieldValue(cleanName, TextRange(cleanName.length))
+        ensureListSize(index)
+        flags[index] = row.flag.value
+        scope.launch {
+            delay(50L)
+            row.focusRequester.requestFocus()
+        }
+    }
+
     fun toggleFlag(index: Int) {
         if (finishing) return
         markDirty()
@@ -216,6 +245,14 @@ class NoteEditorState(
         while (flags.size < lines.size) flags.add(ExerciseFlag.BILATERAL)
         while (flags.size > lines.size) flags.removeAt(flags.lastIndex)
     }
+
+    private fun isMainExerciseRow(index: Int): Boolean =
+        index == 0 || lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
+
+    private fun String.normalizedExerciseSuggestionName(): String =
+        replace(Regex("""\s*\(\d+'\d{2}''\)$"""), "")
+            .trim()
+            .lowercase()
 }
 
 @Composable
