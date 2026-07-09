@@ -67,7 +67,7 @@ class WorkoutParser {
     private val BRAND_ALIASES = mapOf(
         "hs" to "Hammer Strength", "hammerstrength" to "Hammer Strength",
         "cy" to "Cybex", "cybex" to "Cybex",
-        "syg" to "Sygnum",
+        "syg" to "Gym80", "sygnum" to "Gym80",
         "g80" to "Gym80", "gym80" to "Gym80",
         "lf" to "Life Fitness", "lifefitness" to "Life Fitness",
         "at" to "Atlantis", "atl" to "Atlantis", "atlantis" to "Atlantis",
