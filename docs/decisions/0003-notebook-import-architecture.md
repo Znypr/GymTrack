@@ -90,7 +90,7 @@ Each recognized field carries:
 
 Low confidence alone does not write data. A low-confidence value can become importable only after user confirmation or correction.
 
-Exercise names are resolved separately from recognized text. A proposed exercise must be mapped to an existing exercise or explicitly confirmed as a new exercise before canonical import.
+Exercise names are resolved separately from recognized text. A proposed exercise may be matched to an existing exercise by canonical name or alias, proposed as a new exercise, or left unresolved when ambiguous. Matching proposals are never confirmed automatically.
 
 ## Canonical import rules
 
@@ -143,6 +143,14 @@ The first text interpreter consumes recognized page lines and produces reviewabl
 
 Interpreter warnings identify page and line positions without including raw notebook text. This keeps diagnostics useful without leaking notebook content by default.
 
+### Exercise matching, duplicates, and fixture metrics
+
+Exercise matching uses normalized canonical names and aliases to propose reviewable mappings. Exact single matches propose an existing exercise. Unknown names propose creating a new exercise. Ambiguous matches remain unresolved.
+
+Draft duplicate detection can flag exact reconstructed workout duplicates and same-date possible duplicates inside the import batch. It does not delete, merge, reject, confirm, or compare against persisted canonical history yet.
+
+Fixture metrics compare expected workout, exercise, set, and unresolved-field counts for representative samples. These metrics are deterministic and can run before real OCR exists.
+
 Later implementation should add:
 
 - Room or DataStore persistence for batch state;
@@ -170,6 +178,8 @@ The fifth slice adds the recognition provider boundary and deterministic fixture
 The sixth slice adds pure Kotlin privacy policy, consent copy, deletion-target mapping, source-image deletion eligibility, and diagnostics redaction rules. It does not persist consent, delete files, or show UI.
 
 The seventh slice adds pure Kotlin recognized-text interpretation into reviewable draft rows. It does not match exercises, confirm fields, or write canonical data.
+
+The eighth slice adds pure Kotlin exercise matching, draft duplicate detection, and fixture accuracy metrics. It does not confirm mappings, mutate persisted workouts, or compare against canonical history.
 
 This keeps the high-risk invariants testable before UI, storage, or recognition implementation starts.
 
@@ -208,6 +218,7 @@ Trade-offs:
 - preprocessing metadata is not actual image enhancement yet;
 - privacy copy is modeled before the final UI wording and layout are designed;
 - the first text interpreter intentionally supports only narrow fixture patterns;
+- matching and duplicates are draft-level only until review UI and canonical import exist;
 - the first slices will not yet import real notebook photos end-to-end.
 
 ## Validation
