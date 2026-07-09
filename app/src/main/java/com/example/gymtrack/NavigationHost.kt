@@ -44,6 +44,7 @@ import com.example.gymtrack.feature.editor.NoteEditor
 import com.example.gymtrack.feature.editor.shouldShowActiveWorkoutControls
 import com.example.gymtrack.feature.home.HomeViewModel
 import com.example.gymtrack.feature.home.NotesScreen
+import com.example.gymtrack.feature.notebookimport.NotebookImportScreen
 import com.example.gymtrack.feature.settings.SettingsScreen
 import com.example.gymtrack.feature.stats.StatsScreen
 import com.example.gymtrack.feature.stats.StatsViewModel
@@ -133,6 +134,7 @@ fun NavigationHost(
                 },
                 legacyCsvImportProgress = importProgress,
                 showLegacyCsvImport = BuildConfig.DEBUG,
+                onOpenNotebookImport = { navController.navigate("notebookImport") },
                 onOpenSettings = { navController.navigate("settings") },
                 onOpenStats = { navController.navigate("stats") },
                 onSwipeRight = {},
@@ -175,6 +177,12 @@ fun NavigationHost(
                 workoutRepository = workoutRepository,
                 settings = settings,
                 onTimeRangeSelected = { retainedStatsViewModel.setTimeRange(it) },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable("notebookImport") {
+            NotebookImportScreen(
                 onBack = { navController.popBackStack() },
             )
         }
