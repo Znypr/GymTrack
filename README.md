@@ -52,6 +52,7 @@ See [work-tracking rules](docs/TICKET_BOARD.md) and [CONTRIBUTING.md](CONTRIBUTI
 - [Training-summary contract](docs/TRAINING_SUMMARY.md)
 - [Backup format](docs/BACKUP_FORMAT.md)
 - [Release app handoff](docs/RELEASE_HANDOFF.md)
+- [Phone install runbook](docs/PHONE_INSTALL.md)
 - [Old CSV consolidation runbook](docs/OLD_CSV_CONSOLIDATION.md)
 - [Testing strategy](docs/TESTING.md)
 - [Repository settings](docs/REPOSITORY_SETTINGS.md)
@@ -87,6 +88,18 @@ On Windows:
 ```powershell
 .\gradlew.bat assembleDebug
 ```
+
+## Install on phone
+
+For the Samsung phone, use the checked-in install script instead of Gradle's direct `installDebug` task:
+
+```powershell
+.\install.ps1 debug
+.\install.ps1 release
+.\install.ps1 both
+```
+
+The script installs with `adb install --user 0 -r ...` so only the main phone user is updated, avoiding Dual App / Secure Folder clone-profile installs. See [docs/PHONE_INSTALL.md](docs/PHONE_INSTALL.md).
 
 ## Validate
 
