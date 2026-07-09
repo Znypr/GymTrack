@@ -114,8 +114,8 @@ class NextWorkoutPredictionService {
         if (workout.status != WorkoutStatus.COMPLETED) return null
         val label = details.category?.name
             ?.trim()
-            ?.takeIf(String::isNotBlank)
-            ?: workout.title.trim().takeIf(String::isNotBlank)
+            ?.takeIf { it.isNotBlank() }
+            ?: workout.title.trim().takeIf { it.isNotBlank() }
             ?: return null
 
         return WorkoutHistoryEntry(
