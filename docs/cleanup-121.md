@@ -1,8 +1,12 @@
-# Issue 121 cleanup slice
+# Issue 121 cleanup slices
 
-This slice removes confirmed non-product artifacts only.
+This document records small, low-risk cleanup slices for #121.
 
-## Removed
+## Slice 1: generated dump and placeholder tests
+
+Removed confirmed non-product artifacts only.
+
+### Removed
 
 - `FullProjectCode.txt`
   - Generated repository dump.
@@ -17,9 +21,25 @@ This slice removes confirmed non-product artifacts only.
   - Android Studio placeholder instrumentation test that only checked the package name.
   - Restore, migration, parser, and domain behavior are covered by app-specific tests elsewhere.
 
+## Slice 2: dependency dedupe
+
+Kept one dependency declaration per active dependency source and removed stale duplicate declarations.
+
+### Removed
+
+- duplicate `kapt("androidx.room:room-compiler:2.6.1")`
+- raw duplicate `implementation("androidx.core:core-ktx:1.9.0")`
+  - kept `implementation(libs.androidx.core.ktx)`
+- raw duplicate `implementation("androidx.compose.material3:material3:1.2.1")`
+  - kept `implementation(libs.androidx.material3)`
+- unused `implementation("co.yml:ycharts:2.1.0")`
+  - no active source imports `co.yml.charts`
+- older conflicting `implementation("androidx.compose.material:material-icons-extended:1.5.4")`
+  - kept `implementation("androidx.compose.material:material-icons-extended:1.6.5")` because the app still uses extended material icons
+
 ## Not touched
 
-To avoid interference with draft visual PR #252, this slice does not modify:
+To avoid interference with draft visual PR #252, these cleanup slices do not modify:
 
 - theme files
 - Home screen files
@@ -38,4 +58,4 @@ Recommended commands:
 .\gradlew.bat connectedDebugAndroidTest
 ```
 
-Manual smoke test remains limited to launch and the main entry points because this slice has no intended user-facing behavior changes.
+Manual smoke test remains limited to launch and the main entry points because these slices have no intended user-facing behavior changes.
