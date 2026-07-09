@@ -78,6 +78,7 @@ fun NavigationHost(
             val notes by homeViewModel.notes.collectAsState()
             val importSummary by homeViewModel.legacyCsvImportSummary.collectAsState()
             val importProgress by homeViewModel.legacyCsvImportProgress.collectAsState()
+            val nextWorkoutSuggestion by homeViewModel.nextWorkoutSuggestion.collectAsState()
 
             LaunchedEffect(importSummary) {
                 val summary = importSummary ?: return@LaunchedEffect
@@ -133,6 +134,16 @@ fun NavigationHost(
                 },
                 legacyCsvImportProgress = importProgress,
                 showLegacyCsvImport = BuildConfig.DEBUG,
+                nextWorkoutSuggestion = nextWorkoutSuggestion,
+                onDismissNextWorkoutSuggestion = homeViewModel::dismissNextWorkoutSuggestion,
+                onStartSuggestedWorkout = { suggestion ->
+                    Toast.makeText(
+                        context,
+                        "Opening blank workout. Suggested label: ${suggestion.workoutLabel}",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                    navController.navigate("editor?noteId=-1")
+                },
                 onOpenSettings = { navController.navigate("settings") },
                 onOpenStats = { navController.navigate("stats") },
                 onSwipeRight = {},
@@ -260,38 +271,29 @@ fun NavigationHost(
             val safetyBackupBeforeRestoreLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.CreateDocument("application/octet-stream"),
             ) { destination ->
-                destination ?: return@rememberLauncherForActivityResult
-                val restoreSource = pendingRestoreUri ?: return@rememberLauncherForActivityResult
-                clearPendingRestore()
+                val restoreSource = pendingRestoreUri
+                if (destination == null || restoreSource == null) {
+                    clearPendingRestore()
+                    return@rememberLauncherForActivityResult
+                }
                 scope.launch {
                     operationInProgress = true
                     try {
-                        val safetyBackup = backupRepository.createBackup(
+                        backupRepository.createBackup(
                             contentResolver = context.contentResolver,
                             destination = destination,
                             settings = settings,
                             appVersion = BuildConfig.VERSION_NAME,
                             databaseSchemaVersion = CURRENT_DATABASE_SCHEMA_VERSION,
                         )
-                        val restoreResult = backupRepository.restoreBackup(
-                            context = context.applicationContext,
-                            contentResolver = context.contentResolver,
-                            source = restoreSource,
-                        )
-                        onSettingsUpdate(restoreResult.settings)
-                        Toast.makeText(
-                            context,
-                            "Safety backup created (${safetyBackup.manifest.counts.totalRecords} records). " +
-                                "Restored ${restoreResult.manifest.counts.totalRecords} records.",
-                            Toast.LENGTH_LONG,
-                        ).show()
+                        operationInProgress = false
+                        restoreSelectedBackup(restoreSource)
                     } catch (error: Exception) {
                         Toast.makeText(
                             context,
-                            "Safety backup or restore failed: ${error.localizedMessage}",
+                            "Safety backup failed: ${error.localizedMessage}",
                             Toast.LENGTH_LONG,
                         ).show()
-                    } finally {
                         operationInProgress = false
                     }
                 }
@@ -301,25 +303,17 @@ fun NavigationHost(
                 ActivityResultContracts.OpenDocument(),
             ) { source ->
                 source ?: return@rememberLauncherForActivityResult
-                runCatching {
-                    context.contentResolver.takePersistableUriPermission(
-                        source,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                    )
-                }
                 scope.launch {
                     operationInProgress = true
                     try {
-                        pendingRestoreManifest = backupRepository.inspectBackup(
-                            context.contentResolver,
-                            source,
-                        )
-                        pendingRestoreHasLocalData = backupRepository.hasRestorableLocalData(settings)
+                        val manifest = backupRepository.inspectBackup(context.contentResolver, source)
                         pendingRestoreUri = source
+                        pendingRestoreManifest = manifest
+                        pendingRestoreHasLocalData = backupRepository.hasLocalData()
                     } catch (error: Exception) {
                         Toast.makeText(
                             context,
-                            "Invalid backup: ${error.localizedMessage}",
+                            "Could not read backup: ${error.localizedMessage}",
                             Toast.LENGTH_LONG,
                         ).show()
                     } finally {
@@ -330,32 +324,28 @@ fun NavigationHost(
 
             SettingsScreen(
                 settings = settings,
-                onUpdate = onSettingsUpdate,
+                onSettingsChange = onSettingsUpdate,
                 onBack = { navController.popBackStack() },
                 onCreateBackup = {
-                    createBackupLauncher.launch(backupFileName("GymTrack-backup"))
+                    createBackupLauncher.launch(backupFileName("gymtrack-backup"))
                 },
                 onRestoreBackup = {
-                    restoreBackupLauncher.launch(
-                        arrayOf("application/octet-stream", "application/zip", "application/json"),
-                    )
+                    restoreBackupLauncher.launch(arrayOf("application/octet-stream", "application/zip", "*/*"))
                 },
-                dataOperationInProgress = operationInProgress,
+                isBackupOperationInProgress = operationInProgress,
             )
 
-            val restoreUri = pendingRestoreUri
-            val restoreManifest = pendingRestoreManifest
-            if (restoreUri != null && restoreManifest != null) {
+            pendingRestoreManifest?.let { manifest ->
                 RestoreConfirmationDialog(
-                    totalRecords = restoreManifest.counts.totalRecords,
+                    manifest = manifest,
                     hasLocalData = pendingRestoreHasLocalData,
-                    onCreateSafetyBackup = {
-                        safetyBackupBeforeRestoreLauncher.launch(
-                            backupFileName("GymTrack-safety-backup-before-restore"),
-                        )
-                    },
-                    onRestoreWithoutBackup = { restoreSelectedBackup(restoreUri) },
                     onDismiss = { clearPendingRestore() },
+                    onRestore = {
+                        pendingRestoreUri?.let(::restoreSelectedBackup)
+                    },
+                    onBackupThenRestore = {
+                        safetyBackupBeforeRestoreLauncher.launch(backupFileName("gymtrack-safety-backup"))
+                    },
                 )
             }
         }
@@ -364,60 +354,52 @@ fun NavigationHost(
 
 @Composable
 private fun RestoreConfirmationDialog(
-    totalRecords: Int,
+    manifest: BackupManifest,
     hasLocalData: Boolean,
-    onCreateSafetyBackup: () -> Unit,
-    onRestoreWithoutBackup: () -> Unit,
     onDismiss: () -> Unit,
+    onRestore: () -> Unit,
+    onBackupThenRestore: () -> Unit,
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(28.dp),
+            shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp,
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.Start,
             ) {
                 Text(
-                    text = "Replace all local data?",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    text = "Restore backup?",
+                    style = MaterialTheme.typography.titleLarge,
                 )
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "This validated backup contains $totalRecords records. Your current GymTrack data will be replaced.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = if (hasLocalData) {
-                            "Create a safety backup first if you want a separate file copy of your current data before restore."
-                        } else {
-                            "No existing workout records were found, so a safety backup is not required."
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Text(
+                    text = "Backup created ${manifest.createdAtIso}",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = "${manifest.counts.totalRecords} records · schema ${manifest.databaseSchemaVersion}",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = if (hasLocalData) {
+                        "This will replace your current local GymTrack data. Create a safety backup first unless you are sure."
+                    } else {
+                        "Your current local GymTrack data appears empty."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
                     if (hasLocalData) {
-                        TextButton(onClick = onCreateSafetyBackup) {
-                            Text("Create safety backup first")
-                        }
+                        TextButton(onClick = onBackupThenRestore) { Text("Backup first") }
                     }
-                    TextButton(onClick = onRestoreWithoutBackup) {
-                        Text(if (hasLocalData) "Restore without backup" else "Restore backup")
-                    }
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel")
-                    }
+                    TextButton(onClick = onRestore) { Text("Restore") }
                 }
             }
         }
