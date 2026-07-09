@@ -54,6 +54,26 @@ data class LegacyCsvImportSummary(
     }
 }
 
+data class LegacyCsvImportProgress(
+    val phase: String,
+    val selected: Int,
+    val processed: Int,
+    val imported: Int = 0,
+    val skipped: Int = 0,
+    val failed: Int = 0,
+    val currentFileName: String? = null,
+) {
+    val progressFraction: Float
+        get() = if (selected <= 0) 0f else (processed.toFloat() / selected).coerceIn(0f, 1f)
+
+    fun detailMessage(): String = buildString {
+        append("$processed/$selected processed")
+        if (imported > 0) append(" • $imported imported")
+        if (skipped > 0) append(" • $skipped skipped")
+        if (failed > 0) append(" • $failed failed")
+    }
+}
+
 class HomeViewModel(
     private val repository: NoteRepository,
     private val workoutRepository: WorkoutRepository,
@@ -64,6 +84,9 @@ class HomeViewModel(
 
     private val _legacyCsvImportSummary = MutableStateFlow<LegacyCsvImportSummary?>(null)
     val legacyCsvImportSummary = _legacyCsvImportSummary.asStateFlow()
+
+    private val _legacyCsvImportProgress = MutableStateFlow<LegacyCsvImportProgress?>(null)
+    val legacyCsvImportProgress = _legacyCsvImportProgress.asStateFlow()
 
     fun clearLegacyCsvImportSummary() {
         _legacyCsvImportSummary.value = null
@@ -93,7 +116,14 @@ class HomeViewModel(
     }
 
     fun importNotesFromUris(context: Context, uris: List<Uri>, settings: Settings) {
+        if (_legacyCsvImportProgress.value != null) return
         viewModelScope.launch(Dispatchers.IO) {
+            _legacyCsvImportProgress.value = LegacyCsvImportProgress(
+                phase = "Starting CSV import",
+                selected = uris.size,
+                processed = 0,
+            )
+
             val existingNotes = notes.value
             val usedTimestamps = existingNotes.mapTo(mutableSetOf()) { it.timestamp }
             val knownFullFingerprints = existingNotes.mapTo(mutableSetOf()) { note ->
@@ -106,10 +136,20 @@ class HomeViewModel(
             val failedNames = mutableListOf<String>()
             val candidates = mutableListOf<LegacyCsvImportCandidate>()
 
-            uris
-                .map { uri -> displayName(context, uri) to uri }
-                .sortedBy { (displayName, _) -> displayName.lowercase() }
-                .forEach { (displayName, uri) ->
+            try {
+                val orderedUris = uris
+                    .map { uri -> displayName(context, uri) to uri }
+                    .sortedBy { (displayName, _) -> displayName.lowercase() }
+
+                orderedUris.forEachIndexed { index, (displayName, uri) ->
+                    _legacyCsvImportProgress.value = LegacyCsvImportProgress(
+                        phase = "Reading CSV files",
+                        selected = uris.size,
+                        processed = index,
+                        failed = failed,
+                        currentFileName = displayName,
+                    )
+
                     val uniqueName = "temp_import_${UUID.randomUUID()}.csv"
                     val tempFile = File(context.cacheDir, uniqueName)
 
@@ -141,50 +181,79 @@ class HomeViewModel(
                         failedNames += displayName
                     } finally {
                         tempFile.delete()
-                    }
-                }
-
-            val selection = selectBestLegacyCsvCandidates(candidates)
-            var imported = 0
-            var skippedExistingDuplicates = 0
-            var skippedExistingTimestamps = 0
-
-            selection.selected.forEach { candidate ->
-                val parsedNote = candidate.note
-                val fullFingerprint = legacyCsvFullFingerprint(parsedNote)
-                val contentFingerprint = legacyCsvContentFingerprint(parsedNote)
-                val timestampAlreadyUsed = parsedNote.timestamp in usedTimestamps
-
-                when {
-                    fullFingerprint in knownFullFingerprints ||
-                        contentFingerprint in knownContentFingerprints -> {
-                        skippedExistingDuplicates++
-                    }
-                    timestampAlreadyUsed -> {
-                        skippedExistingTimestamps++
-                    }
-                    else -> {
-                        workoutRepository.saveCompletedWorkout(
-                            note = parsedNote.toEntity(),
-                            defaultWeightUnit = settings.defaultWeightUnit,
+                        _legacyCsvImportProgress.value = LegacyCsvImportProgress(
+                            phase = "Reading CSV files",
+                            selected = uris.size,
+                            processed = index + 1,
+                            failed = failed,
+                            currentFileName = displayName,
                         )
-                        usedTimestamps += parsedNote.timestamp
-                        knownFullFingerprints += legacyCsvFullFingerprint(parsedNote)
-                        knownContentFingerprints += legacyCsvContentFingerprint(parsedNote)
-                        imported++
                     }
                 }
-            }
 
-            _legacyCsvImportSummary.value = LegacyCsvImportSummary(
-                selected = uris.size,
-                imported = imported,
-                skippedExactDuplicates = selection.exactDuplicates + skippedExistingDuplicates,
-                skippedSupersededSnapshots = selection.supersededSnapshots,
-                skippedExistingTimestamps = skippedExistingTimestamps,
-                failed = failed,
-                failedNames = failedNames,
-            )
+                _legacyCsvImportProgress.value = LegacyCsvImportProgress(
+                    phase = "Selecting best CSV snapshots",
+                    selected = uris.size,
+                    processed = uris.size,
+                    failed = failed,
+                )
+
+                val selection = selectBestLegacyCsvCandidates(candidates)
+                var imported = 0
+                var skippedExistingDuplicates = 0
+                var skippedExistingTimestamps = 0
+                val saveTotal = selection.selected.size.coerceAtLeast(1)
+
+                selection.selected.forEachIndexed { index, candidate ->
+                    val parsedNote = candidate.note
+                    val fullFingerprint = legacyCsvFullFingerprint(parsedNote)
+                    val contentFingerprint = legacyCsvContentFingerprint(parsedNote)
+                    val timestampAlreadyUsed = parsedNote.timestamp in usedTimestamps
+
+                    when {
+                        fullFingerprint in knownFullFingerprints ||
+                            contentFingerprint in knownContentFingerprints -> {
+                            skippedExistingDuplicates++
+                        }
+                        timestampAlreadyUsed -> {
+                            skippedExistingTimestamps++
+                        }
+                        else -> {
+                            workoutRepository.saveCompletedWorkout(
+                                note = parsedNote.toEntity(),
+                                defaultWeightUnit = settings.defaultWeightUnit,
+                            )
+                            usedTimestamps += parsedNote.timestamp
+                            knownFullFingerprints += legacyCsvFullFingerprint(parsedNote)
+                            knownContentFingerprints += legacyCsvContentFingerprint(parsedNote)
+                            imported++
+                        }
+                    }
+
+                    _legacyCsvImportProgress.value = LegacyCsvImportProgress(
+                        phase = "Saving imported workouts",
+                        selected = saveTotal,
+                        processed = index + 1,
+                        imported = imported,
+                        skipped = selection.exactDuplicates + selection.supersededSnapshots +
+                            skippedExistingDuplicates + skippedExistingTimestamps,
+                        failed = failed,
+                        currentFileName = candidate.displayName,
+                    )
+                }
+
+                _legacyCsvImportSummary.value = LegacyCsvImportSummary(
+                    selected = uris.size,
+                    imported = imported,
+                    skippedExactDuplicates = selection.exactDuplicates + skippedExistingDuplicates,
+                    skippedSupersededSnapshots = selection.supersededSnapshots,
+                    skippedExistingTimestamps = skippedExistingTimestamps,
+                    failed = failed,
+                    failedNames = failedNames,
+                )
+            } finally {
+                _legacyCsvImportProgress.value = null
+            }
         }
     }
 
