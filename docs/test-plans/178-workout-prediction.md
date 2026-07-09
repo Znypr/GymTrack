@@ -38,6 +38,8 @@ Run when a slice touches Room, DAO, backup/restore, import, or canonical reposit
 
 Required result: all pass.
 
+The #178 Home suggestion slice includes `CanonicalPredictionHistoryRepositoryTest`, which verifies prediction history includes canonical `COMPLETED` records plus migrated legacy-backed records while excluding drafts and pending partials.
+
 ### 3. Manual prediction smoke test
 
 Run when a slice affects prediction data loading, Home UI, editor entry, or user-visible behavior.
@@ -72,7 +74,7 @@ Expected result after importing all five files:
 ```text
 Likely next workout: Legs
 Confidence: Medium confidence
-Reason: mentions completed history most often follows Pull with Legs
+Reason: mentions saved history most often follows Pull with Legs
 ```
 
 Rationale: the seeded completed history is:
@@ -83,15 +85,29 @@ Push -> Pull -> Legs -> Push -> Pull
 
 The latest completed workout is `Pull`, and the observed transition from `Pull` is `Legs`.
 
+### 4. Manual real-backup smoke test
+
+On a local debug app with the supplied 224-workout backup restored, expected current prediction after the latest saved workout should be:
+
+```text
+Likely next workout: Push
+Reason: saved history most often follows Legs with Push
+Confidence: High confidence
+```
+
+Rationale: the latest saved workout in the analyzed backup is `Legs`, and the aggregate transition history is strongly `Legs -> Push`.
+
+Do not commit the private real backup file or raw workout exports to the repository.
+
 ## Manual behavior checks
 
 ### Home card
 
 - Home opens without crash.
-- Suggestion card appears above the note grid when enough completed history exists.
+- Suggestion card appears above the note grid when enough saved history exists.
 - Card displays label, confidence, and reason.
 - Text stays observational, not prescriptive.
-  - Allowed: `Likely next workout`, `Completed history most often follows...`
+  - Allowed: `Likely next workout`, `Saved history most often follows...`
   - Not allowed: `You should train...`
 
 ### Dismiss
@@ -128,8 +144,8 @@ Verify existing Home behavior still works:
 
 These do not all need to block the first Home-card slice, but they should be covered before merging #178 to `master`.
 
-- No completed canonical history: no suggestion card.
-- One completed label only: low/medium confidence same-label suggestion.
+- No prediction-eligible canonical history: no suggestion card.
+- One saved label only: low/medium confidence same-label suggestion.
 - Deleted latest workout: suggestion recalculates.
 - Imported duplicate seed files: no duplicate history explosion.
 - Restored backup with history: suggestion loads after restore.
