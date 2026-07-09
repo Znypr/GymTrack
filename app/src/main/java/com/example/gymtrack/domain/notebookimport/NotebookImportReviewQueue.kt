@@ -124,8 +124,9 @@ object NotebookImportReviewQueueBuilder {
         workoutId: String,
         exercise: NotebookExerciseDraft,
     ) {
+        val exercisePath = "workout:$workoutId:exercise:${exercise.id}"
         addFieldItemIfNeeded(
-            id = "exercise:${exercise.id}:name",
+            id = "$exercisePath:name",
             kind = NotebookReviewItemKind.EXERCISE_NAME,
             workoutId = workoutId,
             exerciseId = exercise.id,
@@ -133,7 +134,7 @@ object NotebookImportReviewQueueBuilder {
             field = exercise.recognizedName,
         )
         addFieldItemIfNeeded(
-            id = "exercise:${exercise.id}:mode",
+            id = "$exercisePath:mode",
             kind = NotebookReviewItemKind.EXERCISE_MODE,
             workoutId = workoutId,
             exerciseId = exercise.id,
@@ -143,7 +144,7 @@ object NotebookImportReviewQueueBuilder {
         if (!exercise.exerciseResolution.isResolvedForImport) {
             add(
                 NotebookReviewItem(
-                    id = "exercise:${exercise.id}:resolution",
+                    id = "$exercisePath:resolution",
                     kind = NotebookReviewItemKind.EXERCISE_RESOLUTION,
                     workoutId = workoutId,
                     exerciseId = exercise.id,
@@ -156,7 +157,7 @@ object NotebookImportReviewQueueBuilder {
         if (exercise.reviewState == ReviewState.NEEDS_REVIEW) {
             add(
                 NotebookReviewItem(
-                    id = "exercise:${exercise.id}:state",
+                    id = "$exercisePath:state",
                     kind = NotebookReviewItemKind.EXERCISE_STATE,
                     workoutId = workoutId,
                     exerciseId = exercise.id,
@@ -171,8 +172,9 @@ object NotebookImportReviewQueueBuilder {
         exerciseId: String,
         set: NotebookSetDraft,
     ) {
+        val setPath = "workout:$workoutId:exercise:$exerciseId:set:${set.id}"
         addFieldItemIfNeeded(
-            id = "set:${set.id}:repetitions",
+            id = "$setPath:repetitions",
             kind = NotebookReviewItemKind.SET_REPETITIONS,
             workoutId = workoutId,
             exerciseId = exerciseId,
@@ -181,7 +183,7 @@ object NotebookImportReviewQueueBuilder {
             field = set.repetitions,
         )
         addFieldItemIfNeeded(
-            id = "set:${set.id}:weight",
+            id = "$setPath:weight",
             kind = NotebookReviewItemKind.SET_WEIGHT,
             workoutId = workoutId,
             exerciseId = exerciseId,
@@ -190,7 +192,7 @@ object NotebookImportReviewQueueBuilder {
             field = set.weight,
         )
         addFieldItemIfNeeded(
-            id = "set:${set.id}:weightUnit",
+            id = "$setPath:weightUnit",
             kind = NotebookReviewItemKind.SET_WEIGHT_UNIT,
             workoutId = workoutId,
             exerciseId = exerciseId,
@@ -199,7 +201,7 @@ object NotebookImportReviewQueueBuilder {
             field = set.weightUnit,
         )
         addFieldItemIfNeeded(
-            id = "set:${set.id}:notes",
+            id = "$setPath:notes",
             kind = NotebookReviewItemKind.SET_NOTES,
             workoutId = workoutId,
             exerciseId = exerciseId,
@@ -210,7 +212,7 @@ object NotebookImportReviewQueueBuilder {
         if (set.reviewState == ReviewState.NEEDS_REVIEW) {
             add(
                 NotebookReviewItem(
-                    id = "set:${set.id}:state",
+                    id = "$setPath:state",
                     kind = NotebookReviewItemKind.SET_STATE,
                     workoutId = workoutId,
                     exerciseId = exerciseId,
