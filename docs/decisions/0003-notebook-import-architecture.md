@@ -137,6 +137,12 @@ Preprocessing records deterministic page metadata and review hints without mutat
 
 Page ordering produces proposals, not automatic canonical decisions. Detected page numbers sort before dates; dates sort before original upload order. Reordered pages and low-confidence ordering proposals require review. Original upload order remains available as provenance.
 
+### Text interpretation
+
+The first text interpreter consumes recognized page lines and produces reviewable workout drafts. It recognizes only fixture-safe date, title, and simple set-line patterns. Missing dates, unknown weights, unknown repetitions, unknown units, unresolved exercise modes, and unmatched exercises remain unresolved.
+
+Interpreter warnings identify page and line positions without including raw notebook text. This keeps diagnostics useful without leaking notebook content by default.
+
 Later implementation should add:
 
 - Room or DataStore persistence for batch state;
@@ -146,6 +152,7 @@ Later implementation should add:
 - perceptual page duplicate hints;
 - image preprocessing adapters that produce page metadata without storing transformed images by default;
 - on-device OCR provider implementation behind the provider boundary;
+- richer notation parsing for supersets, unilateral work, bodyweight sets, notes, crossed-out values, and personal abbreviations;
 - canonical duplicate checks based on date, exercise order, set values, and provenance.
 
 ## Initial implementation slices
@@ -161,6 +168,8 @@ The fourth slice adds pure Kotlin preprocessing metadata and page-order proposal
 The fifth slice adds the recognition provider boundary and deterministic fixture-line provider for tests. It does not add OCR, ML dependencies, or external networking.
 
 The sixth slice adds pure Kotlin privacy policy, consent copy, deletion-target mapping, source-image deletion eligibility, and diagnostics redaction rules. It does not persist consent, delete files, or show UI.
+
+The seventh slice adds pure Kotlin recognized-text interpretation into reviewable draft rows. It does not match exercises, confirm fields, or write canonical data.
 
 This keeps the high-risk invariants testable before UI, storage, or recognition implementation starts.
 
@@ -198,6 +207,7 @@ Trade-offs:
 - exact-byte fingerprints do not catch every visual duplicate;
 - preprocessing metadata is not actual image enhancement yet;
 - privacy copy is modeled before the final UI wording and layout are designed;
+- the first text interpreter intentionally supports only narrow fixture patterns;
 - the first slices will not yet import real notebook photos end-to-end.
 
 ## Validation
