@@ -101,6 +101,8 @@ Explicit review transitions produce immutable draft copies with confirmed, corre
 
 A review queue flattens unresolved work into stable item identifiers for future UI. Queue IDs include workout, exercise, and set path segments because draft IDs are only guaranteed unique within their parent scope.
 
+The first editable review UI mutates only in-memory draft copies. It allows title, exercise-name, and set-value corrections with domain review helpers. It does not persist import state, resolve exercise mappings, confirm workouts or batches, or write canonical workout history.
+
 ## Canonical import rules
 
 A notebook workout can be planned for canonical storage only when:
@@ -205,6 +207,8 @@ Later implementation should add:
 - perceptual page duplicate hints;
 - image preprocessing adapters that produce page metadata without storing transformed images by default;
 - richer notation parsing for supersets, unilateral work, bodyweight sets, notes, crossed-out values, and personal abbreviations;
+- exercise mapping controls;
+- date correction controls;
 - repository transaction that consumes a validated import plan.
 
 ## Initial implementation slices
@@ -236,6 +240,8 @@ The twelfth slice adds ML Kit OCR, camera/gallery image intake, and a temporary 
 The thirteenth slice adds table-style parser support for the real uploaded notebook examples. It does not confirm values or write canonical history.
 
 The fourteenth slice adds notebook format profile detection for predefined table notebooks, compact handwritten rows, freeform handwritten logs, and unknown/custom formats. It does not use profile detection to bypass review.
+
+The fifteenth slice adds an in-memory editable review UI for title, exercise-name, and set corrections. It does not persist corrections, resolve exercise mappings, confirm workouts or batches, or write canonical history.
 
 This keeps the high-risk invariants testable before storage and canonical writes start.
 
@@ -276,10 +282,10 @@ Trade-offs:
 - privacy copy is modeled before the final UI wording and layout are designed;
 - the first text interpreter intentionally supports only narrow and sample-backed patterns;
 - format detection is a heuristic until more real sample fixtures exist;
+- the first editable review UI is in-memory only;
 - matching and duplicates are draft-level only until review UI and canonical import exist;
 - import planning exists before the final repository transaction;
-- persistence interfaces exist before concrete Room/file implementations;
-- the first OCR screen is a temporary intake/review summary, not the final correction UI.
+- persistence interfaces exist before concrete Room/file implementations.
 
 ## Validation
 
