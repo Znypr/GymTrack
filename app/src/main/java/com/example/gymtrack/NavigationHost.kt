@@ -63,8 +63,9 @@ fun NavigationHost(
     workoutRepository: WorkoutRepository,
     backupRepository: BackupRepository,
 ) {
+    val appContext = LocalContext.current.applicationContext
     val retainedStatsViewModel: StatsViewModel = viewModel(
-        factory = StatsViewModel.Factory(noteRepository),
+        factory = StatsViewModel.Factory(noteRepository, appContext),
     )
 
     NavHost(navController = navController, startDestination = "notes") {
