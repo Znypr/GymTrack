@@ -85,6 +85,7 @@ Exercise names are resolved separately from recognized text. A proposed exercise
 
 A notebook workout can be written to canonical storage only when:
 
+- the batch-level review state is confirmed;
 - the workout-level review state is confirmed;
 - the workout date/start time is confirmed;
 - every exercise is confirmed;
@@ -107,11 +108,23 @@ Exact-byte fingerprints are not a full visual duplicate detector. A rotated crop
 
 Page intake assigns draft page positions from the user-provided source order. Later page-ordering work may propose a corrected order from dates, page numbers, or recognition output, but the original upload order remains available as provenance.
 
+### Resumable batch state
+
+The first resumability layer is a pure state model, not persistence. It records:
+
+- batch status;
+- per-page processing status;
+- processed and failed page counts;
+- whether the batch can resume;
+- whether the batch can become ready for canonical import.
+
+Recoverable page failures keep the batch resumable and return it to review. Fatal batch failures and user cancellation are terminal. Marking a batch ready or imported is rejected unless pages are processed and every import draft is confirmed.
+
 Later implementation should add:
 
-- persisted batch state;
-- page-level processing status;
-- workout-level review status;
+- Room or DataStore persistence for batch state;
+- page-level processing status indexes;
+- workout-level review status indexes;
 - source fingerprint indexes;
 - perceptual page duplicate hints;
 - canonical duplicate checks based on date, exercise order, set values, and provenance.
@@ -121,6 +134,8 @@ Later implementation should add:
 The first slice adds a pure Kotlin draft domain model and JVM tests. It intentionally does not add OCR, image capture, Room tables, network calls, or canonical writes.
 
 The second slice adds pure Kotlin page intake and exact-byte fingerprinting. Android camera/gallery code should read bytes outside the domain layer and pass them to the intake helper. The helper returns `NotebookPageDraft` records with deterministic positions, metadata, and SHA-256 fingerprints.
+
+The third slice adds pure Kotlin resumable batch state. It defines progress and terminal-state semantics without choosing the later persistence backend.
 
 This keeps the high-risk invariants testable before UI, storage, or recognition implementation starts.
 
