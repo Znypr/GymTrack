@@ -79,7 +79,6 @@ data class NextWorkoutHomeSuggestion(
     val workoutLabel: String,
     val confidenceLabel: String,
     val reason: String,
-    val suggestedExercises: List<String> = emptyList(),
 )
 
 class HomeViewModel(
@@ -120,12 +119,7 @@ class HomeViewModel(
             val suggestion = runCatching {
                 workoutRepository.getNextWorkoutSuggestion(System.currentTimeMillis())
             }.getOrNull()
-            val exerciseOrder = suggestion?.let {
-                runCatching { workoutRepository.getSuggestedExerciseOrder(it.workoutLabel) }.getOrNull()
-            }
-            _nextWorkoutSuggestion.value = suggestion?.toHomeSuggestion(
-                suggestedExercises = exerciseOrder?.exercises.orEmpty().map { it.name },
-            )
+            _nextWorkoutSuggestion.value = suggestion?.toHomeSuggestion()
         }
     }
 
@@ -294,9 +288,7 @@ class HomeViewModel(
         }
     }
 
-    private fun NextWorkoutSuggestion.toHomeSuggestion(
-        suggestedExercises: List<String>,
-    ): NextWorkoutHomeSuggestion = NextWorkoutHomeSuggestion(
+    private fun NextWorkoutSuggestion.toHomeSuggestion(): NextWorkoutHomeSuggestion = NextWorkoutHomeSuggestion(
         workoutLabel = workoutLabel,
         confidenceLabel = when (confidence) {
             SuggestionConfidence.LOW -> "Low confidence"
@@ -304,7 +296,6 @@ class HomeViewModel(
             SuggestionConfidence.HIGH -> "High confidence"
         },
         reason = reason,
-        suggestedExercises = suggestedExercises,
     )
 
     private fun displayName(context: Context, uri: Uri): String {
