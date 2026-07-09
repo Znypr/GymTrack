@@ -44,10 +44,20 @@ object NotebookDraftReview {
         return set.copy(
             repetitions = set.repetitions?.let { confirmField(it, repetitions) }
                 ?: confirmedField(repetitions, provenance),
-            weight = if (weight == null) null else set.weight?.let { confirmField(it, weight) }
-                ?: confirmedField(weight, provenance),
-            weightUnit = if (weight == null) null else set.weightUnit?.let { confirmField(it, weightUnit!!) }
-                ?: confirmedField(weightUnit!!, provenance),
+            weight = if (weight == null) {
+                null
+            } else {
+                set.weight?.let { confirmField(it, weight) } ?: confirmedField(weight, provenance)
+            },
+            weightUnit = if (weight == null) {
+                null
+            } else {
+                val knownUnit = requireNotNull(weightUnit) {
+                    "Confirmed weighted sets require an explicit unit"
+                }
+                set.weightUnit?.let { confirmField(it, knownUnit) }
+                    ?: confirmedField(knownUnit, provenance)
+            },
             notes = when {
                 notes == null -> null
                 set.notes != null -> confirmField(set.notes, notes)
@@ -64,7 +74,7 @@ object NotebookDraftReview {
         mode: ExerciseMode,
         resolution: ExerciseResolution,
     ): NotebookExerciseDraft {
-        require(!exercise.recognizedName.value.isNullOrBlank()) {
+        val confirmedName = requireNotNull(exercise.recognizedName.value?.takeIf { it.isNotBlank() }) {
             "Confirmed exercise requires a recognized or corrected name"
         }
         require(resolution.reviewState == ReviewState.CONFIRMED) {
@@ -78,7 +88,7 @@ object NotebookDraftReview {
         }
 
         return exercise.copy(
-            recognizedName = confirmField(exercise.recognizedName, exercise.recognizedName.value),
+            recognizedName = confirmField(exercise.recognizedName, confirmedName),
             recognizedMode = confirmField(exercise.recognizedMode, mode),
             exerciseResolution = resolution,
             reviewState = ReviewState.CONFIRMED,
