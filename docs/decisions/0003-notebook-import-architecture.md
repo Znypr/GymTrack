@@ -73,7 +73,10 @@ The initial retention policy is explicit and conservative:
 - users may choose to keep source images until manual deletion if an audit trail is wanted;
 - users may choose not to store source images after extraction;
 - extracted text, confidence values, and draft data are deletion targets separate from canonical workouts;
-- diagnostics must not include raw notebook images or full extracted text unless the user explicitly exports a diagnostic bundle.
+- deletion actions for source and intermediate import data must never delete canonical workouts;
+- diagnostics exclude raw notebook images and extracted text by default.
+
+Consent copy must state where processing happens, how source images are retained, and that existing workout history is unchanged until review and confirmation.
 
 ## Review and correction model
 
@@ -157,6 +160,8 @@ The fourth slice adds pure Kotlin preprocessing metadata and page-order proposal
 
 The fifth slice adds the recognition provider boundary and deterministic fixture-line provider for tests. It does not add OCR, ML dependencies, or external networking.
 
+The sixth slice adds pure Kotlin privacy policy, consent copy, deletion-target mapping, source-image deletion eligibility, and diagnostics redaction rules. It does not persist consent, delete files, or show UI.
+
 This keeps the high-risk invariants testable before UI, storage, or recognition implementation starts.
 
 ## Child issue split after this ADR
@@ -192,6 +197,7 @@ Trade-offs:
 - cloud accuracy decisions are deferred until the consent and provider boundary is implemented;
 - exact-byte fingerprints do not catch every visual duplicate;
 - preprocessing metadata is not actual image enhancement yet;
+- privacy copy is modeled before the final UI wording and layout are designed;
 - the first slices will not yet import real notebook photos end-to-end.
 
 ## Validation
