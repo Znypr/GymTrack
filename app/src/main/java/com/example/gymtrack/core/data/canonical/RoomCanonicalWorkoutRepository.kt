@@ -9,6 +9,7 @@ import com.example.gymtrack.core.data.transition.CanonicalKeys
 import com.example.gymtrack.domain.model.Exercise
 import com.example.gymtrack.domain.model.WorkoutDetails
 import com.example.gymtrack.domain.model.WorkoutRecord
+import com.example.gymtrack.domain.model.WorkoutStatus
 import com.example.gymtrack.domain.repository.CanonicalWorkoutRepository
 
 class RoomCanonicalWorkoutRepository(
@@ -22,6 +23,18 @@ class RoomCanonicalWorkoutRepository(
         database.withTransaction {
             database.canonicalWorkoutDao().getByLegacyTimestamp(legacyTimestamp)?.let { load(it) }
         }
+
+    override suspend fun getRecentCompleted(limit: Int): List<WorkoutDetails> {
+        if (limit <= 0) return emptyList()
+        return database.withTransaction {
+            database.canonicalWorkoutDao()
+                .getRecentCompleted(
+                    completedStatus = WorkoutStatus.COMPLETED.name,
+                    limit = limit,
+                )
+                .map { load(it) }
+        }
+    }
 
     override suspend fun save(details: WorkoutDetails) {
         database.withTransaction {
