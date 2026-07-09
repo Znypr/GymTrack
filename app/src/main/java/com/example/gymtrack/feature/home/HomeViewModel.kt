@@ -15,6 +15,9 @@ import com.example.gymtrack.core.util.exportNote
 import com.example.gymtrack.core.util.importNote
 import java.io.File
 import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,19 +61,15 @@ data class LegacyCsvImportProgress(
     val phase: String,
     val selected: Int,
     val processed: Int,
-    val imported: Int = 0,
-    val skipped: Int = 0,
     val failed: Int = 0,
-    val currentFileName: String? = null,
+    val currentWorkoutLabel: String? = null,
 ) {
     val progressFraction: Float
         get() = if (selected <= 0) 0f else (processed.toFloat() / selected).coerceIn(0f, 1f)
 
     fun detailMessage(): String = buildString {
         append("$processed/$selected processed")
-        if (imported > 0) append(" • $imported imported")
-        if (skipped > 0) append(" • $skipped skipped")
-        if (failed > 0) append(" • $failed failed")
+        append(" • $failed failed")
     }
 }
 
@@ -147,7 +146,7 @@ class HomeViewModel(
                         selected = uris.size,
                         processed = index,
                         failed = failed,
-                        currentFileName = displayName,
+                        currentWorkoutLabel = workoutLabelFromLegacyFileName(displayName),
                     )
 
                     val uniqueName = "temp_import_${UUID.randomUUID()}.csv"
@@ -186,7 +185,7 @@ class HomeViewModel(
                             selected = uris.size,
                             processed = index + 1,
                             failed = failed,
-                            currentFileName = displayName,
+                            currentWorkoutLabel = workoutLabelFromLegacyFileName(displayName),
                         )
                     }
                 }
@@ -209,6 +208,7 @@ class HomeViewModel(
                     val fullFingerprint = legacyCsvFullFingerprint(parsedNote)
                     val contentFingerprint = legacyCsvContentFingerprint(parsedNote)
                     val timestampAlreadyUsed = parsedNote.timestamp in usedTimestamps
+                    val workoutLabel = parsedNote.importProgressLabel()
 
                     when {
                         fullFingerprint in knownFullFingerprints ||
@@ -234,11 +234,8 @@ class HomeViewModel(
                         phase = "Saving imported workouts",
                         selected = saveTotal,
                         processed = index + 1,
-                        imported = imported,
-                        skipped = selection.exactDuplicates + selection.supersededSnapshots +
-                            skippedExistingDuplicates + skippedExistingTimestamps,
                         failed = failed,
-                        currentFileName = candidate.displayName,
+                        currentWorkoutLabel = workoutLabel,
                     )
                 }
 
@@ -275,6 +272,22 @@ class HomeViewModel(
             ?: uri.toString()
     }
 
+    private fun NoteLine.importProgressLabel(): String {
+        val titleLabel = title.trim().ifBlank { categoryName?.trim().orEmpty() }.ifBlank { "Workout" }
+        val dateLabel = importDateFormatter.format(Date(timestamp))
+        return "$titleLabel · $dateLabel"
+    }
+
+    private fun workoutLabelFromLegacyFileName(fileName: String): String? {
+        val match = legacyFileNamePattern.find(fileName) ?: return null
+        val month = match.groupValues[1]
+        val day = match.groupValues[2]
+        val year = match.groupValues[3]
+        val hour = match.groupValues[4]
+        val minute = match.groupValues[5]
+        return "Workout · $day/$month/20$year $hour:$minute"
+    }
+
     class Factory(
         private val repository: NoteRepository,
         private val workoutRepository: WorkoutRepository,
@@ -283,5 +296,10 @@ class HomeViewModel(
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             return HomeViewModel(repository, workoutRepository) as T
         }
+    }
+
+    private companion object {
+        val importDateFormatter = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+        val legacyFileNamePattern = Regex("note-(\\d{2})-(\\d{2})-(\\d{2})-(\\d{2})-(\\d{2})", RegexOption.IGNORE_CASE)
     }
 }
