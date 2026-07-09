@@ -12,6 +12,7 @@ import com.example.gymtrack.core.data.ExerciseFlag
 import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.timer.NoteTimerStore
+import com.example.gymtrack.core.util.ExerciseIdentityResolver
 import com.example.gymtrack.core.util.buildNoteRowMetadata
 import com.example.gymtrack.core.util.formatElapsedMinutesSeconds
 import com.example.gymtrack.core.util.formatSecondsToMinutesSeconds
@@ -142,11 +143,11 @@ class NoteEditorState(
             .mapIndexedNotNull { index, row ->
                 val text = row.text.value.text.trim()
                 if (text.isBlank() || !isMainExerciseRow(index)) return@mapIndexedNotNull null
-                text.normalizedExerciseSuggestionName()
+                text.exerciseSuggestionComparisonKey()
             }
             .toSet()
         return suggestedExercises.firstOrNull { suggestion ->
-            suggestion.normalizedExerciseSuggestionName() !in used
+            suggestion.exerciseSuggestionComparisonKey() !in used
         }
     }
 
@@ -249,10 +250,13 @@ class NoteEditorState(
     private fun isMainExerciseRow(index: Int): Boolean =
         index == 0 || lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
 
-    private fun String.normalizedExerciseSuggestionName(): String =
+    private fun String.exerciseSuggestionComparisonKey(): String = ExerciseIdentityResolver
+        .resolve(cleanExerciseSuggestionText())
+        .baseComparisonKey
+
+    private fun String.cleanExerciseSuggestionText(): String =
         replace(Regex("""\s*\(\d+'\d{2}''\)$"""), "")
             .trim()
-            .lowercase()
 }
 
 @Composable
