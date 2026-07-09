@@ -200,7 +200,7 @@ object NotebookTextInterpreter {
         val year = match.groupValues[1].toInt()
         val month = match.groupValues[2].toInt()
         val day = match.groupValues[3].toInt()
-        return dateField(year, month, day, line, hasExplicitYear = true)
+        return dateField(year, month, day, line)
     }
 
     private fun parseEuropeanDateField(
@@ -219,7 +219,7 @@ object NotebookTextInterpreter {
             )
         }
         val year = rawYear.toInt().let { if (it < 100) 2000 + it else it }
-        return dateField(year, month, day, line, hasExplicitYear = true)
+        return dateField(year, month, day, line)
     }
 
     private fun dateField(
@@ -227,9 +227,8 @@ object NotebookTextInterpreter {
         month: Int,
         day: Int,
         line: RecognizedNotebookLine,
-        hasExplicitYear: Boolean,
     ): RecognizedField<Long> {
-        val millis = if (hasExplicitYear) runCatching { utcStartOfDayMillis(year, month, day) }.getOrNull() else null
+        val millis = runCatching { utcStartOfDayMillis(year, month, day) }.getOrNull()
         return RecognizedField(
             value = millis,
             confidence = if (millis == null) RecognitionConfidence(0.0) else line.confidence,
@@ -250,7 +249,7 @@ object NotebookTextInterpreter {
         while (index < lines.size) {
             val line = lines[index]
             val text = line.text.trim()
-            val mixed = parseMixedNameAndNumbers(text)
+            val mixed = parseMixedNameAndNumbers(line)
             val name = when {
                 mixed?.name?.isNotBlank() == true -> mixed.name
                 isExerciseNameCandidate(text) -> text.cleanedExerciseName()
@@ -264,7 +263,7 @@ object NotebookTextInterpreter {
 
             val numericRows = mutableListOf<NumericRow>()
             mixed?.values?.takeIf { it.isNotEmpty() }?.let { values ->
-                numericRows += NumericRow(values = values, provenanceLine = line)
+                numericRows += NumericRow(values = values)
             }
             consumed += line.id
 
@@ -272,12 +271,12 @@ object NotebookTextInterpreter {
             while (lookahead < lines.size) {
                 val next = lines[lookahead]
                 val nextText = next.text.trim()
-                if (parseMixedNameAndNumbers(nextText)?.name?.isNotBlank() == true || isExerciseNameCandidate(nextText)) {
+                if (parseMixedNameAndNumbers(next)?.name?.isNotBlank() == true || isExerciseNameCandidate(nextText)) {
                     break
                 }
-                val values = parseNumberSequence(nextText)
+                val values = parseNumberSequence(next)
                 if (values.isNotEmpty()) {
-                    numericRows += NumericRow(values = values, provenanceLine = next)
+                    numericRows += NumericRow(values = values)
                     consumed += next.id
                     lookahead += 1
                 } else if (isBoilerplate(nextText)) {
@@ -353,7 +352,7 @@ object NotebookTextInterpreter {
                 weight = weightValue?.let {
                     RecognizedField(
                         value = it.value,
-                        confidence = confidenceFor(it, provenanceLine.confidence),
+                        confidence = confidenceFor(it, it.line.confidence),
                         reviewState = ReviewState.NEEDS_REVIEW,
                         provenance = it.line.provenance,
                     )
@@ -424,30 +423,7 @@ object NotebookTextInterpreter {
         )
     }
 
-    private fun parseNumberSequence(text: String): List<NumericValue> = numberToken.findAll(text)
-        .map { match ->
-            val raw = match.value
-            NumericValue(
-                raw = raw,
-                value = raw.toDoubleOrNullLenient(),
-                line = textLinePlaceholder,
-            )
-        }
-        .toList()
-
-    private fun parseMixedNameAndNumbers(text: String): MixedNameNumbers? {
-        val firstNumber = numberToken.find(text) ?: return null
-        val name = text.substring(0, firstNumber.range.first).cleanedExerciseName()
-        if (name.isBlank()) return null
-        val values = numberToken.findAll(text.substring(firstNumber.range.first))
-            .map { match -> NumericValue(raw = match.value, value = match.value.toDoubleOrNullLenient(), line = textLinePlaceholder) }
-            .toList()
-        return MixedNameNumbers(name = name, values = values)
-    }
-
-    private fun parseNumberSequence(
-        line: RecognizedNotebookLine,
-    ): List<NumericValue> = numberToken.findAll(line.text)
+    private fun parseNumberSequence(line: RecognizedNotebookLine): List<NumericValue> = numberToken.findAll(line.text)
         .map { match ->
             NumericValue(
                 raw = match.value,
@@ -457,27 +433,13 @@ object NotebookTextInterpreter {
         }
         .toList()
 
-    private fun parseMixedNameAndNumbers(
-        line: RecognizedNotebookLine,
-    ): MixedNameNumbers? {
+    private fun parseMixedNameAndNumbers(line: RecognizedNotebookLine): MixedNameNumbers? {
         val firstNumber = numberToken.find(line.text) ?: return null
         val name = line.text.substring(0, firstNumber.range.first).cleanedExerciseName()
         if (name.isBlank()) return null
         val values = numberToken.findAll(line.text.substring(firstNumber.range.first))
             .map { match -> NumericValue(raw = match.value, value = match.value.toDoubleOrNullLenient(), line = line) }
             .toList()
-        return MixedNameNumbers(name = name, values = values)
-    }
-
-    private fun parseNumberSequence(text: String, line: RecognizedNotebookLine): List<NumericValue> = numberToken.findAll(text)
-        .map { match -> NumericValue(raw = match.value, value = match.value.toDoubleOrNullLenient(), line = line) }
-        .toList()
-
-    private fun parseMixedNameAndNumbers(text: String, line: RecognizedNotebookLine): MixedNameNumbers? {
-        val firstNumber = numberToken.find(text) ?: return null
-        val name = text.substring(0, firstNumber.range.first).cleanedExerciseName()
-        if (name.isBlank()) return null
-        val values = parseNumberSequence(text.substring(firstNumber.range.first), line)
         return MixedNameNumbers(name = name, values = values)
     }
 
@@ -546,14 +508,6 @@ object NotebookTextInterpreter {
         .replace(Regex("""\s+"""), " ")
         .trim()
 
-    private val textLinePlaceholder = RecognizedNotebookLine(
-        id = "placeholder",
-        pageId = "placeholder",
-        lineNumber = 1,
-        text = "placeholder",
-        confidence = RecognitionConfidence(0.0),
-    )
-
     private data class ParsedTitleDate(
         val title: String,
         val date: RecognizedField<Long>,
@@ -575,7 +529,6 @@ object NotebookTextInterpreter {
 
     private data class NumericRow(
         val values: List<NumericValue>,
-        val provenanceLine: RecognizedNotebookLine,
     )
 
     private data class RepWeightRows(
