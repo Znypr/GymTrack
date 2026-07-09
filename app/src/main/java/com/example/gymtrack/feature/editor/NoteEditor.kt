@@ -77,6 +77,7 @@ fun NoteEditor(
     var selectedCategory by remember(note) {
         mutableStateOf(
             settings.categories.find { it.name == note?.categoryName }
+                ?: viewModel.currentCategory
                 ?: Category("Push", 0xFFFF3B30),
         )
     }
