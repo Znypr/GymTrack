@@ -82,9 +82,17 @@ Rules:
 4. Order exercises by observed median position.
 5. Limit to six exercises for the initial suggestion list.
 
-The correct UX is one-at-a-time editor assistance: suggest the next exercise only when the user is ready for the next exercise row. It must not create multiple timed exercise rows at once.
+## Slice 5: One-at-a-time editor exercise suggestions
 
-Sets, weights, reps, RPE, and progression targets remain out of scope.
+The editor consumes the exercise-order suggestion list one exercise at a time:
+
+- suggestions are loaded for the currently selected category;
+- the UI only shows a suggestion when the current row is an empty main-exercise row;
+- accepting a suggestion inserts exactly one exercise name into that row;
+- accepted suggestions already present in the draft are skipped;
+- no set rows, weights, reps, RPE, or progression targets are inserted.
+
+This avoids creating multiple timed exercise rows at once.
 
 ## Product boundary
 
@@ -99,6 +107,5 @@ No suggestion modifies history or creates a workout without user confirmation.
 
 ## Next slices
 
-- Add one-at-a-time next-exercise suggestions inside the editor.
 - Add explicit accept/reject/replace feedback separately from workout history.
 - Defer load/rep targets until progression policy, units, and safety rules are defined.
