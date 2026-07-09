@@ -12,11 +12,16 @@ Small implementation PRs should target `feature/178-workout-prediction`, not `ma
 
 The baseline is intentionally deterministic and backend-only.
 
-It predicts a likely next workout label from confirmed completed workout history. It does not prefill the editor, suggest exercises, suggest weights, or make coaching claims.
+It predicts a likely next workout label from saved workout history. It does not prefill the editor, suggest exercises, suggest weights, or make coaching claims.
 
 ### Inputs
 
-The prediction service accepts canonical `WorkoutDetails` records and uses only completed workouts with a usable label.
+The prediction service accepts canonical `WorkoutDetails` records and uses only prediction-eligible workouts with a usable label.
+
+Prediction-eligible means:
+
+1. canonical `COMPLETED`; or
+2. legacy-backed canonical history with migration status `MIGRATED` or `NEEDS_REVIEW`.
 
 Label selection:
 
@@ -24,14 +29,14 @@ Label selection:
 2. workout title, when category is absent;
 3. ignored when both are blank.
 
-Draft and partial workouts are ignored so transient autosave state does not train suggestions.
+Draft workouts, pending legacy migrations, and blank-label records are ignored so transient or unverified state does not train suggestions.
 
 ### Prediction rules
 
-1. If all completed labeled workouts share one label, suggest that label with low or medium confidence depending on sample size.
-2. Otherwise, use historical transitions from the latest completed workout label to the next label.
+1. If all saved labeled workouts share one label, suggest that label with low or medium confidence depending on sample size.
+2. Otherwise, use historical transitions from the latest saved workout label to the next label.
 3. If the latest label has no repeated transition history, fall back to the least recently trained recurring workout.
-4. Return no suggestion when there is no completed labeled history or no defensible fallback.
+4. Return no suggestion when there is no prediction-eligible labeled history or no defensible fallback.
 
 ### Output
 
@@ -42,17 +47,17 @@ A suggestion contains:
 - plain reason text;
 - evidence including recent labels, basis, transition counts, previous label, and days since the suggested label.
 
-## Slice 2: recent completed history source
+## Slice 2: recent prediction-history source
 
-`CanonicalWorkoutRepository.getRecentCompleted(limit)` exposes a bounded, newest-first list of completed canonical workouts.
+`CanonicalWorkoutRepository.getRecentPredictionHistory(limit)` exposes a bounded, newest-first list of prediction-eligible canonical workouts.
 
 `NextWorkoutPredictionProvider` is the bridge from stored history to the deterministic prediction service:
 
-1. load recent completed canonical workouts;
+1. load recent prediction-eligible canonical workouts;
 2. pass them into `NextWorkoutPredictionService`;
 3. return the suggestion without persisting learned state or changing workout history.
 
-The default history window is 24 completed workouts. This is intentionally small and deterministic for the initial baseline.
+The default history window is 24 saved workouts. This is intentionally small and deterministic for the initial baseline.
 
 ## Slice 3: Home suggestion surface
 
