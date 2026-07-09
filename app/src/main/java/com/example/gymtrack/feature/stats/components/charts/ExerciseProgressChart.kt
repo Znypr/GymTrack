@@ -345,3 +345,117 @@ private fun CompactVariantSummaryRow(labels: List<String>) {
         }
     }
 }
+
+@Composable
+private fun CompactVariantSummaryChip(label: String, accent: Color) {
+    Surface(
+        color = Color.Transparent,
+        contentColor = accent,
+        shape = RoundedCornerShape(percent = 50),
+        border = BorderStroke(0.75.dp, accent.copy(alpha = 0.70f)),
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+            fontSize = 9.sp,
+            lineHeight = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+@Composable
+private fun VariantLabelRow(
+    variants: List<ExerciseProgressVariant>,
+    focusedVariantKey: String?,
+    onVariantClick: ((ExerciseProgressVariant) -> Unit)?,
+) {
+    val palette = exerciseProgressPalette()
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        variants.take(5).forEachIndexed { index, variant ->
+            VariantLabelChip(
+                variant = variant,
+                accent = palette[index % palette.size],
+                selected = focusedVariantKey == variant.key,
+                dimmed = focusedVariantKey != null && focusedVariantKey != variant.key,
+                onClick = onVariantClick,
+            )
+        }
+    }
+}
+
+@Composable
+private fun VariantLabelChip(
+    variant: ExerciseProgressVariant,
+    accent: Color,
+    selected: Boolean,
+    dimmed: Boolean,
+    onClick: ((ExerciseProgressVariant) -> Unit)?,
+) {
+    val alpha = if (dimmed) 0.38f else 1f
+    Surface(
+        modifier = if (onClick != null) Modifier.clickable { onClick(variant) } else Modifier,
+        color = if (selected) accent.copy(alpha = 0.14f) else Color.Transparent,
+        contentColor = accent.copy(alpha = alpha),
+        shape = RoundedCornerShape(percent = 50),
+        border = BorderStroke(1.dp, accent.copy(alpha = if (dimmed) 0.32f else 0.85f)),
+    ) {
+        Text(
+            text = variant.label,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+private fun dropdownSummaryLabels(exercise: ExerciseGroupWithCount): List<String> {
+    val rawLabels = exercise.variants
+        .flatMap { it.labels }
+        .map(String::trim)
+        .filter(String::isNotBlank)
+        .filterNot { it.equals("Unilateral", ignoreCase = true) || it.equals("Alternating", ignoreCase = true) }
+        .distinctBy { it.lowercase(Locale.getDefault()) }
+
+    val hasSpecificMachine = rawLabels.any { label ->
+        listOf("Prime", "Atlantis", "Hammer Strength", "Cybex", "Gym80", "Life Fitness", "Sygnum")
+            .any { label.equals(it, ignoreCase = true) }
+    }
+    val compact = rawLabels
+        .filterNot { hasSpecificMachine && it.equals("Machine", ignoreCase = true) }
+        .sortedBy(::dropdownLabelPriority)
+
+    val visible = compact.take(3).toMutableList()
+    val hiddenCount = (compact.size - visible.size).coerceAtLeast(0)
+    if (hiddenCount > 0) visible += "+$hiddenCount"
+    return visible
+}
+
+private fun dropdownLabelPriority(label: String): Int {
+    val lower = label.lowercase(Locale.getDefault())
+    return when {
+        listOf("dumbbell", "barbell", "smith", "cable", "machine", "bodyweight").any { lower == it } -> 0
+        listOf("straight bar", "rope", "v-bar", "ez-bar", "handle").any { lower == it } -> 1
+        else -> 2
+    }
+}
+
+@Composable
+private fun exerciseProgressPalette(): List<Color> = listOf(
+    MaterialTheme.colorScheme.primary,
+    Color(0xFF8E24AA),
+    Color(0xFF00897B),
+    Color(0xFFEF6C00),
+    Color(0xFFD81B60),
+    Color(0xFF5E35B1),
+    Color(0xFF6D4C41),
+)
+
+@Composable
+private fun compactSummaryColor(index: Int): Color {
+    val palette = exerciseProgressPalette()
+    return palette[index % palette.size]
+}
