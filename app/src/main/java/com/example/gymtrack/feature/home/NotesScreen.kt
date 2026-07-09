@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -41,6 +42,7 @@ fun NotesScreen(
     onExport: (Set<NoteLine>) -> Unit,
     onCreate: () -> Unit,
     onImport: (List<Uri>) -> Unit,
+    legacyCsvImportProgress: LegacyCsvImportProgress? = null,
     showLegacyCsvImport: Boolean = false,
     onOpenSettings: () -> Unit,
     onOpenStats: () -> Unit,
@@ -91,13 +93,20 @@ fun NotesScreen(
                             Icon(Icons.Default.BarChart, contentDescription = "Stats", tint = MaterialTheme.colorScheme.onBackground)
                         }
                         if (showLegacyCsvImport) {
-                            IconButton(onClick = {
-                                importLauncher.launch(arrayOf("text/*", "text/csv", "application/vnd.ms-excel"))
-                            }) {
+                            IconButton(
+                                enabled = legacyCsvImportProgress == null,
+                                onClick = {
+                                    importLauncher.launch(arrayOf("text/*", "text/csv", "application/vnd.ms-excel"))
+                                },
+                            ) {
                                 Icon(
                                     Icons.Default.UploadFile,
                                     contentDescription = "Import legacy CSV",
-                                    tint = MaterialTheme.colorScheme.onBackground,
+                                    tint = if (legacyCsvImportProgress == null) {
+                                        MaterialTheme.colorScheme.onBackground
+                                    } else {
+                                        MaterialTheme.colorScheme.onBackground.copy(alpha = 0.38f)
+                                    },
                                 )
                             }
                         }
@@ -228,6 +237,59 @@ fun NotesScreen(
                         settings = settings,
                     )
                 }
+            }
+
+            legacyCsvImportProgress?.let { progress ->
+                LegacyCsvImportProgressCard(
+                    progress = progress,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(16.dp)
+                        .fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LegacyCsvImportProgressCard(
+    progress: LegacyCsvImportProgress,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(20.dp),
+        tonalElevation = 8.dp,
+        shadowElevation = 8.dp,
+        color = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = progress.phase,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = progress.detailMessage(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            LinearProgressIndicator(
+                progress = progress.progressFraction,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            progress.currentFileName?.let { fileName ->
+                Text(
+                    text = fileName,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
             }
         }
     }
