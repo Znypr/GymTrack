@@ -14,6 +14,7 @@ import com.example.gymtrack.core.util.variantLabels
 import com.example.gymtrack.domain.model.WorkoutDetails
 import com.example.gymtrack.domain.model.WorkoutRecord
 import com.example.gymtrack.domain.model.WorkoutStatus
+import com.example.gymtrack.domain.recommendation.ExerciseOrderSuggestion
 import com.example.gymtrack.domain.recommendation.NextWorkoutPredictionProvider
 import com.example.gymtrack.domain.recommendation.NextWorkoutSuggestion
 import com.example.gymtrack.domain.summary.TrainingSummaryBuilder
@@ -146,6 +147,10 @@ class WorkoutRepository(
 
     suspend fun getNextWorkoutSuggestion(nowEpochMillis: Long): NextWorkoutSuggestion? {
         return predictionProvider.getSuggestion(nowEpochMillis)
+    }
+
+    suspend fun getSuggestedExerciseOrder(workoutLabel: String): ExerciseOrderSuggestion? {
+        return predictionProvider.getExerciseOrderSuggestion(workoutLabel)
     }
 
     suspend fun deleteWorkout(timestamp: Long) {
