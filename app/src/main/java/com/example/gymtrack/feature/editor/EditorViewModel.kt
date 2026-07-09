@@ -20,6 +20,8 @@ class EditorViewModel(
     private val initialId: Long,
     private val noteRepo: NoteRepository,
     private val workoutRepo: WorkoutRepository,
+    private val suggestedCategoryName: String? = null,
+    private val suggestedDraftText: String = "",
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<NoteLine?>(null)
@@ -67,7 +69,20 @@ class EditorViewModel(
             currentLearnings = note.learnings
             _uiState.value = note
         } else {
-            currentCategory = Category("Push", 0xFFFF3B30)
+            val suggestedCategory = suggestedCategoryName
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?.let { name -> Category(name, categoryColorFor(name)) }
+            currentCategory = suggestedCategory ?: Category("Push", 0xFFFF3B30)
+            if (suggestedDraftText.isNotBlank()) {
+                _uiState.value = NoteLine(
+                    title = "",
+                    text = suggestedDraftText,
+                    timestamp = System.currentTimeMillis(),
+                    categoryName = currentCategory?.name,
+                    categoryColor = currentCategory?.color,
+                )
+            }
         }
     }
 
@@ -167,10 +182,25 @@ class EditorViewModel(
         private val noteId: Long,
         private val noteRepo: NoteRepository,
         private val workoutRepo: WorkoutRepository,
+        private val suggestedCategoryName: String? = null,
+        private val suggestedDraftText: String = "",
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return EditorViewModel(noteId, noteRepo, workoutRepo) as T
+            return EditorViewModel(
+                initialId = noteId,
+                noteRepo = noteRepo,
+                workoutRepo = workoutRepo,
+                suggestedCategoryName = suggestedCategoryName,
+                suggestedDraftText = suggestedDraftText,
+            ) as T
         }
+    }
+
+    private fun categoryColorFor(name: String): Long = when (name.trim().lowercase()) {
+        "push" -> 0xFFFF3B30
+        "pull" -> 0xFFAF52DE
+        "legs" -> 0xFF34C759
+        else -> 0xFF808080
     }
 }
