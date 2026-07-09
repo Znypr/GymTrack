@@ -15,7 +15,17 @@ import kotlinx.coroutines.withContext
 
 class BackupRepository(
     private val database: NoteDatabase,
+    private val restoreInterruptionProbe: suspend (RestoreInterruptionPoint) -> Unit = {},
 ) {
+    enum class RestoreInterruptionPoint {
+        BEFORE_DATABASE_REPLACE,
+        AFTER_EXISTING_ROWS_DELETED,
+        AFTER_CANONICAL_ROWS_INSERTED,
+        AFTER_LEGACY_ROWS_INSERTED,
+        BEFORE_SETTINGS_SAVE,
+        AFTER_SETTINGS_SAVE,
+    }
+
     suspend fun createBackup(
         contentResolver: ContentResolver,
         destination: Uri,
@@ -64,8 +74,11 @@ class BackupRepository(
         val previousPayload = snapshot(previousSettings)
 
         try {
+            restoreInterruptionProbe(RestoreInterruptionPoint.BEFORE_DATABASE_REPLACE)
             replaceDatabase(contents.payload)
+            restoreInterruptionProbe(RestoreInterruptionPoint.BEFORE_SETTINGS_SAVE)
             SettingsStore.save(context, contents.payload.settings)
+            restoreInterruptionProbe(RestoreInterruptionPoint.AFTER_SETTINGS_SAVE)
         } catch (restoreError: Throwable) {
             val rollback = runCatching {
                 replaceDatabase(previousPayload)
@@ -117,6 +130,7 @@ class BackupRepository(
             database.setDao().deleteAllForRestore()
             database.exerciseDao().deleteAllForRestore()
             database.noteDao().deleteAllForRestore()
+            restoreInterruptionProbe(RestoreInterruptionPoint.AFTER_EXISTING_ROWS_DELETED)
 
             backupDao.insertCanonicalCategories(payload.canonicalCategories)
             backupDao.insertCanonicalExercises(sortCanonicalExercises(payload.canonicalExercises))
@@ -124,9 +138,12 @@ class BackupRepository(
             backupDao.insertCanonicalWorkouts(payload.canonicalWorkouts)
             backupDao.insertCanonicalWorkoutExercises(payload.canonicalWorkoutExercises)
             backupDao.insertCanonicalWorkoutSets(payload.canonicalWorkoutSets)
+            restoreInterruptionProbe(RestoreInterruptionPoint.AFTER_CANONICAL_ROWS_INSERTED)
+
             database.noteDao().insertAllForRestore(payload.legacyNotes)
             database.exerciseDao().insertAllForRestore(payload.legacyExercises)
             database.setDao().insertSets(payload.legacySets)
+            restoreInterruptionProbe(RestoreInterruptionPoint.AFTER_LEGACY_ROWS_INSERTED)
         }
     }
 

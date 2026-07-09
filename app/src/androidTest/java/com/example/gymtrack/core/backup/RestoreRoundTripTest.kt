@@ -6,11 +6,17 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.gymtrack.core.data.NoteDatabase
+import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.data.SettingsStore
+import com.example.gymtrack.core.timer.NoteTimerStore
 import java.io.File
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -45,6 +51,50 @@ class RestoreRoundTripTest {
         } finally {
             database.close()
             SettingsStore.save(context, oldSettings)
+            NoteTimerStore.stop(context)
+        }
+    }
+
+    @Test
+    fun successfulRestoreStopsActiveTimerAndRestoresSettingsAndHistory() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val oldSettings = SettingsStore.load(context)
+        val database = Room.inMemoryDatabaseBuilder(context, NoteDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val repository = BackupRepository(database)
+            val payload = BackupFixtures.payload()
+
+            NoteTimerStore.startOrRestore(
+                context = context,
+                noteTimestamp = 999L,
+                nowEpochMillis = 1_000L,
+            )
+            val result = repository.restoreBackup(context, context.contentResolver, archive(context, "timer", payload))
+
+            val timer = NoteTimerStore.observe(context).first()
+            val persistedSettings = SettingsStore.load(context)
+            assertEquals(payload, repository.snapshot(payload.settings))
+            assertEquals(payload.settings, result.settings)
+            assertSettingsPersisted(payload.settings, persistedSettings)
+            assertNull(timer.activeNoteTimestamp)
+            assertFalse(timer.isRunning)
+            assertEquals(0L, timer.accumulatedSeconds)
+        } finally {
+            database.close()
+            SettingsStore.save(context, oldSettings)
+            NoteTimerStore.stop(context)
+        }
+    }
+
+    private fun assertSettingsPersisted(expected: Settings, actual: Settings) {
+        assertEquals(expected.is24Hour, actual.is24Hour)
+        assertEquals(expected.roundingSeconds, actual.roundingSeconds)
+        assertEquals(expected.darkMode, actual.darkMode)
+        assertEquals(expected.defaultWeightUnit, actual.defaultWeightUnit)
+        expected.categories.forEach { expectedCategory ->
+            assertTrue(actual.categories.any { it.name == expectedCategory.name })
         }
     }
 
