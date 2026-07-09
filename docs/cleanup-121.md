@@ -37,6 +37,20 @@ Kept one dependency declaration per active dependency source and removed stale d
 - older conflicting `implementation("androidx.compose.material:material-icons-extended:1.5.4")`
   - kept `implementation("androidx.compose.material:material-icons-extended:1.6.5")` because the app still uses extended material icons
 
+## Slice 3: color helper cleanup
+
+Removed unused duplicate color helper extensions from `ColorUtils.kt` while keeping the active `presetColors` list used by `ColorDropdown`.
+
+### Removed
+
+- `Color.darken(factor: Float)` from `core.util.ColorUtils`
+- `Color.lighten(factor: Float)` from `core.util.ColorUtils`
+
+### Kept
+
+- `presetColors`, because `ColorDropdown` still imports and renders it
+- theme color helpers in `core.ui.theme.Color`, because the draft visual PR #252 also touches theme files and this slice avoids that conflict area
+
 ## Not touched
 
 To avoid interference with draft visual PR #252, these cleanup slices do not modify:
