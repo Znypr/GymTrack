@@ -40,6 +40,87 @@ class NotebookTextInterpreterTest {
     }
 
     @Test
+    fun interpretsNotebookTableExerciseRepsAndWeightRows() {
+        val result = NotebookTextInterpreter.interpret(
+            request(),
+            output(
+                lines = listOf(
+                    "Push",
+                    "23.06.",
+                    "Schulter",
+                    "14 12 10",
+                    "11 11 15",
+                    "Trizeps",
+                    "8 9 10",
+                    "26,25 22,5 20",
+                )
+            ),
+        )
+
+        val workout = result.batch.workouts.single()
+        assertEquals("Push", workout.title?.value)
+        assertNull(workout.startedAtEpochMillis.value)
+        assertTrue(workout.startedAtEpochMillis.confidence.isLowConfidence)
+        assertEquals(2, workout.exercises.size)
+
+        val shoulder = workout.exercises[0]
+        assertEquals("Schulter", shoulder.recognizedName.value)
+        assertEquals(3, shoulder.sets.size)
+        assertEquals(14, shoulder.sets[0].repetitions?.value)
+        assertEquals(11.0, shoulder.sets[0].weight?.value ?: -1.0, 0.001)
+        assertEquals(WeightUnit.UNKNOWN, shoulder.sets[0].weightUnit?.value)
+
+        val triceps = workout.exercises[1]
+        assertEquals("Trizeps", triceps.recognizedName.value)
+        assertEquals(3, triceps.sets.size)
+        assertEquals(8, triceps.sets[0].repetitions?.value)
+        assertEquals(26.25, triceps.sets[0].weight?.value ?: -1.0, 0.001)
+        assertTrue(triceps.sets[0].weightUnit?.confidence?.isLowConfidence == true)
+    }
+
+    @Test
+    fun interpretsNotebookTableMixedExerciseAndRepRow() {
+        val result = NotebookTextInterpreter.interpret(
+            request(),
+            output(
+                lines = listOf(
+                    "Pull 18.06.",
+                    "T-Bar 13 11 12",
+                    "52.5 52.5 50",
+                    "Rudern eng 12 12 9",
+                    "70 60 60",
+                )
+            ),
+        )
+
+        val workout = result.batch.workouts.single()
+        assertEquals("Pull", workout.title?.value)
+        assertNull(workout.startedAtEpochMillis.value)
+        assertEquals(2, workout.exercises.size)
+        assertEquals("T-Bar", workout.exercises[0].recognizedName.value)
+        assertEquals(13, workout.exercises[0].sets[0].repetitions?.value)
+        assertEquals(52.5, workout.exercises[0].sets[0].weight?.value ?: -1.0, 0.001)
+        assertEquals("Rudern eng", workout.exercises[1].recognizedName.value)
+        assertEquals(60.0, workout.exercises[1].sets[1].weight?.value ?: -1.0, 0.001)
+    }
+
+    @Test
+    fun interpretsCombinedRepAndWeightValuesOnOneRecognizedLine() {
+        val result = NotebookTextInterpreter.interpret(
+            request(),
+            output(lines = listOf("Dips 15 13 10 12.5 12.5 12.5")),
+        )
+
+        val exercise = result.batch.workouts.single().exercises.single()
+        assertEquals("Dips", exercise.recognizedName.value)
+        assertEquals(3, exercise.sets.size)
+        assertEquals(15, exercise.sets[0].repetitions?.value)
+        assertEquals(12.5, exercise.sets[0].weight?.value ?: -1.0, 0.001)
+        assertEquals(10, exercise.sets[2].repetitions?.value)
+        assertEquals(12.5, exercise.sets[2].weight?.value ?: -1.0, 0.001)
+    }
+
+    @Test
     fun missingDateStaysUnresolvedInsteadOfGuessing() {
         val result = NotebookTextInterpreter.interpret(
             request(),
