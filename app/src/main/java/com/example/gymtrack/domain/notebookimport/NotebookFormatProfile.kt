@@ -55,16 +55,26 @@ object NotebookFormatDetector {
         val exerciseLikeCount = texts.count { text ->
             wordToken.containsMatchIn(text) && numberToken.findAll(text).count() <= 1 && !headerTerms.containsMatchIn(text)
         }
+        val mixedExerciseValueCount = texts.count { text ->
+            wordToken.containsMatchIn(text) && numberToken.findAll(text).count() >= 2 && !simpleSetRow.matches(text)
+        }
         val longFreeformCount = texts.count { text ->
             wordToken.findAll(text).count() >= 4 && numberToken.findAll(text).count() <= 1
         }
 
         return when {
-            headerCount > 0 && numericOnlyCount > 0 && exerciseLikeCount > 0 -> {
+            headerCount > 0 && numericOnlyCount > 0 && (exerciseLikeCount > 0 || mixedExerciseValueCount > 0) -> {
                 NotebookFormatDetectionResult(
                     profile = NotebookFormatProfile.PREDEFINED_TABLE,
                     confidence = RecognitionConfidence(0.85),
                     reasons = listOf("Detected printed table headers, exercise labels, and numeric set rows"),
+                )
+            }
+            numericOnlyCount >= 1 && mixedExerciseValueCount >= 1 -> {
+                NotebookFormatDetectionResult(
+                    profile = NotebookFormatProfile.PREDEFINED_TABLE,
+                    confidence = RecognitionConfidence(0.76),
+                    reasons = listOf("Detected mixed exercise/value rows with numeric set rows"),
                 )
             }
             numericOnlyCount >= 2 && exerciseLikeCount >= 1 -> {
