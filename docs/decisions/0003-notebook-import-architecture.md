@@ -67,6 +67,8 @@ Provider descriptors declare processing location. On-device providers may run wi
 
 A deterministic fixture-line provider exists only for tests and representative sample evaluation. It is not OCR and is not a product recognition implementation.
 
+The first real OCR adapter uses ML Kit Text Recognition for Latin script images selected from gallery or captured by camera. It converts URI images to ML Kit `InputImage` instances, extracts text lines, and feeds the existing review-first draft pipeline.
+
 ## Privacy and retention
 
 The initial retention policy is explicit and conservative:
@@ -178,6 +180,10 @@ A session summary exposes counts, resume status, privacy copy, duplicate counts,
 
 Representative fixtures cover clean input, missing date input, and ambiguous set-value input.
 
+### Camera and gallery intake UI
+
+The first UI entry point is reachable from the home toolbar. It allows image selection from gallery or camera capture, runs ML Kit OCR, computes source fingerprints, builds draft rows, and shows recognized text plus draft summary. It intentionally does not persist import state, confirm drafts, or write canonical workout history.
+
 Later implementation should add:
 
 - Room or DataStore persistence for batch state;
@@ -186,7 +192,6 @@ Later implementation should add:
 - source fingerprint indexes;
 - perceptual page duplicate hints;
 - image preprocessing adapters that produce page metadata without storing transformed images by default;
-- on-device OCR provider implementation behind the provider boundary;
 - richer notation parsing for supersets, unilateral work, bodyweight sets, notes, crossed-out values, and personal abbreviations;
 - repository transaction that consumes a validated import plan.
 
@@ -214,7 +219,9 @@ The tenth slice adds pure Kotlin persistence boundaries, deletion planning, and 
 
 The eleventh slice adds pure Kotlin review queue, session summary, end-to-end domain pipeline, and representative fixture tests. It does not add UI, OCR, or storage.
 
-This keeps the high-risk invariants testable before UI, storage, or recognition implementation starts.
+The twelfth slice adds ML Kit OCR, camera/gallery image intake, and a temporary review-first import screen. It does not persist import state, add real review/correction UI, or write canonical history.
+
+This keeps the high-risk invariants testable before storage and canonical writes start.
 
 ## Child issue split after this ADR
 
@@ -241,7 +248,8 @@ Positive:
 - privacy choices are modeled before external processing exists;
 - duplicate page checks can happen before expensive interpretation;
 - canonical workout history stays protected behind confirmation and transaction boundaries;
-- tests can validate import safety before Compose and Room work.
+- tests can validate import safety before Compose and Room work;
+- real OCR and image intake can be exercised without enabling canonical writes.
 
 Trade-offs:
 
@@ -254,8 +262,7 @@ Trade-offs:
 - matching and duplicates are draft-level only until review UI and canonical import exist;
 - import planning exists before the final repository transaction;
 - persistence interfaces exist before concrete Room/file implementations;
-- domain pipeline exists before real OCR/UI/storage adapters;
-- the first slices will not yet import real notebook photos end-to-end.
+- the first OCR screen is a temporary intake/review summary, not the final correction UI.
 
 ## Validation
 
