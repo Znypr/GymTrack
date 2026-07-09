@@ -23,6 +23,10 @@ class NotebookTextInterpreterTest {
 
         val result = NotebookTextInterpreter.interpret(request(), output)
 
+        assertEquals(
+            NotebookFormatProfile.HANDWRITTEN_COMPACT_ROWS,
+            result.formatProfilesByPageId.getValue("page-1").profile,
+        )
         val workout = result.batch.workouts.single()
         assertEquals("Push", workout.title?.value)
         assertTrue(workout.startedAtEpochMillis.value != null)
@@ -57,6 +61,10 @@ class NotebookTextInterpreterTest {
             ),
         )
 
+        assertEquals(
+            NotebookFormatProfile.PREDEFINED_TABLE,
+            result.formatProfilesByPageId.getValue("page-1").profile,
+        )
         val workout = result.batch.workouts.single()
         assertEquals("Push", workout.title?.value)
         assertNull(workout.startedAtEpochMillis.value)
@@ -93,6 +101,10 @@ class NotebookTextInterpreterTest {
             ),
         )
 
+        assertEquals(
+            NotebookFormatProfile.PREDEFINED_TABLE,
+            result.formatProfilesByPageId.getValue("page-1").profile,
+        )
         val workout = result.batch.workouts.single()
         assertEquals("Pull", workout.title?.value)
         assertNull(workout.startedAtEpochMillis.value)
