@@ -30,6 +30,9 @@ class EditorViewModel(
     private val _saveError = MutableStateFlow<String?>(null)
     val saveError = _saveError.asStateFlow()
 
+    private val _exerciseSuggestions = MutableStateFlow<List<String>>(emptyList())
+    val exerciseSuggestions = _exerciseSuggestions.asStateFlow()
+
     var currentDefaultWeightUnit: WeightUnit = WeightUnit.KG
 
     private val saveCoordinator = EditorSaveCoordinator(
@@ -56,6 +59,7 @@ class EditorViewModel(
             }
         } else {
             initialize(null)
+            currentCategory?.name?.let(::refreshExerciseSuggestionsForCategory)
         }
     }
 
@@ -83,6 +87,19 @@ class EditorViewModel(
                     categoryColor = currentCategory?.color,
                 )
             }
+        }
+    }
+
+    fun refreshExerciseSuggestionsForCategory(categoryName: String) {
+        if (initialId != -1L) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val suggestions = runCatching {
+                workoutRepo.getSuggestedExerciseOrder(categoryName)
+            }.getOrNull()
+                ?.exercises
+                .orEmpty()
+                .map { it.name }
+            _exerciseSuggestions.value = suggestions
         }
     }
 
