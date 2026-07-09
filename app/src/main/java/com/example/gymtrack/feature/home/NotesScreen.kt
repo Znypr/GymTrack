@@ -314,6 +314,22 @@ private fun NextWorkoutSuggestionCard(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (suggestion.suggestedExercises.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Suggested exercise order",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    suggestion.suggestedExercises.take(6).forEachIndexed { index, exercise ->
+                        Text(
+                            text = "${index + 1}. $exercise",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -325,7 +341,7 @@ private fun NextWorkoutSuggestionCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Button(onClick = onStart) {
-                    Text("Start blank")
+                    Text(if (suggestion.suggestedExercises.isEmpty()) "Start blank" else "Start with exercises")
                 }
             }
         }
