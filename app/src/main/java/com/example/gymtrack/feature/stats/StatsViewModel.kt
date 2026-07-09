@@ -1,5 +1,6 @@
 package com.example.gymtrack.feature.stats
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -46,13 +47,24 @@ data class StatsState(
 
 class StatsViewModel(
     private val repository: NoteRepository,
+    context: Context,
 ) : ViewModel() {
 
     private data class StatsCacheKey(
         val range: TimeRange,
         val notesSignature: Long,
-    )
+        val dayBucket: Long?,
+    ) {
+        val storageKey: String = buildString {
+            append(range.name)
+            append('_')
+            append(notesSignature)
+            append('_')
+            append(dayBucket ?: "all")
+        }
+    }
 
+    private val persistentCache = StatsPersistentCacheStore(context.applicationContext)
     private val _timeRange = MutableStateFlow(TimeRange.ALL_TIME)
     private val _uiState = MutableStateFlow(StatsState(isLoading = true, loadingMessage = "Preparing statistics…"))
     val uiState = _uiState.asStateFlow()
@@ -63,7 +75,11 @@ class StatsViewModel(
         viewModelScope.launch {
             combine(repository.getAllNotes(), _timeRange) { notes, range -> notes to range }
                 .collectLatest { (allNotes, range) ->
-                    val key = StatsCacheKey(range = range, notesSignature = allNotes.statsSignature())
+                    val key = StatsCacheKey(
+                        range = range,
+                        notesSignature = allNotes.statsSignature(),
+                        dayBucket = range.currentDayBucket(),
+                    )
                     val cached = statsCache[key]
                     if (cached != null) {
                         _uiState.value = cached
@@ -73,6 +89,30 @@ class StatsViewModel(
                     _uiState.value = _uiState.value.copy(
                         currentRange = range,
                         sourceNoteCount = allNotes.size,
+                        isLoading = true,
+                        loadingMessage = if (allNotes.isEmpty()) {
+                            "Preparing statistics…"
+                        } else {
+                            "Loading cached statistics for ${allNotes.size} workouts…"
+                        },
+                    )
+
+                    val persisted = withContext(Dispatchers.IO) {
+                        persistentCache.read(key.storageKey)
+                    }?.copy(
+                        currentRange = range,
+                        sourceNoteCount = allNotes.size,
+                        isLoading = false,
+                        loadingMessage = null,
+                    )
+                    if (persisted != null) {
+                        statsCache[key] = persisted
+                        trimCache()
+                        _uiState.value = persisted
+                        return@collectLatest
+                    }
+
+                    _uiState.value = _uiState.value.copy(
                         isLoading = true,
                         loadingMessage = if (allNotes.isEmpty()) {
                             "Preparing statistics…"
@@ -89,6 +129,10 @@ class StatsViewModel(
                     statsCache[key] = calculated
                     trimCache()
                     _uiState.value = calculated
+
+                    viewModelScope.launch(Dispatchers.IO) {
+                        persistentCache.write(key.storageKey, calculated)
+                    }
                 }
         }
     }
@@ -115,6 +159,14 @@ class StatsViewModel(
             result = 31 * result + (note.categoryColor ?: 0L)
         }
         return result
+    }
+
+    private fun TimeRange.currentDayBucket(): Long? {
+        return if (this == TimeRange.ALL_TIME) {
+            null
+        } else {
+            System.currentTimeMillis() / TimeUnit.DAYS.toMillis(1)
+        }
     }
 
     private suspend fun calculateStats(allNotes: List<NoteLine>, range: TimeRange): StatsState = withContext(Dispatchers.Default) {
@@ -197,10 +249,13 @@ class StatsViewModel(
         )
     }
 
-    class Factory(private val repository: NoteRepository) : ViewModelProvider.Factory {
+    class Factory(
+        private val repository: NoteRepository,
+        private val context: Context,
+    ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return StatsViewModel(repository) as T
+            return StatsViewModel(repository, context) as T
         }
     }
 
