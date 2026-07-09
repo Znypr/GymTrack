@@ -29,8 +29,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -45,7 +47,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.gymtrack.domain.model.Exercise
+import com.example.gymtrack.domain.model.WeightUnit
+import com.example.gymtrack.domain.notebookimport.NotebookDraftReview
+import com.example.gymtrack.domain.notebookimport.NotebookExerciseDraft
 import com.example.gymtrack.domain.notebookimport.NotebookExerciseMatcher
+import com.example.gymtrack.domain.notebookimport.NotebookFormatDetectionResult
 import com.example.gymtrack.domain.notebookimport.NotebookImportBatchDraft
 import com.example.gymtrack.domain.notebookimport.NotebookImportBatchState
 import com.example.gymtrack.domain.notebookimport.NotebookImportBatchStatus
@@ -60,8 +66,11 @@ import com.example.gymtrack.domain.notebookimport.NotebookRecognitionOutput
 import com.example.gymtrack.domain.notebookimport.NotebookRecognitionRequest
 import com.example.gymtrack.domain.notebookimport.NotebookReviewItem
 import com.example.gymtrack.domain.notebookimport.NotebookReviewQueue
+import com.example.gymtrack.domain.notebookimport.NotebookSetDraft
 import com.example.gymtrack.domain.notebookimport.NotebookTextInterpreter
+import com.example.gymtrack.domain.notebookimport.NotebookWorkoutDraft
 import com.example.gymtrack.domain.notebookimport.NotebookWorkoutDuplicateDetector
+import com.example.gymtrack.domain.notebookimport.NotebookWorkoutDuplicateReport
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -71,9 +80,12 @@ private sealed interface NotebookImportUiState {
     data object Idle : NotebookImportUiState
     data object Processing : NotebookImportUiState
     data class Result(
+        val batch: NotebookImportBatchDraft,
         val summary: NotebookImportSessionSummary,
         val recognitionOutput: NotebookRecognitionOutput,
         val reviewQueue: NotebookReviewQueue,
+        val draftDuplicateReport: NotebookWorkoutDuplicateReport,
+        val formatProfilesByPageId: Map<String, NotebookFormatDetectionResult>,
         val warnings: List<String>,
     ) : NotebookImportUiState
     data class Error(val message: String) : NotebookImportUiState
@@ -191,7 +203,7 @@ fun NotebookImportScreen(
                 NotebookImportUiState.Idle -> item {
                     StatusCard(
                         title = "No pages selected",
-                        body = "Use this as a review-first intake step. Recognized rows remain draft data until a later review UI confirms them.",
+                        body = "Use this as a review-first intake step. Recognized rows remain draft data until a review UI confirms them.",
                     )
                 }
                 NotebookImportUiState.Processing -> item {
@@ -215,6 +227,26 @@ fun NotebookImportScreen(
                 }
                 is NotebookImportUiState.Result -> {
                     item { SummaryCard(current.summary) }
+                    if (current.formatProfilesByPageId.isNotEmpty()) {
+                        item { FormatProfilesCard(current.formatProfilesByPageId) }
+                    }
+                    if (current.batch.workouts.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "Editable draft",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                        items(current.batch.workouts) { workout ->
+                            EditableWorkoutCard(
+                                workout = workout,
+                                onWorkoutChanged = { updatedWorkout ->
+                                    state = current.withBatch(current.batch.replaceWorkout(updatedWorkout))
+                                },
+                            )
+                        }
+                    }
                     if (current.reviewQueue.items.isNotEmpty()) {
                         item {
                             Text(
@@ -272,6 +304,178 @@ private fun SummaryCard(summary: NotebookImportSessionSummary) {
 }
 
 @Composable
+private fun FormatProfilesCard(profiles: Map<String, NotebookFormatDetectionResult>) {
+    StatusCard(
+        title = "Detected notebook format",
+        body = profiles.entries.joinToString("\n\n") { (pageId, profile) ->
+            "$pageId: ${profile.profile} (${"%.0f".format(profile.confidence.value * 100)}%)\n" +
+                profile.reasons.joinToString("\n")
+        },
+    )
+}
+
+@Composable
+private fun EditableWorkoutCard(
+    workout: NotebookWorkoutDraft,
+    onWorkoutChanged: (NotebookWorkoutDraft) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            var titleText by remember(workout.id, workout.title?.value) { mutableStateOf(workout.title?.value.orEmpty()) }
+            Text("Workout ${workout.id}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            OutlinedTextField(
+                value = titleText,
+                onValueChange = { titleText = it },
+                label = { Text("Title") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            TextButton(
+                onClick = {
+                    val trimmed = titleText.trim()
+                    if (trimmed.isNotBlank() && workout.title != null) {
+                        onWorkoutChanged(workout.copy(title = NotebookDraftReview.confirmField(workout.title, trimmed)))
+                    }
+                },
+            ) {
+                Text("Apply title correction")
+            }
+            workout.exercises.forEach { exercise ->
+                EditableExerciseCard(
+                    exercise = exercise,
+                    onExerciseChanged = { updatedExercise ->
+                        onWorkoutChanged(workout.replaceExercise(updatedExercise))
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EditableExerciseCard(
+    exercise: NotebookExerciseDraft,
+    onExerciseChanged: (NotebookExerciseDraft) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            var nameText by remember(exercise.id, exercise.recognizedName.value) {
+                mutableStateOf(exercise.recognizedName.value.orEmpty())
+            }
+            OutlinedTextField(
+                value = nameText,
+                onValueChange = { nameText = it },
+                label = { Text("Exercise") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            TextButton(
+                onClick = {
+                    val trimmed = nameText.trim()
+                    if (trimmed.isNotBlank()) {
+                        onExerciseChanged(
+                            exercise.copy(
+                                recognizedName = NotebookDraftReview.confirmField(exercise.recognizedName, trimmed),
+                            ),
+                        )
+                    }
+                },
+            ) {
+                Text("Apply exercise correction")
+            }
+            exercise.sets.forEach { set ->
+                EditableSetCard(
+                    set = set,
+                    onSetChanged = { updatedSet -> onExerciseChanged(exercise.replaceSet(updatedSet)) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EditableSetCard(
+    set: NotebookSetDraft,
+    onSetChanged: (NotebookSetDraft) -> Unit,
+) {
+    var repsText by remember(set.id, set.repetitions?.value) { mutableStateOf(set.repetitions?.value?.toString().orEmpty()) }
+    var weightText by remember(set.id, set.weight?.value) { mutableStateOf(set.weight?.value?.toString().orEmpty()) }
+    var unitText by remember(set.id, set.weightUnit?.value) { mutableStateOf(set.weightUnit?.value.toUnitInput()) }
+    var errorText by remember(set.id) { mutableStateOf<String?>(null) }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("Set ${set.position + 1}", fontWeight = FontWeight.SemiBold)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = repsText,
+                    onValueChange = { repsText = it },
+                    label = { Text("Reps") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = weightText,
+                    onValueChange = { weightText = it },
+                    label = { Text("Weight") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = unitText,
+                    onValueChange = { unitText = it },
+                    label = { Text("Unit") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                )
+            }
+            errorText?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+            TextButton(
+                onClick = {
+                    val reps = repsText.trim().toIntOrNull()
+                    val weight = weightText.trim().takeIf { it.isNotBlank() }?.replace(',', '.')?.toDoubleOrNull()
+                    val unit = unitText.parseWeightUnit()
+                    if (reps == null) {
+                        errorText = "Reps must be a positive whole number."
+                    } else {
+                        runCatching {
+                            NotebookDraftReview.confirmSet(
+                                set = set,
+                                repetitions = reps,
+                                weight = weight,
+                                weightUnit = unit,
+                            )
+                        }.fold(
+                            onSuccess = {
+                                errorText = null
+                                onSetChanged(it)
+                            },
+                            onFailure = { error -> errorText = error.localizedMessage ?: "Invalid set values." },
+                        )
+                    }
+                },
+            ) {
+                Text("Confirm set correction")
+            }
+        }
+    }
+}
+
+@Composable
 private fun StatusCard(
     title: String,
     body: String,
@@ -318,6 +522,43 @@ private fun NotebookReviewItem.descriptionForDisplay(): String {
     return details.ifEmpty { listOf("Needs explicit confirmation before import.") }.joinToString("\n")
 }
 
+private fun NotebookImportUiState.Result.withBatch(batch: NotebookImportBatchDraft): NotebookImportUiState.Result {
+    val draftDuplicateReport = NotebookWorkoutDuplicateDetector.detectWithinBatch(batch)
+    val reviewQueue = NotebookImportReviewQueueBuilder.build(batch)
+    return copy(
+        batch = batch,
+        draftDuplicateReport = draftDuplicateReport,
+        reviewQueue = reviewQueue,
+        summary = summaryFor(batch, reviewQueue, draftDuplicateReport),
+    )
+}
+
+private fun NotebookImportBatchDraft.replaceWorkout(updatedWorkout: NotebookWorkoutDraft): NotebookImportBatchDraft = copy(
+    workouts = workouts.map { if (it.id == updatedWorkout.id) updatedWorkout else it },
+)
+
+private fun NotebookWorkoutDraft.replaceExercise(updatedExercise: NotebookExerciseDraft): NotebookWorkoutDraft = copy(
+    exercises = exercises.map { if (it.id == updatedExercise.id) updatedExercise else it },
+)
+
+private fun NotebookExerciseDraft.replaceSet(updatedSet: NotebookSetDraft): NotebookExerciseDraft = copy(
+    sets = sets.map { if (it.id == updatedSet.id) updatedSet else it },
+)
+
+private fun WeightUnit?.toUnitInput(): String = when (this) {
+    WeightUnit.KILOGRAM -> "kg"
+    WeightUnit.POUND -> "lb"
+    WeightUnit.UNKNOWN -> ""
+    null -> ""
+}
+
+private fun String.parseWeightUnit(): WeightUnit? = when (trim().lowercase()) {
+    "" -> null
+    "kg", "kgs", "kilogram", "kilograms" -> WeightUnit.KILOGRAM
+    "lb", "lbs", "pound", "pounds" -> WeightUnit.POUND
+    else -> WeightUnit.UNKNOWN
+}
+
 private suspend fun processNotebookImages(
     context: Context,
     uris: List<Uri>,
@@ -351,30 +592,38 @@ private suspend fun processNotebookImages(
     )
     val draftDuplicates = NotebookWorkoutDuplicateDetector.detectWithinBatch(matching.batch)
     val reviewQueue = NotebookImportReviewQueueBuilder.build(matching.batch)
-    val summary = NotebookImportSessionSummaryBuilder.build(
-        state = NotebookImportBatchState(
-            batch = matching.batch,
-            pageStates = pages.map { page ->
-                NotebookPageProcessingState(
-                    pageId = page.id,
-                    status = NotebookPageProcessingStatus.PROCESSED,
-                    updatedAtEpochMillis = System.currentTimeMillis(),
-                )
-            },
-            status = NotebookImportBatchStatus.AWAITING_REVIEW,
-            createdAtEpochMillis = System.currentTimeMillis(),
-            updatedAtEpochMillis = System.currentTimeMillis(),
-        ),
-        reviewQueue = reviewQueue,
-        draftDuplicateReport = draftDuplicates,
-    )
     return NotebookImportUiState.Result(
-        summary = summary,
+        batch = matching.batch,
+        summary = summaryFor(matching.batch, reviewQueue, draftDuplicates),
         recognitionOutput = ocrOutput,
         reviewQueue = reviewQueue,
+        draftDuplicateReport = draftDuplicates,
+        formatProfilesByPageId = interpretation.formatProfilesByPageId,
         warnings = ocrOutput.warnings + interpretation.warnings + matching.warnings,
     )
 }
+
+private fun summaryFor(
+    batch: NotebookImportBatchDraft,
+    reviewQueue: NotebookReviewQueue,
+    draftDuplicates: NotebookWorkoutDuplicateReport,
+): NotebookImportSessionSummary = NotebookImportSessionSummaryBuilder.build(
+    state = NotebookImportBatchState(
+        batch = batch,
+        pageStates = batch.pages.map { page ->
+            NotebookPageProcessingState(
+                pageId = page.id,
+                status = NotebookPageProcessingStatus.PROCESSED,
+                updatedAtEpochMillis = System.currentTimeMillis(),
+            )
+        },
+        status = NotebookImportBatchStatus.AWAITING_REVIEW,
+        createdAtEpochMillis = System.currentTimeMillis(),
+        updatedAtEpochMillis = System.currentTimeMillis(),
+    ),
+    reviewQueue = reviewQueue,
+    draftDuplicateReport = draftDuplicates,
+)
 
 private fun createNotebookCaptureUri(context: Context): Uri {
     val resolver = context.contentResolver
