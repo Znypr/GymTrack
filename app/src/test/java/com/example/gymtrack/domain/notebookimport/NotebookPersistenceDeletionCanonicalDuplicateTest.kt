@@ -104,13 +104,13 @@ class NotebookPersistenceDeletionCanonicalDuplicateTest {
             )
         }
 
-        val importedPlan = NotebookImportDeletionPlanner.planDeletion(
-            state = state(status = NotebookImportBatchStatus.IMPORTED),
+        val cancelledPlan = NotebookImportDeletionPlanner.planDeletion(
+            state = state(status = NotebookImportBatchStatus.CANCELLED),
             target = NotebookImportDeletionTarget.SOURCE_IMAGES_ONLY,
         )
 
-        assertEquals(setOf("page-1"), importedPlan.pageIds)
-        assertEquals(setOf(NotebookImportDataKind.SOURCE_IMAGE), importedPlan.dataKinds)
+        assertEquals(setOf("page-1"), cancelledPlan.pageIds)
+        assertEquals(setOf(NotebookImportDataKind.SOURCE_IMAGE), cancelledPlan.dataKinds)
     }
 
     @Test
