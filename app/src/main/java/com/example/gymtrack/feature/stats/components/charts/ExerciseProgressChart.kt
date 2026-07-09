@@ -30,6 +30,11 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
 
+private object ExerciseProgressMemoryCache {
+    val exerciseGroupsByCutoff = mutableMapOf<Long, List<ExerciseGroupWithCount>>()
+    val historyByExerciseIds = mutableMapOf<String, List<ExerciseProgressSeries>>()
+}
+
 @Composable
 private fun ExerciseProgressChartGraph(
     series: List<ExerciseProgressSeries>,
@@ -153,13 +158,22 @@ fun ExerciseProgressCard(
         }
     }
 
+    val cachedExercises = remember(cutoffTimestamp) {
+        ExerciseProgressMemoryCache.exerciseGroupsByCutoff[cutoffTimestamp].orEmpty()
+    }
     val allExercises by (repository?.getExerciseGroupsSortedByCount(cutoffTimestamp)
         ?: remember { flowOf(emptyList()) })
-        .collectAsState(initial = emptyList())
+        .collectAsState(initial = cachedExercises)
 
-    var selectedExercise by remember { mutableStateOf<ExerciseGroupWithCount?>(null) }
+    var selectedExercise by remember { mutableStateOf<ExerciseGroupWithCount?>(cachedExercises.firstOrNull()) }
     var expandedDropdown by remember { mutableStateOf(false) }
     var focusedVariantKey by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(cutoffTimestamp, allExercises) {
+        if (allExercises.isNotEmpty()) {
+            ExerciseProgressMemoryCache.exerciseGroupsByCutoff[cutoffTimestamp] = allExercises
+        }
+    }
 
     LaunchedEffect(allExercises) {
         val currentInList = allExercises.find { it.name == selectedExercise?.name }
@@ -176,10 +190,23 @@ fun ExerciseProgressCard(
         focusedVariantKey = null
     }
 
+    val seriesCacheKey = remember(selectedExercise) {
+        selectedExercise?.exerciseIds?.sorted()?.joinToString(",")
+    }
+    val cachedSeries = remember(seriesCacheKey) {
+        seriesCacheKey?.let { ExerciseProgressMemoryCache.historyByExerciseIds[it] }.orEmpty()
+    }
     val fullSeries by remember(selectedExercise) {
         selectedExercise?.let { repository?.getWeightHistoryForExerciseGroup(it) }
             ?: flowOf(emptyList())
-    }.collectAsState(initial = emptyList())
+    }.collectAsState(initial = cachedSeries)
+
+    LaunchedEffect(seriesCacheKey, fullSeries) {
+        val key = seriesCacheKey ?: return@LaunchedEffect
+        if (fullSeries.isNotEmpty()) {
+            ExerciseProgressMemoryCache.historyByExerciseIds[key] = fullSeries
+        }
+    }
 
     val filteredSeries = remember(fullSeries, cutoffTimestamp) {
         fullSeries.mapNotNull { currentSeries ->

@@ -63,6 +63,10 @@ fun NavigationHost(
     workoutRepository: WorkoutRepository,
     backupRepository: BackupRepository,
 ) {
+    val retainedStatsViewModel: StatsViewModel = viewModel(
+        factory = StatsViewModel.Factory(noteRepository),
+    )
+
     NavHost(navController = navController, startDestination = "notes") {
         composable("notes") {
             val context = LocalContext.current
@@ -72,6 +76,7 @@ fun NavigationHost(
             )
             val notes by homeViewModel.notes.collectAsState()
             val importSummary by homeViewModel.legacyCsvImportSummary.collectAsState()
+            val importProgress by homeViewModel.legacyCsvImportProgress.collectAsState()
 
             LaunchedEffect(importSummary) {
                 val summary = importSummary ?: return@LaunchedEffect
@@ -125,6 +130,7 @@ fun NavigationHost(
                 onImport = { uris ->
                     homeViewModel.importNotesFromUris(context, uris, settings)
                 },
+                legacyCsvImportProgress = importProgress,
                 showLegacyCsvImport = BuildConfig.DEBUG,
                 onOpenSettings = { navController.navigate("settings") },
                 onOpenStats = { navController.navigate("stats") },
@@ -161,16 +167,13 @@ fun NavigationHost(
         }
 
         composable("stats") {
-            val statsViewModel: StatsViewModel = viewModel(
-                factory = StatsViewModel.Factory(noteRepository),
-            )
-            val state by statsViewModel.uiState.collectAsState()
+            val state by retainedStatsViewModel.uiState.collectAsState()
 
             StatsScreen(
                 state = state,
                 workoutRepository = workoutRepository,
                 settings = settings,
-                onTimeRangeSelected = { statsViewModel.setTimeRange(it) },
+                onTimeRangeSelected = { retainedStatsViewModel.setTimeRange(it) },
                 onBack = { navController.popBackStack() },
             )
         }

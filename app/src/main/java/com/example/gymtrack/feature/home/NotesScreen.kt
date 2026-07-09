@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -41,6 +42,7 @@ fun NotesScreen(
     onExport: (Set<NoteLine>) -> Unit,
     onCreate: () -> Unit,
     onImport: (List<Uri>) -> Unit,
+    legacyCsvImportProgress: LegacyCsvImportProgress? = null,
     showLegacyCsvImport: Boolean = false,
     onOpenSettings: () -> Unit,
     onOpenStats: () -> Unit,
@@ -91,13 +93,20 @@ fun NotesScreen(
                             Icon(Icons.Default.BarChart, contentDescription = "Stats", tint = MaterialTheme.colorScheme.onBackground)
                         }
                         if (showLegacyCsvImport) {
-                            IconButton(onClick = {
-                                importLauncher.launch(arrayOf("text/*", "text/csv", "application/vnd.ms-excel"))
-                            }) {
+                            IconButton(
+                                enabled = legacyCsvImportProgress == null,
+                                onClick = {
+                                    importLauncher.launch(arrayOf("text/*", "text/csv", "application/vnd.ms-excel"))
+                                },
+                            ) {
                                 Icon(
                                     Icons.Default.UploadFile,
                                     contentDescription = "Import legacy CSV",
-                                    tint = MaterialTheme.colorScheme.onBackground,
+                                    tint = if (legacyCsvImportProgress == null) {
+                                        MaterialTheme.colorScheme.onBackground
+                                    } else {
+                                        MaterialTheme.colorScheme.onBackground.copy(alpha = 0.38f)
+                                    },
                                 )
                             }
                         }
@@ -228,6 +237,68 @@ fun NotesScreen(
                         settings = settings,
                     )
                 }
+            }
+
+            legacyCsvImportProgress?.let { progress ->
+                LegacyCsvImportProgressCard(
+                    progress = progress,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LegacyCsvImportProgressCard(
+    progress: LegacyCsvImportProgress,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        tonalElevation = 6.dp,
+        shadowElevation = 6.dp,
+        color = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = progress.phase,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = progress.detailMessage(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            LinearProgressIndicator(
+                progress = progress.progressFraction,
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f),
+            )
+            progress.currentWorkoutLabel?.let { workoutLabel ->
+                Text(
+                    text = workoutLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
             }
         }
     }

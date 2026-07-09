@@ -104,6 +104,15 @@ fun StatsScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
+            if (state.isLoading) {
+                item {
+                    StatsLoadingCard(
+                        message = state.loadingMessage ?: "Building statistics…",
+                        sourceNoteCount = state.sourceNoteCount,
+                    )
+                }
+            }
+
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -197,6 +206,36 @@ fun StatBadge(label: String, value: String, modifier: Modifier = Modifier) {
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 maxLines = 1
             )
+        }
+    }
+}
+
+@Composable
+private fun StatsLoadingCard(
+    message: String,
+    sourceNoteCount: Int,
+) {
+    AdaptiveCard {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = if (sourceNoteCount > 0) {
+                    "Large histories may take a moment the first time. Cached results will be reused while the app stays open."
+                } else {
+                    "Preparing your stats view."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
     }
 }
