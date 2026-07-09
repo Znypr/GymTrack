@@ -99,17 +99,28 @@ The write itself must be one transaction. Partial failure must leave canonical h
 
 The import batch tracks source page fingerprints before workout interpretation. Duplicate page fingerprints must be resolved before import continues.
 
+### Source page fingerprints
+
+The first duplicate gate uses SHA-256 over exact source bytes. This catches accidental re-selects of the same captured or uploaded image before recognition starts.
+
+Exact-byte fingerprints are not a full visual duplicate detector. A rotated crop, recompressed image, screenshot, or second photo of the same notebook page may produce a different SHA-256 value. Perceptual image matching and canonical workout duplicate checks are later layers.
+
+Page intake assigns draft page positions from the user-provided source order. Later page-ordering work may propose a corrected order from dates, page numbers, or recognition output, but the original upload order remains available as provenance.
+
 Later implementation should add:
 
 - persisted batch state;
 - page-level processing status;
 - workout-level review status;
 - source fingerprint indexes;
+- perceptual page duplicate hints;
 - canonical duplicate checks based on date, exercise order, set values, and provenance.
 
-## Initial implementation slice
+## Initial implementation slices
 
 The first slice adds a pure Kotlin draft domain model and JVM tests. It intentionally does not add OCR, image capture, Room tables, network calls, or canonical writes.
+
+The second slice adds pure Kotlin page intake and exact-byte fingerprinting. Android camera/gallery code should read bytes outside the domain layer and pass them to the intake helper. The helper returns `NotebookPageDraft` records with deterministic positions, metadata, and SHA-256 fingerprints.
 
 This keeps the high-risk invariants testable before UI, storage, or recognition implementation starts.
 
@@ -144,6 +155,7 @@ Trade-offs:
 
 - this adds a new draft layer before user-visible functionality exists;
 - cloud accuracy decisions are deferred until the consent and provider boundary is implemented;
+- exact-byte fingerprints do not catch every visual duplicate;
 - the first slices will not yet import real notebook photos end-to-end.
 
 ## Validation
