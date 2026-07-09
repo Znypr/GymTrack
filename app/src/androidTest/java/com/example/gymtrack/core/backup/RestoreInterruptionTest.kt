@@ -24,7 +24,7 @@ class RestoreInterruptionTest {
         val database = Room.inMemoryDatabaseBuilder(context, NoteDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        var shouldInterrupt = true
+        var shouldInterrupt = false
 
         try {
             val repository = BackupRepository(database) { point ->
@@ -40,6 +40,7 @@ class RestoreInterruptionTest {
             val databaseBefore = repository.snapshot(original.settings)
             val settingsBefore = SettingsStore.load(context)
 
+            shouldInterrupt = true
             val failure = runCatching {
                 repository.restoreBackup(
                     context,
