@@ -293,5 +293,7 @@ data class NotebookImportBatchDraft(
         get() = reviewState == ReviewState.NEEDS_REVIEW || workouts.any { it.hasUnresolvedFields }
 
     val canWriteCanonicalHistory: Boolean
-        get() = workouts.isNotEmpty() && workouts.all { it.isReadyForCanonicalImport }
+        get() = reviewState == ReviewState.CONFIRMED &&
+            workouts.isNotEmpty() &&
+            workouts.all { it.isReadyForCanonicalImport }
 }
