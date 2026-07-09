@@ -243,7 +243,7 @@ fun NotesScreen(
                 LegacyCsvImportProgressCard(
                     progress = progress,
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
+                        .align(Alignment.TopCenter)
                         .padding(horizontal = 16.dp, vertical = 12.dp)
                         .fillMaxWidth(),
                 )
