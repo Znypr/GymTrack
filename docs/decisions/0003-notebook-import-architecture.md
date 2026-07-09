@@ -148,7 +148,7 @@ Page ordering produces proposals, not automatic canonical decisions. Detected pa
 
 ### Text interpretation
 
-The first text interpreter consumes recognized page lines and produces reviewable workout drafts. It recognizes only fixture-safe date, title, and simple set-line patterns. Missing dates, unknown weights, unknown repetitions, unknown units, unresolved exercise modes, and unmatched exercises remain unresolved.
+The first text interpreter consumes recognized page lines and produces reviewable workout drafts. It recognizes fixture-safe date, title, simple set-line patterns, and the printed notebook table style visible in real sample photos: title/date headers, exercise-name rows, separate reps rows, separate weight rows, and combined exercise/value rows. Missing years, unknown weights, unknown repetitions, unknown units, unresolved exercise modes, and unmatched exercises remain unresolved.
 
 Interpreter warnings identify page and line positions without including raw notebook text. This keeps diagnostics useful without leaking notebook content by default.
 
@@ -221,6 +221,8 @@ The eleventh slice adds pure Kotlin review queue, session summary, end-to-end do
 
 The twelfth slice adds ML Kit OCR, camera/gallery image intake, and a temporary review-first import screen. It does not persist import state, add real review/correction UI, or write canonical history.
 
+The thirteenth slice adds table-style parser support for the real uploaded notebook examples. It does not confirm values or write canonical history.
+
 This keeps the high-risk invariants testable before storage and canonical writes start.
 
 ## Child issue split after this ADR
@@ -258,7 +260,7 @@ Trade-offs:
 - exact-byte fingerprints do not catch every visual duplicate;
 - preprocessing metadata is not actual image enhancement yet;
 - privacy copy is modeled before the final UI wording and layout are designed;
-- the first text interpreter intentionally supports only narrow fixture patterns;
+- the first text interpreter intentionally supports only narrow and sample-backed patterns;
 - matching and duplicates are draft-level only until review UI and canonical import exist;
 - import planning exists before the final repository transaction;
 - persistence interfaces exist before concrete Room/file implementations;
