@@ -51,6 +51,20 @@ Removed unused duplicate color helper extensions from `ColorUtils.kt` while keep
 - `presetColors`, because `ColorDropdown` still imports and renders it
 - theme color helpers in `core.ui.theme.Color`, because the draft visual PR #252 also touches theme files and this slice avoids that conflict area
 
+## Slice 4: unused text transform cleanup
+
+Removed an unused Compose visual transformation from `TextUtils.kt` after repo search showed no active references.
+
+### Removed
+
+- `CapitalizeWordsTransformation`
+- now-unused Compose text imports from `TextUtils.kt`
+- now-unused `Locale` import from `TextUtils.kt`
+
+### Kept
+
+- note row metadata parsing and legacy text compatibility helpers, because they are active editor/import/export behavior
+
 ## Not touched
 
 To avoid interference with draft visual PR #252, these cleanup slices do not modify:

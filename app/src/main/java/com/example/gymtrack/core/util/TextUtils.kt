@@ -1,11 +1,6 @@
 package com.example.gymtrack.core.util
 
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.input.OffsetMapping
-import androidx.compose.ui.text.input.TransformedText
-import androidx.compose.ui.text.input.VisualTransformation
 import com.example.gymtrack.core.data.ExerciseFlag
-import java.util.Locale
 
 // Regex to detect the legacy broken format: ends with time (e.g. 0'00") followed by a flag code (b/u/s).
 // Captures: Group 1 (Body), Group 2 (Time), Group 3 (Flag)
@@ -129,14 +124,4 @@ fun combineTextAndTimes(text: String, times: List<String>, flags: List<ExerciseF
         result += "$FLAG_SEP${(flags.getOrNull(idx) ?: ExerciseFlag.BILATERAL).toStorageCode()}"
         result
     }.joinToString("\n")
-}
-
-class CapitalizeWordsTransformation : VisualTransformation {
-    override fun filter(text: AnnotatedString): TransformedText {
-        val original = text.text
-        val capitalized = original.split(" ").joinToString(" ") { word ->
-            word.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
-        }
-        return TransformedText(AnnotatedString(capitalized), OffsetMapping.Identity)
-    }
 }
