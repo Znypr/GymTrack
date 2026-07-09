@@ -50,9 +50,9 @@ class StatsPersistentCacheStore(context: Context) {
         put("categoryCounts", categoryCounts.toIntMapJson())
         put("averageDurations", averageDurations.toFloatMapJson())
         put("heatmapData", heatmapData.toJson())
-        put("topExercises", topExercises.toJson())
-        put("weeklyWorkoutCounts", weeklyWorkoutCounts.toJson())
-        put("trainingInsights", trainingInsights.toJson())
+        put("topExercises", topExercisesToJson(topExercises))
+        put("weeklyWorkoutCounts", weeklyWorkoutCountsToJson(weeklyWorkoutCounts))
+        put("trainingInsights", trainingInsightsToJson(trainingInsights))
         put("currentRange", currentRange.name)
         put("filteredNotes", filteredNotes.toNotesJson())
         put("sourceNoteCount", sourceNoteCount)
@@ -93,8 +93,8 @@ class StatsPersistentCacheStore(context: Context) {
         }
     }
 
-    private fun List<Pair<String, Int>>.toJson(): JSONArray = JSONArray().also { array ->
-        forEach { (name, count) ->
+    private fun topExercisesToJson(items: List<Pair<String, Int>>): JSONArray = JSONArray().also { array ->
+        items.forEach { (name, count) ->
             array.put(JSONObject().apply {
                 put("name", name)
                 put("count", count)
@@ -102,8 +102,8 @@ class StatsPersistentCacheStore(context: Context) {
         }
     }
 
-    private fun List<WeeklyWorkoutCount>.toJson(): JSONArray = JSONArray().also { array ->
-        forEach { item ->
+    private fun weeklyWorkoutCountsToJson(items: List<WeeklyWorkoutCount>): JSONArray = JSONArray().also { array ->
+        items.forEach { item ->
             array.put(JSONObject().apply {
                 put("weekStart", item.weekStart)
                 put("count", item.count)
@@ -111,8 +111,8 @@ class StatsPersistentCacheStore(context: Context) {
         }
     }
 
-    private fun List<TrainingInsightRow>.toJson(): JSONArray = JSONArray().also { array ->
-        forEach { row ->
+    private fun trainingInsightsToJson(items: List<TrainingInsightRow>): JSONArray = JSONArray().also { array ->
+        items.forEach { row ->
             array.put(JSONObject().apply {
                 put("category", row.category)
                 put("workoutCount", row.workoutCount)
@@ -123,7 +123,7 @@ class StatsPersistentCacheStore(context: Context) {
                 put("exerciseCount", row.exerciseCount.toJson())
                 put("reps", row.reps.toJson())
                 put("duration", row.duration.toJson())
-                put("trendPoints", row.trendPoints.toJson())
+                put("trendPoints", trendPointsToJson(row.trendPoints))
             })
         }
     }
@@ -137,8 +137,8 @@ class StatsPersistentCacheStore(context: Context) {
         put("impact", impact.name)
     }
 
-    private fun List<TrainingTrendPoint>.toJson(): JSONArray = JSONArray().also { array ->
-        forEach { point ->
+    private fun trendPointsToJson(items: List<TrainingTrendPoint>): JSONArray = JSONArray().also { array ->
+        items.forEach { point ->
             array.put(JSONObject().apply {
                 put("timestamp", point.timestamp)
                 putFloat("strengthPercent", point.strengthPercent)
