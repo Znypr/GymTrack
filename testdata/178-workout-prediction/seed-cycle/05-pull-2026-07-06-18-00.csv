@@ -1,0 +1,13 @@
+Title,Category,Timestamp,Learnings
+Pull,Pull,06/07/2026 18:00,Seed data for #178 prediction QA
+Main Index,Main Entry,Time,Flag
+0,Lat Pulldown,18:06,bi
+1,Chest Supported Row,18:25,bi
+2,Biceps Curl,18:46,bi
+Main Index,Sub Entry,Time,Flag
+0,72.5kg x 9,18:09,1x
+0,70kg x 10,18:14,1x
+0,67.5kg x 10,18:19,1x
+1,32kg x 10,18:28,1x
+1,32kg x 9,18:34,1x
+2,15kg x 12,18:49,1x
