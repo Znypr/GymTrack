@@ -135,7 +135,7 @@ class NextWorkoutPredictionServiceTest {
             Category(
                 id = "category-$it",
                 name = it,
-                colorArgb = 0xFF000000,
+                colorArgb = 0xFF000000L,
                 position = 0,
                 isBuiltIn = false,
             )
