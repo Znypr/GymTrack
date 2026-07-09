@@ -57,6 +57,14 @@ A more accurate external/AI path can be added behind explicit consent. The first
 
 External processing is not a canonical data source. It only produces proposed draft data for review.
 
+### Recognition provider boundary
+
+Recognition providers return page-level text lines with confidence and provenance. They do not interpret workouts, map exercises, or write canonical data.
+
+Provider descriptors declare processing location. On-device providers may run without external consent. Cloud or hybrid providers are blocked unless the import consent explicitly allows external processing.
+
+A deterministic fixture-line provider exists only for tests and representative sample evaluation. It is not OCR and is not a product recognition implementation.
+
 ## Privacy and retention
 
 The initial retention policy is explicit and conservative:
@@ -134,6 +142,7 @@ Later implementation should add:
 - source fingerprint indexes;
 - perceptual page duplicate hints;
 - image preprocessing adapters that produce page metadata without storing transformed images by default;
+- on-device OCR provider implementation behind the provider boundary;
 - canonical duplicate checks based on date, exercise order, set values, and provenance.
 
 ## Initial implementation slices
@@ -145,6 +154,8 @@ The second slice adds pure Kotlin page intake and exact-byte fingerprinting. And
 The third slice adds pure Kotlin resumable batch state. It defines progress and terminal-state semantics without choosing the later persistence backend.
 
 The fourth slice adds pure Kotlin preprocessing metadata and page-order proposals. It does not decode bitmaps or modify images.
+
+The fifth slice adds the recognition provider boundary and deterministic fixture-line provider for tests. It does not add OCR, ML dependencies, or external networking.
 
 This keeps the high-risk invariants testable before UI, storage, or recognition implementation starts.
 
