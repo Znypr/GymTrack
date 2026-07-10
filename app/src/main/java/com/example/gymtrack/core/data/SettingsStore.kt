@@ -16,6 +16,9 @@ object SettingsStore {
     private val DARK_MODE = booleanPreferencesKey("dark_mode")
     private val CATEGORIES = stringPreferencesKey("categories")
     private val DEFAULT_WEIGHT_UNIT = stringPreferencesKey("default_weight_unit")
+    private val HOME_CARD_METRIC = stringPreferencesKey("home_card_metric")
+    private val WORKOUT_INTENSITY_FORMULA = stringPreferencesKey("workout_intensity_formula")
+    private val HOME_OVERVIEW_WIDGET = stringPreferencesKey("home_overview_widget")
 
     suspend fun load(context: Context): Settings {
         val prefs = context.settingsDataStore.data.first()
@@ -33,6 +36,9 @@ object SettingsStore {
             darkMode = prefs[DARK_MODE] ?: false,
             categories = cats,
             defaultWeightUnit = WeightUnit.fromStorage(prefs[DEFAULT_WEIGHT_UNIT]),
+            homeCardMetric = HomeCardMetric.fromStorage(prefs[HOME_CARD_METRIC]),
+            workoutIntensityFormula = WorkoutIntensityFormula.fromStorage(prefs[WORKOUT_INTENSITY_FORMULA]),
+            homeOverviewWidget = HomeOverviewWidget.fromStorage(prefs[HOME_OVERVIEW_WIDGET]),
         )
     }
 
@@ -44,6 +50,9 @@ object SettingsStore {
             prefs[DARK_MODE] = settings.darkMode
             prefs[CATEGORIES] = custom.joinToString("|") { "${it.name}:${it.color}" }
             prefs[DEFAULT_WEIGHT_UNIT] = settings.defaultWeightUnit.storageValue
+            prefs[HOME_CARD_METRIC] = settings.homeCardMetric.storageValue
+            prefs[WORKOUT_INTENSITY_FORMULA] = settings.workoutIntensityFormula.storageValue
+            prefs[HOME_OVERVIEW_WIDGET] = settings.homeOverviewWidget.storageValue
         }
     }
 }

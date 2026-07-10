@@ -8,8 +8,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
@@ -23,10 +23,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.Category
+import com.example.gymtrack.core.data.HomeCardMetric
+import com.example.gymtrack.core.data.HomeOverviewWidget
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.data.WeightUnit
-
-private val CardDeepDark = Color(0xFF181818)
+import com.example.gymtrack.core.data.WorkoutIntensityFormula
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,10 +52,10 @@ fun SettingsScreen(
         containerColor = backgroundColor,
         topBar = {
             TopAppBar(
-                title = { Text("Settings", fontWeight = FontWeight.Bold, fontSize = 24.sp) },
+                title = { Text("Settings", fontWeight = FontWeight.ExtraBold, fontSize = 24.sp) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = textColor)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = textColor)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -69,18 +70,50 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             item {
                 SettingsSectionTitle("Preferences")
                 SettingsCard {
                     SettingsSwitchRow("Dark Mode", settings.darkMode) { update { copy(darkMode = it) } }
-                    HorizontalDivider(color = textColor.copy(alpha = 0.1f))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
                     SettingsSwitchRow("24-Hour Time", settings.is24Hour) { update { copy(is24Hour = it) } }
-                    HorizontalDivider(color = textColor.copy(alpha = 0.1f))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
                     SettingsWeightUnitRow(
                         selected = settings.defaultWeightUnit,
                         onSelected = { unit -> update { copy(defaultWeightUnit = unit) } },
+                    )
+                }
+            }
+
+            item {
+                SettingsSectionTitle("Home")
+                SettingsCard {
+                    SettingsChoiceRow(
+                        title = "Workout card metric",
+                        subtitle = "Controls the bottom-left metric shown on workout cards.",
+                        options = HomeCardMetric.values().toList(),
+                        selected = settings.homeCardMetric,
+                        label = { it.displayLabel },
+                        onSelected = { metric -> update { copy(homeCardMetric = metric) } },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
+                    SettingsChoiceRow(
+                        title = "Intensity flames",
+                        subtitle = settings.workoutIntensityFormula.description + "\n🔥 light · 🔥🔥 normal · 🔥🔥🔥 strong reference.",
+                        options = WorkoutIntensityFormula.values().toList(),
+                        selected = settings.workoutIntensityFormula,
+                        label = { it.displayLabel },
+                        onSelected = { formula -> update { copy(workoutIntensityFormula = formula) } },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
+                    SettingsChoiceRow(
+                        title = "Default home overview",
+                        subtitle = "Choose the top Home widget. No random cycling; this is deterministic.",
+                        options = HomeOverviewWidget.values().toList(),
+                        selected = settings.homeOverviewWidget,
+                        label = { it.displayLabel },
+                        onSelected = { widget -> update { copy(homeOverviewWidget = widget) } },
                     )
                 }
             }
@@ -94,7 +127,7 @@ fun SettingsScreen(
                         enabled = !dataOperationInProgress,
                         onClick = onCreateBackup,
                     )
-                    HorizontalDivider(color = textColor.copy(alpha = 0.1f))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
                     SettingsActionRow(
                         title = "Restore from backup",
                         subtitle = "Replace local data after validating the file",
@@ -180,7 +213,7 @@ private fun SettingsActionRow(
         Text(
             text = title,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.5f),
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.SemiBold,
         )
         Spacer(Modifier.height(4.dp))
         Text(
@@ -200,7 +233,7 @@ private fun SettingsWeightUnitRow(
         Text(
             text = "Default weight unit",
             color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.SemiBold,
         )
         Spacer(Modifier.height(4.dp))
         Text(
@@ -216,6 +249,44 @@ private fun SettingsWeightUnitRow(
                     onClick = { onSelected(unit) },
                     label = { Text(unit.displayLabel) },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun <T> SettingsChoiceRow(
+    title: String,
+    subtitle: String,
+    options: List<T>,
+    selected: T,
+    label: (T) -> String,
+    onSelected: (T) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        Text(
+            text = title,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = subtitle,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Spacer(Modifier.height(12.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            options.chunked(2).forEach { rowOptions ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    rowOptions.forEach { option ->
+                        FilterChip(
+                            selected = option == selected,
+                            onClick = { onSelected(option) },
+                            label = { Text(label(option)) },
+                        )
+                    }
+                }
             }
         }
     }
@@ -266,28 +337,26 @@ fun EditCategoryDialog(
 
 fun randomColor(): Long {
     val hue = (0..360).random().toFloat()
-    return Color.hsv(hue, 0.8f, 0.9f).toArgb().toLong() and 0xFFFFFFFF
+    return Color.hsv(hue, 0.62f, 0.78f).toArgb().toLong() and 0xFFFFFFFF
 }
 
 @Composable
 fun SettingsSectionTitle(text: String) {
     Text(
-        text = text,
-        style = MaterialTheme.typography.titleMedium,
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelLarge,
         fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onSurface,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(bottom = 8.dp, start = 4.dp),
     )
 }
 
 @Composable
 fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
-    val isDark = MaterialTheme.colorScheme.background.run { red < 0.5 && green < 0.5 && blue < 0.5 }
-    val cardColor = if (isDark) CardDeepDark else MaterialTheme.colorScheme.surface
     Card(
-        colors = CardDefaults.cardColors(containerColor = cardColor),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(if (isDark) 0.dp else 2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = MaterialTheme.shapes.large,
+        elevation = CardDefaults.cardElevation(0.dp),
     ) {
         Column(modifier = Modifier.fillMaxWidth()) { content() }
     }
@@ -300,7 +369,7 @@ fun SettingsSwitchRow(title: String, checked: Boolean, onCheckedChange: (Boolean
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+        Text(title, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
@@ -312,14 +381,11 @@ fun CategoryRow(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    val isDark = MaterialTheme.colorScheme.background.run { red < 0.5 && green < 0.5 && blue < 0.5 }
-    val cardColor = if (isDark) CardDeepDark else MaterialTheme.colorScheme.surface
-
     Card(
-        colors = CardDefaults.cardColors(containerColor = cardColor),
-        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = MaterialTheme.shapes.large,
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onEdit() },
-        elevation = CardDefaults.cardElevation(if (isDark) 0.dp else 2.dp),
+        elevation = CardDefaults.cardElevation(0.dp),
     ) {
         Row(
             modifier = Modifier.padding(16.dp).fillMaxWidth(),
@@ -335,7 +401,7 @@ fun CategoryRow(
                 Icon(
                     Icons.Default.Delete,
                     contentDescription = "Delete",
-                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
+                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
                 )
             }
         }
