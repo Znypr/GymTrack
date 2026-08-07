@@ -2,7 +2,6 @@ package com.example.gymtrack.feature.editor.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,8 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -22,6 +19,7 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -42,8 +40,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
@@ -62,7 +58,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 internal const val EDITOR_FIRST_INPUT_TEST_TAG = "editor-first-input"
-internal const val EDITOR_EMPTY_AFFORDANCE_TEST_TAG = "editor-empty-affordance"
+internal const val EDITOR_INPUT_FRAME_TEST_TAG = "editor-input-frame"
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -81,11 +77,12 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
             val fr = row.focusRequester
             val bringIntoViewRequester = remember { BringIntoViewRequester() }
             val isMain = index == 0 || state.lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
-            val isFirstEmptyInput = index == 0 && state.lines.size == 1 && row.text.value.text.isBlank()
             var isFocused by remember(row.id) { mutableStateOf(false) }
 
-            LaunchedEffect(isFirstEmptyInput, row.id) {
-                if (isFirstEmptyInput) {
+            // Request initial focus once for this row. Do not key this effect to the row text:
+            // replacing/restarting the focused field after the first character dismisses the IME.
+            LaunchedEffect(row.id) {
+                if (index == 0 && state.lines.size == 1 && row.text.value.text.isBlank()) {
                     delay(150L)
                     fr.requestFocus()
                     keyboardController?.show()
@@ -107,43 +104,7 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                 rememberRelativeTimeVisualTransformation(fontSize)
             }
 
-            if (isFirstEmptyInput) {
-                BasicTextField(
-                    value = row.text.value,
-                    onValueChange = { state.onTextChange(index, it) },
-                    textStyle = LocalTextStyle.current.copy(
-                        color = textColor,
-                        fontSize = fontSize,
-                        fontWeight = fontWeight,
-                    ),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    visualTransformation = visualTransformation,
-                    decorationBox = { innerTextField ->
-                        StarterInputAffordance(
-                            isFocused = isFocused,
-                            innerTextField = innerTextField,
-                        )
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 84.dp)
-                        .testTag(EDITOR_FIRST_INPUT_TEST_TAG)
-                        .bringIntoViewRequester(bringIntoViewRequester)
-                        .clickable {
-                            fr.requestFocus()
-                            keyboardController?.show()
-                        }
-                        .focusRequester(fr)
-                        .onFocusChanged {
-                            isFocused = it.isFocused
-                            if (it.isFocused) {
-                                coroutineScope.launch {
-                                    bringIntoViewRequester.bringIntoView()
-                                }
-                            }
-                        },
-                )
-            } else {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -151,7 +112,6 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                         .bringIntoViewRequester(bringIntoViewRequester),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // Flag / Tag Column
                     Box(
                         modifier = Modifier.width(50.dp),
                         contentAlignment = Alignment.CenterStart,
@@ -174,13 +134,12 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
 
                     Spacer(Modifier.width(8.dp))
 
-                    // Input Field
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .padding(
-                                top = if (isMain) 8.dp else 0.dp,
-                                bottom = if (isMain) 6.dp else 0.dp,
+                                top = if (isMain) 8.dp else 2.dp,
+                                bottom = if (isMain) 6.dp else 2.dp,
                             ),
                     ) {
                         BasicTextField(
@@ -193,6 +152,17 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                             ),
                             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                             visualTransformation = visualTransformation,
+                            decorationBox = { innerTextField ->
+                                NotebookInputFrame(
+                                    isFocused = isFocused,
+                                    placeholder = when {
+                                        row.text.value.text.isNotBlank() -> null
+                                        isMain -> "Exercise"
+                                        else -> "Set"
+                                    },
+                                    innerTextField = innerTextField,
+                                )
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .then(if (index == 0) Modifier.testTag(EDITOR_FIRST_INPUT_TEST_TAG) else Modifier)
@@ -215,7 +185,6 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                         }
                     }
 
-                    // Timestamp
                     val absText = state.timestamps.getOrElse(index) { "" }
                     if (absText.isNotBlank()) {
                         val absAnnotated = SmallSecondsVisualTransformation(14.sp).filter(AnnotatedString(absText)).text
@@ -227,7 +196,58 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                         )
                     }
                 }
+
+                // Full-width notebook rule keeps every writable row visually discoverable without
+                // turning the editor into a stack of heavy cards.
+                HorizontalDivider(
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f),
+                )
             }
+        }
+    }
+}
+
+@Composable
+internal fun NotebookInputFrame(
+    isFocused: Boolean,
+    placeholder: String?,
+    modifier: Modifier = Modifier,
+    innerTextField: @Composable () -> Unit = {},
+) {
+    val borderColor = if (isFocused) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+    } else {
+        MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)
+    }
+    val containerColor = if (isFocused) {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.16f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.08f)
+    }
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(EDITOR_INPUT_FRAME_TEST_TAG),
+        shape = RoundedCornerShape(7.dp),
+        color = containerColor,
+        border = BorderStroke(1.dp, borderColor),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 7.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            if (!isFocused && !placeholder.isNullOrBlank()) {
+                Text(
+                    text = placeholder,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.58f),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            innerTextField()
         }
     }
 }
@@ -283,67 +303,4 @@ private fun editorVariantAccentColor(kind: ExerciseVariantLabelKind): Color = wh
     ExerciseVariantLabelKind.EQUIPMENT -> Color(0xFF1565C0)
     ExerciseVariantLabelKind.SIDE -> Color(0xFFC62828)
     ExerciseVariantLabelKind.WARNING -> MaterialTheme.colorScheme.error
-}
-
-@Composable
-internal fun StarterInputAffordance(
-    isFocused: Boolean,
-    modifier: Modifier = Modifier,
-    innerTextField: @Composable () -> Unit = {},
-) {
-    val borderColor = if (isFocused) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.75f)
-    } else {
-        MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
-    }
-    val containerColor = if (isFocused) {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f)
-    }
-
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag(EDITOR_EMPTY_AFFORDANCE_TEST_TAG)
-            .semantics { contentDescription = "Start adding exercises" },
-        shape = MaterialTheme.shapes.medium,
-        color = containerColor,
-        border = BorderStroke(1.dp, borderColor),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 84.dp)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-        ) {
-            Text(
-                text = if (isFocused) "First exercise" else "Start your workout",
-                color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.height(4.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 32.dp),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                if (!isFocused) {
-                    Text(
-                        text = "Tap here and type your first exercise",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                innerTextField()
-            }
-            Text(
-                text = "Press Enter after each exercise or set.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-    }
 }
