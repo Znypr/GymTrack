@@ -84,6 +84,69 @@ class ExerciseIdentityResolverTest {
     }
 
     @Test
+    fun bbTokenResolvesAsBootyBuilderMachineBrandNotBarbell() {
+        val identity = ExerciseIdentityResolver.resolve(rawName = "BB Hip Thrust")
+
+        assertEquals("Hip Thrust", identity.canonicalName)
+        assertEquals("BootyBuilder", identity.brand)
+        assertEquals(ExerciseEquipment.MACHINE, identity.equipment)
+        assertEquals(null, identity.attachment)
+        assertTrue("BootyBuilder chip should be displayable", "BootyBuilder" in identity.variantLabels())
+        assertFalse("BB must no longer create a barbell chip", "Barbell" in identity.variantLabels())
+    }
+
+    @Test
+    fun parserTreatsBbAsBootyBuilderBrand() {
+        val set = WorkoutParser().parseWorkout(
+            rawText = """
+                BB Hip Thrust
+                10x 50kg
+            """.trimIndent(),
+        ).single()
+
+        assertEquals("BootyBuilder", set.brand)
+        assertEquals(null, set.modifier)
+        assertEquals("BootyBuilder", set.exerciseIdentity.brand)
+        assertEquals(ExerciseEquipment.MACHINE, set.exerciseIdentity.equipment)
+        assertFalse("parser BB must not leak a barbell modifier", "Barbell" in set.exerciseIdentity.variantLabels())
+    }
+
+    @Test
+    fun barPrefixResolvesAsBarbellWithoutStraightBarAttachment() {
+        val identity = ExerciseIdentityResolver.resolve(rawName = "BAR Bench Press")
+
+        assertEquals("Bench Press", identity.canonicalName)
+        assertEquals(null, identity.brand)
+        assertEquals(ExerciseEquipment.BARBELL, identity.equipment)
+        assertEquals(null, identity.attachment)
+        assertTrue("BAR should create a barbell chip", "Barbell" in identity.variantLabels())
+        assertFalse("BAR equipment should not also create a straight-bar attachment", "Straight bar" in identity.variantLabels())
+    }
+
+    @Test
+    fun parserTreatsLeadingBarAsBarbellButKeepsTrailingBarAsAttachment() {
+        val barbellSet = WorkoutParser().parseWorkout(
+            rawText = """
+                BAR Bench Press
+                8x 80kg
+            """.trimIndent(),
+        ).single()
+        val pushdownSet = WorkoutParser().parseWorkout(
+            rawText = """
+                tricep pushdown bar
+                10x 30kg
+            """.trimIndent(),
+        ).single()
+
+        assertEquals("Barbell", barbellSet.modifier)
+        assertEquals(ExerciseEquipment.BARBELL, barbellSet.exerciseIdentity.equipment)
+        assertEquals(null, barbellSet.exerciseIdentity.attachment)
+        assertEquals("Straight Bar", pushdownSet.modifier)
+        assertEquals(ExerciseEquipment.CABLE, pushdownSet.exerciseIdentity.equipment)
+        assertEquals(ExerciseAttachment.STRAIGHT_BAR, pushdownSet.exerciseIdentity.attachment)
+    }
+
+    @Test
     fun progressComparisonSeparatesLoadIncompatibleEquipmentVariants() {
         val dumbbell = ExerciseIdentityResolver.resolve(rawName = "lateral raise db")
         val machine = ExerciseIdentityResolver.resolve(rawName = "lateral raise machine")
@@ -103,6 +166,7 @@ class ExerciseIdentityResolverTest {
         assertEquals("T-Bar Row", identity.canonicalName)
         assertEquals("Prime", identity.brand)
         assertFalse("T-bar is the exercise name, not a straight-bar attachment", "Straight bar" in identity.variantLabels())
+        assertFalse("T-bar must not be mistaken for the BAR abbreviation", "Barbell" in identity.variantLabels())
     }
 
     @Test
