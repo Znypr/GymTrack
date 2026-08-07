@@ -96,9 +96,11 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
             .drawBehind {
                 // The ruling belongs to the page, not to individual fields. Its phase follows the
                 // list's consumed scroll delta so it moves in lockstep with the editor overlay.
+                // Keep the rule below the text baseline rather than cutting through the glyphs.
                 val spacing = 40.dp.toPx()
+                val ruleVerticalOffset = 16.dp.toPx()
                 val strokeWidth = 1.dp.toPx()
-                val phase = notebookScrollOffsetPx % spacing
+                val phase = (notebookScrollOffsetPx + ruleVerticalOffset) % spacing
                 var y = spacing + phase
                 while (y <= 0f) y += spacing
                 while (y < size.height) {
