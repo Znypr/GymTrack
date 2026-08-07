@@ -2,6 +2,7 @@ package com.example.gymtrack.feature.editor.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -42,9 +43,11 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -69,159 +72,246 @@ internal const val EDITOR_INPUT_FRAME_TEST_TAG = "editor-input-frame"
 fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
     val coroutineScope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     val notebookRuleColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.34f)
+    var activeFastSetIndex by remember { mutableStateOf<Int?>(null) }
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val notebookPageHeight = maxHeight
-
-        LazyColumn(
-            state = state.listState,
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .imePadding(),
+    ) {
+        BoxWithConstraints(
             modifier = Modifier
-                .fillMaxSize()
-                .imePadding(),
-            contentPadding = PaddingValues(bottom = 150.dp),
+                .fillMaxWidth()
+                .weight(1f),
         ) {
-            itemsIndexed(state.lines, key = { _, row -> row.id }) { index, row ->
-                val fr = row.focusRequester
-                val bringIntoViewRequester = remember { BringIntoViewRequester() }
-                val isMain = index == 0 || state.lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
-                var isFocused by remember(row.id) { mutableStateOf(false) }
+            val notebookPageHeight = maxHeight
 
-                // Request initial focus once for this row. Do not key this effect to the row text:
-                // replacing/restarting the focused field after the first character dismisses the IME.
-                LaunchedEffect(row.id) {
-                    if (index == 0 && state.lines.size == 1 && row.text.value.text.isBlank()) {
-                        delay(150L)
-                        fr.requestFocus()
-                        keyboardController?.show()
+            LazyColumn(
+                state = state.listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 150.dp),
+            ) {
+                itemsIndexed(state.lines, key = { _, row -> row.id }) { index, row ->
+                    val fr = row.focusRequester
+                    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+                    val isMain = index == 0 || state.lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
+                    val absText = state.timestamps.getOrElse(index) { "" }
+                    val isFastSetEntry = !isMain && absText.isBlank()
+                    var isFocused by remember(row.id) { mutableStateOf(false) }
+
+                    // Active unsaved set rows use GymTrack's keypad and deliberately own no Android
+                    // text-input session. This prevents the system IME and custom keypad overlapping.
+                    LaunchedEffect(row.id) {
+                        if (isFastSetEntry) {
+                            delay(50L)
+                            focusManager.clearFocus(force = true)
+                            activeFastSetIndex = index
+                            keyboardController?.hide()
+                            delay(50L)
+                            keyboardController?.hide()
+                        } else if (index == 0 && state.lines.size == 1 && row.text.value.text.isBlank()) {
+                            delay(150L)
+                            fr.requestFocus()
+                            keyboardController?.show()
+                        }
                     }
-                }
 
-                val fontSize = if (isMain) 22.sp else 14.sp
-                val fontWeight = if (isMain) FontWeight.Black else FontWeight.Medium
-                val textColor = if (isMain) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-                val rowIsUnilateral = row.flag.value == ExerciseFlag.UNILATERAL
+                    val fontSize = if (isMain) 22.sp else 14.sp
+                    val fontWeight = if (isMain) FontWeight.Black else FontWeight.Medium
+                    val textColor = if (isMain) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                    val rowIsUnilateral = row.flag.value == ExerciseFlag.UNILATERAL
 
-                val visualTransformation = if (isMain) {
-                    if (isFocused) {
-                        VisualTransformation.None
+                    val visualTransformation = if (isMain) {
+                        if (isFocused) {
+                            VisualTransformation.None
+                        } else {
+                            remember(rowIsUnilateral) { CanonicalExerciseVisualTransformation(rowIsUnilateral) }
+                        }
                     } else {
-                        remember(rowIsUnilateral) { CanonicalExerciseVisualTransformation(rowIsUnilateral) }
+                        rememberRelativeTimeVisualTransformation(fontSize)
                     }
-                } else {
-                    rememberRelativeTimeVisualTransformation(fontSize)
-                }
 
-                // The notebook rule is part of the real row. Its vertical position therefore follows
-                // the row's measured height: taller exercise rows and shorter set rows align naturally.
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 0.dp)
-                            .bringIntoViewRequester(bringIntoViewRequester),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(
-                            modifier = Modifier.width(50.dp),
-                            contentAlignment = Alignment.CenterStart,
+                    // The notebook rule is part of the real row. Its vertical position therefore follows
+                    // the row's measured height: taller exercise rows and shorter set rows align naturally.
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 0.dp)
+                                .bringIntoViewRequester(bringIntoViewRequester),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            if (row.text.value.text.isNotBlank()) {
-                                if (isMain) {
-                                    ExerciseFlagButton(
-                                        flag = row.flag.value,
-                                        relColor = textColor,
-                                        onToggle = { state.toggleFlag(index) },
-                                    )
-                                } else {
-                                    var p = index - 1
-                                    while (p >= 0 && (state.lines.getOrNull(p - 1)?.text?.value?.text?.isNotBlank() == true)) p--
-                                    val parentFlag = state.lines.getOrNull(p)?.flag?.value ?: ExerciseFlag.BILATERAL
-                                    ExerciseFlagTag(flag = parentFlag, relColor = textColor)
+                            Box(
+                                modifier = Modifier.width(50.dp),
+                                contentAlignment = Alignment.CenterStart,
+                            ) {
+                                if (row.text.value.text.isNotBlank()) {
+                                    if (isMain) {
+                                        ExerciseFlagButton(
+                                            flag = row.flag.value,
+                                            relColor = textColor,
+                                            onToggle = { state.toggleFlag(index) },
+                                        )
+                                    } else {
+                                        var p = index - 1
+                                        while (p >= 0 && (state.lines.getOrNull(p - 1)?.text?.value?.text?.isNotBlank() == true)) p--
+                                        val parentFlag = state.lines.getOrNull(p)?.flag?.value ?: ExerciseFlag.BILATERAL
+                                        ExerciseFlagTag(flag = parentFlag, relColor = textColor)
+                                    }
                                 }
                             }
-                        }
 
-                        Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(8.dp))
 
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(
-                                    top = if (isMain) 8.dp else 2.dp,
-                                    bottom = if (isMain) 6.dp else 2.dp,
-                                ),
-                        ) {
-                            BasicTextField(
-                                value = row.text.value,
-                                onValueChange = { state.onTextChange(index, it) },
-                                textStyle = LocalTextStyle.current.copy(
-                                    color = textColor,
-                                    fontSize = fontSize,
-                                    fontWeight = fontWeight,
-                                ),
-                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                                visualTransformation = visualTransformation,
-                                decorationBox = { innerTextField ->
-                                    NotebookInputFrame(innerTextField = innerTextField)
-                                },
+                            Column(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .then(if (index == 0) Modifier.testTag(EDITOR_FIRST_INPUT_TEST_TAG) else Modifier)
-                                    .focusRequester(fr)
-                                    .onFocusChanged {
-                                        isFocused = it.isFocused
-                                        if (it.isFocused) {
-                                            coroutineScope.launch {
-                                                bringIntoViewRequester.bringIntoView()
-                                                // Existing notes do not use the blank-row auto-focus path above.
-                                                // Explicitly request the IME after focus/layout settles so tapping any
-                                                // saved exercise or set row reliably opens the software keyboard.
-                                                delay(50L)
-                                                keyboardController?.show()
+                                    .weight(1f)
+                                    .then(
+                                        if (isFastSetEntry) {
+                                            Modifier.clickable {
+                                                coroutineScope.launch {
+                                                    focusManager.clearFocus(force = true)
+                                                    activeFastSetIndex = index
+                                                    keyboardController?.hide()
+                                                    delay(50L)
+                                                    keyboardController?.hide()
+                                                }
                                             }
-                                        }
+                                        } else {
+                                            Modifier
+                                        },
+                                    )
+                                    .padding(
+                                        top = if (isMain) 8.dp else 2.dp,
+                                        bottom = if (isMain) 6.dp else 2.dp,
+                                    ),
+                            ) {
+                                BasicTextField(
+                                    value = row.text.value,
+                                    onValueChange = { state.onTextChange(index, it) },
+                                    enabled = !isFastSetEntry,
+                                    readOnly = isFastSetEntry,
+                                    textStyle = LocalTextStyle.current.copy(
+                                        color = textColor,
+                                        fontSize = fontSize,
+                                        fontWeight = fontWeight,
+                                    ),
+                                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                    visualTransformation = visualTransformation,
+                                    decorationBox = { innerTextField ->
+                                        NotebookInputFrame(innerTextField = innerTextField)
                                     },
-                            )
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .then(if (index == 0) Modifier.testTag(EDITOR_FIRST_INPUT_TEST_TAG) else Modifier)
+                                        .focusRequester(fr)
+                                        .onFocusChanged {
+                                            isFocused = it.isFocused
+                                            if (it.isFocused) {
+                                                activeFastSetIndex = null
+                                                coroutineScope.launch {
+                                                    bringIntoViewRequester.bringIntoView()
+                                                    // Existing notes do not use the blank-row auto-focus path above.
+                                                    // Explicitly request the IME after focus/layout settles so tapping any
+                                                    // saved exercise or set row reliably opens the software keyboard.
+                                                    delay(50L)
+                                                    keyboardController?.show()
+                                                }
+                                            }
+                                        },
+                                )
 
-                            if (isMain && row.text.value.text.isNotBlank()) {
-                                ExerciseIdentityPreview(
-                                    rawName = row.text.value.text,
-                                    isUnilateral = rowIsUnilateral,
+                                if (isMain && row.text.value.text.isNotBlank()) {
+                                    ExerciseIdentityPreview(
+                                        rawName = row.text.value.text,
+                                        isUnilateral = rowIsUnilateral,
+                                    )
+                                }
+                            }
+
+                            if (absText.isNotBlank()) {
+                                val absAnnotated = SmallSecondsVisualTransformation(14.sp).filter(AnnotatedString(absText)).text
+                                Text(
+                                    text = absAnnotated,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                    modifier = Modifier.padding(start = 8.dp),
                                 )
                             }
                         }
 
-                        val absText = state.timestamps.getOrElse(index) { "" }
-                        if (absText.isNotBlank()) {
-                            val absAnnotated = SmallSecondsVisualTransformation(14.sp).filter(AnnotatedString(absText)).text
-                            Text(
-                                text = absAnnotated,
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                                modifier = Modifier.padding(start = 8.dp),
-                            )
-                        }
+                        HorizontalDivider(
+                            thickness = 1.dp,
+                            color = notebookRuleColor,
+                        )
                     }
+                }
 
-                    HorizontalDivider(
-                        thickness = 1.dp,
-                        color = notebookRuleColor,
+                // Continue the ruled paper after the final editable row. This is actual LazyColumn
+                // content, so it scrolls naturally with the workout instead of needing a synchronized
+                // background offset. Real rows above keep their own measured-height boundaries.
+                item(key = "notebook-page-filler") {
+                    NotebookPageFiller(
+                        ruleColor = notebookRuleColor,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(notebookPageHeight),
                     )
                 }
             }
+        }
 
-            // Continue the ruled paper after the final editable row. This is actual LazyColumn
-            // content, so it scrolls naturally with the workout instead of needing a synchronized
-            // background offset. Real rows above keep their own measured-height boundaries.
-            item(key = "notebook-page-filler") {
-                NotebookPageFiller(
-                    ruleColor = notebookRuleColor,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(notebookPageHeight),
-                )
-            }
+        val keypadIndex = activeFastSetIndex
+        val keypadRow = keypadIndex?.let(state.lines::getOrNull)
+        if (
+            keypadIndex != null &&
+            keypadRow != null &&
+            state.timestamps.getOrElse(keypadIndex) { "" }.isBlank()
+        ) {
+            SetEntryKeypad(
+                onDigit = { digit ->
+                    val current = keypadRow.text.value
+                    state.onTextChange(keypadIndex, insertSetEntryToken(current, digit.toString()))
+                },
+                onDecimal = {
+                    val current = keypadRow.text.value
+                    val separatorIndex = current.text.indexOfFirst { it == 'x' || it == 'X' || it == 's' || it == 'S' }
+                    val weightPart = if (separatorIndex >= 0) current.text.substring(separatorIndex + 1) else ""
+                    if (separatorIndex >= 0 && !weightPart.contains('.')) {
+                        state.onTextChange(keypadIndex, insertSetEntryToken(current, "."))
+                    }
+                },
+                onRepsSeparator = {
+                    val current = keypadRow.text.value
+                    val beforeCursor = current.text.take(current.selection.start.coerceIn(0, current.text.length))
+                    val hasMode = current.text.any { it == 'x' || it == 'X' || it == 's' || it == 'S' }
+                    if (!hasMode && beforeCursor.any(Char::isDigit)) {
+                        state.onTextChange(keypadIndex, insertSetEntryToken(current, "x "))
+                    }
+                },
+                onSeconds = {
+                    val current = keypadRow.text.value
+                    val beforeCursor = current.text.take(current.selection.start.coerceIn(0, current.text.length))
+                    val hasMode = current.text.any { it == 'x' || it == 'X' || it == 's' || it == 'S' }
+                    if (!hasMode && beforeCursor.any(Char::isDigit)) {
+                        state.onTextChange(keypadIndex, insertSetEntryToken(current, "s "))
+                    }
+                },
+                onBackspace = {
+                    state.onTextChange(keypadIndex, backspaceSetEntry(keypadRow.text.value))
+                },
+                onNext = {
+                    val current = keypadRow.text.value
+                    val submitted = current.copy(
+                        text = current.text + "\n",
+                        selection = TextRange(current.text.length + 1),
+                    )
+                    state.onTextChange(keypadIndex, submitted)
+                },
+                secondsEnabled = true,
+            )
         }
     }
 }

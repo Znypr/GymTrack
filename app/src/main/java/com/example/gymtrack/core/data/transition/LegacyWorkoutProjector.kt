@@ -113,7 +113,7 @@ internal class LegacyWorkoutProjector(
                     repetitions = parsedSet.reps.takeIf { it > 0 },
                     weight = parsedSet.weight.toDouble().takeIf { it > 0.0 },
                     weightUnit = source?.text?.let(::explicitWeightUnit),
-                    durationSeconds = null,
+                    durationSeconds = parsedSet.durationSeconds,
                     distanceMeters = null,
                     performedAtOffsetSeconds = performedOffset,
                     rpe = null,

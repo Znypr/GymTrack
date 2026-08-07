@@ -10,6 +10,7 @@ data class ParsedSetDTO(
     var weight: Float,
     val weightUnit: String = "KG",
     val reps: Int,
+    val durationSeconds: Int? = null,
     val isUnilateral: Boolean,
     val modifier: String?,
     val brand: String?,
@@ -26,6 +27,7 @@ class WorkoutParser {
         private val weightRegex = Pattern.compile("(?i)(?:^|\\s)(\\d+(?:\\.\\d+)?)(?:\\s*(kg|kgs|lb|lbs))?(?![xX]|[':]|\\d)")
         private val repsRegex = Pattern.compile("(?i)(?:x\\s*([0-9+]+)|([0-9+]+)\\s*x|([0-9+]+)\\s*reps?)")
         private val repsCaptureRegex = Pattern.compile("([0-9+]+)\\s*x", Pattern.CASE_INSENSITIVE)
+        private val timedSetRegex = Pattern.compile("(?i)^(\\d+)\\s*s(?:\\s+(\\d+(?:\\.\\d+)?)(?:\\s*(kg|kgs|lb|lbs))?)?$")
         private val metadataStartRegex = Regex("""\s*\(?\d+\s*['’":]\s*\d+""")
         private val plusNumberRegex = Regex("\\+\\d+")
         private val isolatedNumberRegex = Regex("""\b\d+\b""")
@@ -292,6 +294,7 @@ class WorkoutParser {
             val looksLikeSet = cleanLine.matches(Regex("(?i)^[\\d+]+\\s*x.*")) ||
                 cleanLine.matches(Regex("(?i)^x\\s*[\\d+]+.*")) ||
                 repsRegex.matcher(cleanLine).find() ||
+                timedSetRegex.matcher(cleanLine).matches() ||
                 cleanLine.matches(Regex("^\\d+$")) ||
                 line.startsWith("    ")
 
@@ -315,51 +318,66 @@ class WorkoutParser {
                 var weight = 0f
                 var weightUnit = fallbackWeightUnit
                 var reps = 0
+                var durationSeconds: Int? = null
 
                 val lineContent = cleanLine
                 var remainder = cleanLine
+                val timedMatcher = timedSetRegex.matcher(lineContent)
 
-                val repsMatcher = repsCaptureRegex.matcher(lineContent)
+                if (timedMatcher.matches()) {
+                    durationSeconds = timedMatcher.group(1)?.toIntOrNull()?.takeIf { it > 0 }
+                    weight = timedMatcher.group(2)?.toFloatOrNull() ?: 0f
+                    weightUnit = timedMatcher.group(3)?.let(::normalizeWeightUnit) ?: fallbackWeightUnit
+                } else {
+                    val repsMatcher = repsCaptureRegex.matcher(lineContent)
+                    if (repsMatcher.find()) {
+                        val rawRepString = repsMatcher.group(1)
+                        reps = calculateReps(rawRepString)
+                        val matchedRepExpression = repsMatcher.group(0)
+                        remainder = lineContent.replaceFirst(matchedRepExpression, "").trim()
+                    }
 
-                if (repsMatcher.find()) {
-                    val rawRepString = repsMatcher.group(1)
-                    reps = calculateReps(rawRepString)
-                    val matchedRepExpression = repsMatcher.group(0)
-                    remainder = lineContent.replaceFirst(matchedRepExpression, "").trim()
-                }
-
-                if (reps > 0) {
-                    val weightMatcher = weightRegex.matcher(remainder)
-                    if (weightMatcher.find()) {
-                        val found = weightMatcher.group(1)?.toFloatOrNull()
-                        val explicitUnit = weightMatcher.group(2)
-                        if (found != null) {
-                            weight = found
-                            weightUnit = explicitUnit?.let(::normalizeWeightUnit) ?: fallbackWeightUnit
+                    if (reps > 0) {
+                        val weightMatcher = weightRegex.matcher(remainder)
+                        if (weightMatcher.find()) {
+                            val found = weightMatcher.group(1)?.toFloatOrNull()
+                            val explicitUnit = weightMatcher.group(2)
+                            if (found != null) {
+                                weight = found
+                                weightUnit = explicitUnit?.let(::normalizeWeightUnit) ?: fallbackWeightUnit
+                            }
                         }
                     }
                 }
 
-                if (isCardio) {
+                if (isCardio && durationSeconds == null) {
                     if (reps == 0 && weight > 0) {
                         reps = weight.toInt()
                         weight = 0f
                     }
                 }
 
-                if (weight > 0f) {
+                if (durationSeconds == null && weight > 0f) {
                     currentWeight = weight
                     currentWeightUnit = weightUnit
                 }
 
-                val finalWeight = if (isBodyweight && weight == 0f) 0f else currentWeight
-                val finalWeightUnit = if (finalWeight > 0f) currentWeightUnit else fallbackWeightUnit
+                val finalWeight = when {
+                    durationSeconds != null -> weight
+                    isBodyweight && weight == 0f -> 0f
+                    else -> currentWeight
+                }
+                val finalWeightUnit = when {
+                    finalWeight <= 0f -> fallbackWeightUnit
+                    durationSeconds != null -> weightUnit
+                    else -> currentWeightUnit
+                }
                 val isUnilateralSet = rowFlag == ExerciseFlag.UNILATERAL || line.lowercase().contains("uni")
 
-                val isValidSet = if (isBodyweight || isCardio) {
-                    reps > 0
-                } else {
-                    reps > 0 && finalWeight > 0f
+                val isValidSet = when {
+                    durationSeconds != null -> durationSeconds > 0
+                    isBodyweight || isCardio -> reps > 0
+                    else -> reps > 0 && finalWeight > 0f
                 }
 
                 if (isValidSet) {
@@ -377,6 +395,7 @@ class WorkoutParser {
                             weight = finalWeight,
                             weightUnit = finalWeightUnit,
                             reps = reps,
+                            durationSeconds = durationSeconds,
                             isUnilateral = isUnilateralSet,
                             modifier = currentModifier,
                             brand = currentBrand,

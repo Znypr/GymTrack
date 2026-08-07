@@ -115,6 +115,7 @@ class NoteEditorState(
             if (content.isNotBlank()) timestamps[index] = absolute
 
             val nextIndex = index + 1
+            val nextUsesSystemKeyboard = formatted.isBlank()
             val newRow = NoteRow(
                 id = nextId++,
                 text = mutableStateOf(TextFieldValue("")),
@@ -127,7 +128,11 @@ class NoteEditorState(
                 delay(100L)
                 if (nextIndex < lines.size) {
                     listState.scrollToItem(nextIndex)
-                    newRow.focusRequester.requestFocus()
+                    // Active set rows are controlled by GymTrack's keypad and deliberately do not
+                    // own an Android text-input session. Only a new exercise row requests IME focus.
+                    if (nextUsesSystemKeyboard) {
+                        newRow.focusRequester.requestFocus()
+                    }
                 }
             }
             saveNote(isLastNote = false, exit = false)
