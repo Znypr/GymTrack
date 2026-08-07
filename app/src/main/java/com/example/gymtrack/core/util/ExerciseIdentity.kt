@@ -156,6 +156,8 @@ object ExerciseIdentityResolver {
         "precor" to "Precor",
         "nautilus" to "Nautilus",
         "panatta" to "Panatta",
+        "bb" to "BootyBuilder",
+        "bootybuilder" to "BootyBuilder",
         "rl" to "Realleader",
         "realleader" to "Realleader",
     )
@@ -178,7 +180,7 @@ object ExerciseIdentityResolver {
             ?: detectBrand(parsedNormalized)
 
         val equipment = detectEquipment(combined, resolvedBrand)
-        val attachment = detectAttachment(combined)
+        val attachment = detectAttachment(combined, equipment)
         val sideMode = detectSideMode(rawNormalized, modifierNormalized, isUnilateral)
         val warnings = mutableListOf<String>()
 
@@ -237,6 +239,7 @@ object ExerciseIdentityResolver {
             }
             cleanedCombined.contains("triceps extension") -> "Triceps Extension"
             cleanedCombined.contains("bench press") -> "Bench Press"
+            cleanedCombined.contains("hip thrust") -> "Hip Thrust"
             cleanedCombined.contains("lateral raise") -> "Lateral Raise"
             cleanedCombined.contains("lat raise") -> "Lateral Raise"
             cleanedCombined.contains("side raise") -> "Lateral Raise"
@@ -271,6 +274,10 @@ object ExerciseIdentityResolver {
                 warnings += "Only Realleader brand marker remained after parsing; exercise needs manual review."
                 "Unknown exercise"
             }
+            cleanedCombined == "bb" || cleanedCombined == "bootybuilder" || cleanedCombined == "booty builder" -> {
+                warnings += "Only BootyBuilder brand marker remained after parsing; exercise needs manual review."
+                "Unknown exercise"
+            }
             cleanedParsed.isNotBlank() -> cleanedParsed.toTitleCase()
             cleanedRaw.isNotBlank() -> cleanedRaw.toTitleCase()
             else -> "Unknown exercise"
@@ -281,7 +288,7 @@ object ExerciseIdentityResolver {
         combined.contains("bodyweight") -> ExerciseEquipment.BODYWEIGHT
         combined.contains("cable") || combined.contains("pushdown") -> ExerciseEquipment.CABLE
         combined.contains("dumbbell") || combined.contains(" db ") || combined.endsWith(" db") -> ExerciseEquipment.DUMBBELL
-        combined.contains("barbell") || combined.contains(" bb ") || combined.endsWith(" bb") -> ExerciseEquipment.BARBELL
+        combined.contains("barbell") || combined.startsWith("bar ") -> ExerciseEquipment.BARBELL
         combined.contains("smith") -> ExerciseEquipment.SMITH_MACHINE
         !brand.isNullOrBlank() -> ExerciseEquipment.MACHINE
         combined.contains("machine") || combined.contains("leg press") || combined.contains("leg extension") ||
@@ -292,7 +299,8 @@ object ExerciseIdentityResolver {
         else -> ExerciseEquipment.UNKNOWN
     }
 
-    private fun detectAttachment(combined: String): ExerciseAttachment? = when {
+    private fun detectAttachment(combined: String, equipment: ExerciseEquipment): ExerciseAttachment? = when {
+        equipment == ExerciseEquipment.BARBELL -> null
         combined.contains("t bar row") || combined.contains("t bar machine") -> null
         combined.contains("rope") -> ExerciseAttachment.ROPE
         combined.contains("v bar") || combined.contains("vbar") -> ExerciseAttachment.V_BAR
@@ -305,6 +313,7 @@ object ExerciseIdentityResolver {
 
     private fun detectBrand(normalized: String): String? {
         if (normalized.contains("real leader")) return "Realleader"
+        if (normalized.contains("booty builder")) return "BootyBuilder"
         val tokens = normalized.split(" ").filter(String::isNotBlank)
         return tokens.firstNotNullOfOrNull(brandAliases::get)
     }
@@ -369,7 +378,7 @@ object ExerciseIdentityResolver {
 
     private fun stripContextTokens(raw: String): String {
         val stripped = raw.split(" ")
-            .filterNot { it in setOf("uni", "unilateral", "bilateral", "l6", "ss") }
+            .filterNot { it in setOf("uni", "unilateral", "bilateral", "l6", "ss", "bb") }
             .joinToString(" ")
             .replace(whitespaceRegex, " ")
             .trim()
