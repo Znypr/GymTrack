@@ -67,9 +67,11 @@ fun NoteEditor(
         }
     }
 
-    LaunchedEffect(Unit) {
+    // Opening a note should always start at its beginning. Live entry still scrolls forward from
+    // NoteEditorState when Enter creates the next row, but reopening history must not jump to the end.
+    LaunchedEffect(state.noteTimestamp) {
         if (state.lines.isNotEmpty()) {
-            state.listState.scrollToItem(state.lines.lastIndex)
+            state.listState.scrollToItem(0)
         }
     }
 
