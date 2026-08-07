@@ -26,6 +26,7 @@ class WorkoutParserTest {
         assertEquals("Bench press", results[0].exerciseName)
         assertEquals(100f, results[0].weight, 0.01f)
         assertEquals(5, results[0].reps)
+        assertEquals(null, results[0].durationSeconds)
     }
 
     @Test
@@ -60,6 +61,54 @@ class WorkoutParserTest {
         assertEquals(1, results.size)
         assertEquals("Bench press", results[0].exerciseName)
         assertEquals(100f, results[0].weight, 0.01f)
+    }
+
+    @Test
+    fun `parses seconds-only timed set`() {
+        val rawText = """
+            Plank
+                30 s
+        """.trimIndent()
+
+        val results = parser.parseWorkout(rawText)
+
+        assertEquals(1, results.size)
+        assertEquals(30, results[0].durationSeconds)
+        assertEquals(0, results[0].reps)
+        assertEquals(0f, results[0].weight, 0.01f)
+    }
+
+    @Test
+    fun `parses weighted timed set`() {
+        val rawText = """
+            Cable Hold
+                30 S 20kg
+        """.trimIndent()
+
+        val results = parser.parseWorkout(rawText)
+
+        assertEquals(1, results.size)
+        assertEquals(30, results[0].durationSeconds)
+        assertEquals(0, results[0].reps)
+        assertEquals(20f, results[0].weight, 0.01f)
+        assertEquals("KG", results[0].weightUnit)
+    }
+
+    @Test
+    fun `seconds-only set does not inherit previous weight`() {
+        val rawText = """
+            Cable Hold
+                10x 50kg
+                30 s
+        """.trimIndent()
+
+        val results = parser.parseWorkout(rawText)
+
+        assertEquals(2, results.size)
+        assertEquals(50f, results[0].weight, 0.01f)
+        assertEquals(null, results[0].durationSeconds)
+        assertEquals(30, results[1].durationSeconds)
+        assertEquals(0f, results[1].weight, 0.01f)
     }
 
     @Test
