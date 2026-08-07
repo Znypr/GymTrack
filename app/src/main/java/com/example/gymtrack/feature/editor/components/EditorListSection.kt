@@ -19,7 +19,6 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -34,8 +33,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -65,11 +66,28 @@ internal const val EDITOR_INPUT_FRAME_TEST_TAG = "editor-input-frame"
 fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
     val coroutineScope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
+    val notebookRuleColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.42f)
 
     LazyColumn(
         state = state.listState,
         modifier = modifier
             .fillMaxSize()
+            .drawBehind {
+                // The ruling belongs to the page, not to individual rows. This keeps the editor
+                // visibly notebook-like even before anything has been entered and below the last row.
+                val spacing = 40.dp.toPx()
+                val strokeWidth = 1.dp.toPx()
+                var y = spacing
+                while (y < size.height) {
+                    drawLine(
+                        color = notebookRuleColor,
+                        start = Offset(0f, y),
+                        end = Offset(size.width, y),
+                        strokeWidth = strokeWidth,
+                    )
+                    y += spacing
+                }
+            }
             .imePadding(),
         contentPadding = PaddingValues(bottom = 150.dp),
     ) {
@@ -104,105 +122,88 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                 rememberRelativeTimeVisualTransformation(fontSize)
             }
 
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 0.dp)
-                        .bringIntoViewRequester(bringIntoViewRequester),
-                    verticalAlignment = Alignment.CenterVertically,
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 0.dp)
+                    .bringIntoViewRequester(bringIntoViewRequester),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier.width(50.dp),
+                    contentAlignment = Alignment.CenterStart,
                 ) {
-                    Box(
-                        modifier = Modifier.width(50.dp),
-                        contentAlignment = Alignment.CenterStart,
-                    ) {
-                        if (row.text.value.text.isNotBlank()) {
-                            if (isMain) {
-                                ExerciseFlagButton(
-                                    flag = row.flag.value,
-                                    relColor = textColor,
-                                    onToggle = { state.toggleFlag(index) },
-                                )
-                            } else {
-                                var p = index - 1
-                                while (p >= 0 && (state.lines.getOrNull(p - 1)?.text?.value?.text?.isNotBlank() == true)) p--
-                                val parentFlag = state.lines.getOrNull(p)?.flag?.value ?: ExerciseFlag.BILATERAL
-                                ExerciseFlagTag(flag = parentFlag, relColor = textColor)
-                            }
-                        }
-                    }
-
-                    Spacer(Modifier.width(8.dp))
-
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(
-                                top = if (isMain) 8.dp else 2.dp,
-                                bottom = if (isMain) 6.dp else 2.dp,
-                            ),
-                    ) {
-                        BasicTextField(
-                            value = row.text.value,
-                            onValueChange = { state.onTextChange(index, it) },
-                            textStyle = LocalTextStyle.current.copy(
-                                color = textColor,
-                                fontSize = fontSize,
-                                fontWeight = fontWeight,
-                            ),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                            visualTransformation = visualTransformation,
-                            decorationBox = { innerTextField ->
-                                NotebookInputFrame(
-                                    isFocused = isFocused,
-                                    placeholder = when {
-                                        row.text.value.text.isNotBlank() -> null
-                                        isMain -> "Exercise"
-                                        else -> "Set"
-                                    },
-                                    innerTextField = innerTextField,
-                                )
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .then(if (index == 0) Modifier.testTag(EDITOR_FIRST_INPUT_TEST_TAG) else Modifier)
-                                .focusRequester(fr)
-                                .onFocusChanged {
-                                    isFocused = it.isFocused
-                                    if (it.isFocused) {
-                                        coroutineScope.launch {
-                                            bringIntoViewRequester.bringIntoView()
-                                        }
-                                    }
-                                },
-                        )
-
-                        if (isMain && row.text.value.text.isNotBlank()) {
-                            ExerciseIdentityPreview(
-                                rawName = row.text.value.text,
-                                isUnilateral = rowIsUnilateral,
+                    if (row.text.value.text.isNotBlank()) {
+                        if (isMain) {
+                            ExerciseFlagButton(
+                                flag = row.flag.value,
+                                relColor = textColor,
+                                onToggle = { state.toggleFlag(index) },
                             )
+                        } else {
+                            var p = index - 1
+                            while (p >= 0 && (state.lines.getOrNull(p - 1)?.text?.value?.text?.isNotBlank() == true)) p--
+                            val parentFlag = state.lines.getOrNull(p)?.flag?.value ?: ExerciseFlag.BILATERAL
+                            ExerciseFlagTag(flag = parentFlag, relColor = textColor)
                         }
                     }
+                }
 
-                    val absText = state.timestamps.getOrElse(index) { "" }
-                    if (absText.isNotBlank()) {
-                        val absAnnotated = SmallSecondsVisualTransformation(14.sp).filter(AnnotatedString(absText)).text
-                        Text(
-                            text = absAnnotated,
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                            modifier = Modifier.padding(start = 8.dp),
+                Spacer(Modifier.width(8.dp))
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(
+                            top = if (isMain) 8.dp else 2.dp,
+                            bottom = if (isMain) 6.dp else 2.dp,
+                        ),
+                ) {
+                    BasicTextField(
+                        value = row.text.value,
+                        onValueChange = { state.onTextChange(index, it) },
+                        textStyle = LocalTextStyle.current.copy(
+                            color = textColor,
+                            fontSize = fontSize,
+                            fontWeight = fontWeight,
+                        ),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        visualTransformation = visualTransformation,
+                        decorationBox = { innerTextField ->
+                            NotebookInputFrame(innerTextField = innerTextField)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(if (index == 0) Modifier.testTag(EDITOR_FIRST_INPUT_TEST_TAG) else Modifier)
+                            .focusRequester(fr)
+                            .onFocusChanged {
+                                isFocused = it.isFocused
+                                if (it.isFocused) {
+                                    coroutineScope.launch {
+                                        bringIntoViewRequester.bringIntoView()
+                                    }
+                                }
+                            },
+                    )
+
+                    if (isMain && row.text.value.text.isNotBlank()) {
+                        ExerciseIdentityPreview(
+                            rawName = row.text.value.text,
+                            isUnilateral = rowIsUnilateral,
                         )
                     }
                 }
 
-                // Full-width notebook rule keeps every writable row visually discoverable without
-                // turning the editor into a stack of heavy cards.
-                HorizontalDivider(
-                    thickness = 0.5.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f),
-                )
+                val absText = state.timestamps.getOrElse(index) { "" }
+                if (absText.isNotBlank()) {
+                    val absAnnotated = SmallSecondsVisualTransformation(14.sp).filter(AnnotatedString(absText)).text
+                    Text(
+                        text = absAnnotated,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
             }
         }
     }
@@ -210,45 +211,19 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
 
 @Composable
 internal fun NotebookInputFrame(
-    isFocused: Boolean,
-    placeholder: String?,
     modifier: Modifier = Modifier,
     innerTextField: @Composable () -> Unit = {},
 ) {
-    val borderColor = if (isFocused) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
-    } else {
-        MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)
-    }
-    val containerColor = if (isFocused) {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.16f)
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.08f)
-    }
-
-    Surface(
+    // Deliberately transparent: the page ruling is the only field boundary. Focus is communicated
+    // by the native blinking caret rather than a card, outline, or focused container state.
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .testTag(EDITOR_INPUT_FRAME_TEST_TAG),
-        shape = RoundedCornerShape(7.dp),
-        color = containerColor,
-        border = BorderStroke(1.dp, borderColor),
+            .testTag(EDITOR_INPUT_FRAME_TEST_TAG)
+            .padding(horizontal = 2.dp, vertical = 7.dp),
+        contentAlignment = Alignment.CenterStart,
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 7.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            if (!isFocused && !placeholder.isNullOrBlank()) {
-                Text(
-                    text = placeholder,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.58f),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-            innerTextField()
-        }
+        innerTextField()
     }
 }
 
