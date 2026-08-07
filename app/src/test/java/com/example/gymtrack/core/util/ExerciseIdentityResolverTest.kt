@@ -84,6 +84,30 @@ class ExerciseIdentityResolverTest {
     }
 
     @Test
+    fun bbTokenResolvesAsBootyBuilderMachineBrandNotBarbell() {
+        val identity = ExerciseIdentityResolver.resolve(rawName = "BB Hip Thrust")
+
+        assertEquals("Hip Thrust", identity.canonicalName)
+        assertEquals("BootyBuilder", identity.brand)
+        assertEquals(ExerciseEquipment.MACHINE, identity.equipment)
+        assertEquals(null, identity.attachment)
+        assertTrue("BootyBuilder chip should be displayable", "BootyBuilder" in identity.variantLabels())
+        assertFalse("BB must no longer create a barbell chip", "Barbell" in identity.variantLabels())
+    }
+
+    @Test
+    fun barPrefixResolvesAsBarbellWithoutStraightBarAttachment() {
+        val identity = ExerciseIdentityResolver.resolve(rawName = "BAR Bench Press")
+
+        assertEquals("Bench Press", identity.canonicalName)
+        assertEquals(null, identity.brand)
+        assertEquals(ExerciseEquipment.BARBELL, identity.equipment)
+        assertEquals(null, identity.attachment)
+        assertTrue("BAR should create a barbell chip", "Barbell" in identity.variantLabels())
+        assertFalse("BAR equipment should not also create a straight-bar attachment", "Straight bar" in identity.variantLabels())
+    }
+
+    @Test
     fun progressComparisonSeparatesLoadIncompatibleEquipmentVariants() {
         val dumbbell = ExerciseIdentityResolver.resolve(rawName = "lateral raise db")
         val machine = ExerciseIdentityResolver.resolve(rawName = "lateral raise machine")
@@ -103,6 +127,7 @@ class ExerciseIdentityResolverTest {
         assertEquals("T-Bar Row", identity.canonicalName)
         assertEquals("Prime", identity.brand)
         assertFalse("T-bar is the exercise name, not a straight-bar attachment", "Straight bar" in identity.variantLabels())
+        assertFalse("T-bar must not be mistaken for the BAR abbreviation", "Barbell" in identity.variantLabels())
     }
 
     @Test
