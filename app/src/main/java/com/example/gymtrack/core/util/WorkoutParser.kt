@@ -56,7 +56,7 @@ class WorkoutParser {
     private val GYM_TERMS = setOf(
         "press", "push", "pull", "row", "raise", "curl", "extension", "dip",
         "squat", "leg", "arm", "chest", "back", "shoulder", "delt", "bicep", "biceps", "tricep", "triceps",
-        "dumbbell", "barbell", "kettlebell", "cable", "machine", "smith", "rope",
+        "dumbbell", "bar", "barbell", "kettlebell", "cable", "machine", "smith", "rope",
         "bench", "incline", "decline", "fly", "butterfly", "crunch", "situp",
         "adductor", "abductor", "calf", "calve", "glute", "hamstring", "quad",
         "deadlift", "romanian", "stiff", "lunge", "step", "stairmaster", "lat",
