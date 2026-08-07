@@ -74,12 +74,12 @@ class WorkoutParser {
         "prime" to "Prime", "technogym" to "Technogym",
         "matrix" to "Matrix", "precor" to "Precor", "nautilus" to "Nautilus",
         "panatta" to "Panatta", "watson" to "Watson", "rogers" to "Rogers",
+        "bb" to "BootyBuilder", "bootybuilder" to "BootyBuilder",
     )
 
     private val MODIFIER_ALIASES = mapOf(
         "db" to "Dumbbell", "dbs" to "Dumbbell", "dumbell" to "Dumbbell",
-        "bb" to "Barbell",
-        "bar" to "Straight Bar", "straightbar" to "Straight Bar", "vbar" to "V-Bar", "ezbar" to "EZ-Bar",
+        "straightbar" to "Straight Bar", "vbar" to "V-Bar", "ezbar" to "EZ-Bar",
         "oh" to "Overgrip",
         "ug" to "Undergrip", "og" to "Overgrip",
     )
@@ -89,7 +89,7 @@ class WorkoutParser {
         "undergrip", "overgrip", "ug", "og", "n", "oh",
         "single", "arm", "alternating", "standing",
         "high", "low", "iso", "spt",
-        "rope", "cable", "smith", "incline", "decline", "dumbbell", "db", "dbs", "barbell", "bb", "supported",
+        "rope", "cable", "smith", "incline", "decline", "dumbbell", "db", "dbs", "barbell", "supported",
     )
 
     private val CORE_MAPPINGS = mapOf(
@@ -175,7 +175,12 @@ class WorkoutParser {
     }
 
     private fun extractDetails(rawLine: String, rawMetadata: String): Triple<String, String?, String?> {
-        var cleanedLine = rawLine.lowercase()
+        val rawLower = rawLine.trim().lowercase()
+        val usesBarbellPrefix = rawLower.startsWith("bar ") &&
+            !rawLower.contains("pushdown") &&
+            !rawLower.contains("cable")
+
+        var cleanedLine = rawLower
             .replace(parenNumberRegex, "")
             .replace(isolatedNumberRegex, "")
             .replace(plusNumberRegex, "")
@@ -200,14 +205,16 @@ class WorkoutParser {
 
         val foundModifiers = mutableSetOf<String>()
         val remainingTokensStep3 = mutableListOf<String>()
-        for (token in tokens) {
-            if (MODIFIER_ALIASES.containsKey(token)) {
-                foundModifiers.add(MODIFIER_ALIASES[token]!!)
-            } else if (KNOWN_MODIFIERS.contains(token)) {
-                val standardized = token.replaceFirstChar { it.titlecase() }
-                foundModifiers.add(standardized)
-            } else {
-                remainingTokensStep3.add(token)
+        for ((tokenIndex, token) in tokens.withIndex()) {
+            when {
+                token == "bar" && tokenIndex == 0 && usesBarbellPrefix -> foundModifiers.add("Barbell")
+                token == "bar" -> foundModifiers.add("Straight Bar")
+                MODIFIER_ALIASES.containsKey(token) -> foundModifiers.add(MODIFIER_ALIASES[token]!!)
+                KNOWN_MODIFIERS.contains(token) -> {
+                    val standardized = token.replaceFirstChar { it.titlecase() }
+                    foundModifiers.add(standardized)
+                }
+                else -> remainingTokensStep3.add(token)
             }
         }
         tokens = remainingTokensStep3
