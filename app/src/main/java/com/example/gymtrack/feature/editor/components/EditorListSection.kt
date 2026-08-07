@@ -69,7 +69,7 @@ internal const val EDITOR_INPUT_FRAME_TEST_TAG = "editor-input-frame"
 fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
     val coroutineScope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
-    val notebookRuleColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.42f)
+    val notebookRuleColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.34f)
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val notebookPageHeight = maxHeight
