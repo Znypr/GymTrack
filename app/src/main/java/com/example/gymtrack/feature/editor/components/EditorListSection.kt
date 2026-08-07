@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -39,6 +40,9 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
@@ -67,17 +71,36 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
     val coroutineScope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
     val notebookRuleColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.42f)
+    var notebookScrollOffsetPx by remember { mutableFloatStateOf(0f) }
+    val notebookScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                // LazyColumn reports the exact content translation it consumed. Apply the same
+                // translation to the repeating page ruling so the notebook and editor content
+                // behave as one sheet during drag and fling scrolling.
+                notebookScrollOffsetPx += consumed.y
+                return Offset.Zero
+            }
+        }
+    }
 
     LazyColumn(
         state = state.listState,
         modifier = modifier
             .fillMaxSize()
+            .nestedScroll(notebookScrollConnection)
             .drawBehind {
-                // The ruling belongs to the page, not to individual rows. This keeps the editor
-                // visibly notebook-like even before anything has been entered and below the last row.
+                // The ruling belongs to the page, not to individual fields. Its phase follows the
+                // list's consumed scroll delta so it moves in lockstep with the editor overlay.
                 val spacing = 40.dp.toPx()
                 val strokeWidth = 1.dp.toPx()
-                var y = spacing
+                val phase = notebookScrollOffsetPx % spacing
+                var y = spacing + phase
+                while (y <= 0f) y += spacing
                 while (y < size.height) {
                     drawLine(
                         color = notebookRuleColor,
