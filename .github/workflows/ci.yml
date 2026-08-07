@@ -63,16 +63,6 @@ jobs:
           status=$?
           if [ "$status" -ne 0 ]; then
             tail -n 120 gradle-output.log
-            if [ "${{ matrix.task }}" = "testDebugUnitTest" ]; then
-              grep -E "(^e: |error:|Unresolved reference|Compilation error|Execution failed|What went wrong|FAILED|AssertionError|expected:|but was:|There were failing tests)" gradle-output.log \
-                | tail -n 40 \
-                | while IFS= read -r line; do
-                    safe="${line//'%'/'%25'}"
-                    safe="${safe//$'\r'/'%0D'}"
-                    safe="${safe//$'\n'/'%0A'}"
-                    echo "::error title=Gradle unit-test diagnostic::$safe"
-                  done
-            fi
           fi
           exit "$status"
 
