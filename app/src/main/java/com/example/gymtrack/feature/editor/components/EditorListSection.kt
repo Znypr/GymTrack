@@ -174,6 +174,11 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                                         if (it.isFocused) {
                                             coroutineScope.launch {
                                                 bringIntoViewRequester.bringIntoView()
+                                                // Existing notes do not use the blank-row auto-focus path above.
+                                                // Explicitly request the IME after focus/layout settles so tapping any
+                                                // saved exercise or set row reliably opens the software keyboard.
+                                                delay(50L)
+                                                keyboardController?.show()
                                             }
                                         }
                                     },
