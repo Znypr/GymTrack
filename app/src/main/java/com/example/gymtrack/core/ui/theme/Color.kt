@@ -2,37 +2,36 @@ package com.example.gymtrack.core.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Spotify-inspired Dark Theme Palette
-val SpotBlack = Color(0xFF121212)       // Main Background
-val SpotDarkGray = Color(0xFF212121)    // Card Surface
-val SpotLightGray = Color(0xFF535353)   // Secondary Text
-val SpotWhite = Color(0xFFFFFFFF)       // Primary Text
-val SpotGreen = Color(0xFF1DB954)       // Legacy green accent, kept for compatibility
+// GymTrack visual system
+val GymDarkBackground = Color(0xFF0B0D0F)
+val GymDarkSurface = Color(0xFF15181C)
+val GymDarkSurfaceRaised = Color(0xFF20242A)
+val GymDarkOutline = Color(0xFF383E46)
 
-// Category Gradients (For "Album Art" look)
-val PushGradient = listOf(Color(0xFFFF3B30), Color(0xFF991812))
-val PullGradient = listOf(Color(0xFFAF52DE), Color(0xFF5E187F))
-val LegsGradient = listOf(Color(0xFF34C759), Color(0xFF0F5720))
-val DefaultGradient = listOf(Color(0xFF535353), Color(0xFF121212))
+val GymLightBackground = Color(0xFFF5F3EE)
+val GymLightSurface = Color(0xFFFFFFFF)
+val GymLightSurfaceRaised = Color(0xFFE9E2D4)
+val GymLightOutline = Color(0xFFD3C7B4)
 
-// --- DARK MODE (Apple "Midnight" Style) ---
-val AppleBlack = Color(0xFF000000)       // Background
-val AppleDarkGray = Color(0xFF1C1C1E)    // Cards/Surface
-val TextWhite = Color(0xFFFFFFFF)
-val TextGray = Color(0xFF8E8E93)
+val GymTextPrimaryDark = Color(0xFFF8F5EC)
+val GymTextSecondaryDark = Color(0xFFC7BFAF)
+val GymTextPrimaryLight = Color(0xFF171512)
+val GymTextSecondaryLight = Color(0xFF5D574E)
 
-// --- LIGHT MODE (Apple "Standard" Style) ---
-val AppleWhite = Color(0xFFF2F2F7)       // Background (Subtle off-white)
-val AppleLightCard = Color(0xFFFFFFFF)   // Cards (Pure white)
-val TextBlack = Color(0xFF000000)
+// Shared training accents
+val GymAccent = Color(0xFFF2B705)
+val GymAccentStrong = Color(0xFFD99A00)
+val GymDanger = Color(0xFFFF5A4F)
+val GymRecoveryBlue = Color(0xFF6BA6FF)
+val GymEffortOrange = Color(0xFFE8753A)
+val SupersetBlue = GymRecoveryBlue
 
-// --- ACCENTS (Shared) ---
-val GymAccent = Color(0xFFF2B705)        // Muted amber-yellow training accent
-val NeonGreen = Color(0xFF34C759)
-val NeonRed = Color(0xFFFF3B30)
-val NeonPurple = Color(0xFFAF52DE)
-val SupersetBlue = Color(0xFF64B5F6)
-// Helpers
+// Category gradients for workout groups
+val PushGradient = listOf(Color(0xFFE4503D), Color(0xFF8E241C))
+val PullGradient = listOf(Color(0xFF8D6BFF), Color(0xFF44308F))
+val LegsGradient = listOf(Color(0xFF5EA95D), Color(0xFF244B28))
+val DefaultGradient = listOf(GymDarkSurfaceRaised, GymDarkBackground)
+
 fun Color.darken(factor: Float): Color {
     return Color(
         red = (red * (1 - factor)).coerceIn(0f, 1f),

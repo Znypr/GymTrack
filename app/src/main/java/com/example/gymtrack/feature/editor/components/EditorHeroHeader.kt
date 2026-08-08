@@ -31,13 +31,15 @@ fun EditorHeroHeader(
     onCategorySelect: (Category) -> Unit,
     topPadding: Dp
 ) {
-    // [FIX] Use the actual color from the selected category object
-    val baseColor = if (selectedCategory != null) Color(selectedCategory.color) else Color(0xFF666666)
-
+    val fallbackColor = MaterialTheme.colorScheme.primary
+    val baseColor = if (selectedCategory != null) Color(selectedCategory.color) else fallbackColor
     val backgroundColor = MaterialTheme.colorScheme.background
-    // Create gradient fading to background
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    val textColor = MaterialTheme.colorScheme.onSurface
+    val mutedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+
     val blendGradient = remember(baseColor, backgroundColor) {
-        Brush.verticalGradient(listOf(baseColor.copy(alpha = 0.25f), backgroundColor))
+        Brush.verticalGradient(listOf(baseColor.copy(alpha = 0.30f), backgroundColor))
     }
 
     var menuExpanded by remember { mutableStateOf(false) }
@@ -45,60 +47,76 @@ fun EditorHeroHeader(
     val weekdayFormat = remember { SimpleDateFormat("EEEE", Locale.getDefault()) }
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
     val timeFormat = remember { SimpleDateFormat(if (settings.is24Hour) "HH:mm" else "hh:mm a", Locale.getDefault()) }
-    val textColor = MaterialTheme.colorScheme.onSurface
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .background(backgroundColor)
             .background(blendGradient)
-            .padding(top = topPadding, start = 16.dp, end = 16.dp, bottom = 16.dp)
+            .padding(top = topPadding, start = 18.dp, end = 18.dp, bottom = 18.dp),
     ) {
         Column {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
+                verticalAlignment = Alignment.Bottom,
             ) {
                 Column {
-                    Text(weekdayFormat.format(date), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = textColor)
-                    Text(timeFormat.format(date), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = textColor)
+                    Text(
+                        weekdayFormat.format(date),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = textColor,
+                    )
+                    Text(
+                        timeFormat.format(date),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = mutedTextColor,
+                    )
                 }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(dateFormat.format(date), style = MaterialTheme.typography.titleMedium, color = textColor.copy(alpha = 0.8f))
-                    Spacer(Modifier.height(4.dp))
-                }
+                Text(
+                    dateFormat.format(date),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = mutedTextColor,
+                )
             }
-            Spacer(Modifier.height(12.dp))
 
-            // Category Selector
+            Spacer(Modifier.height(14.dp))
+
             Box {
                 Surface(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.clickable { menuExpanded = true }
+                    color = surfaceColor.copy(alpha = 0.92f),
+                    shape = RoundedCornerShape(999.dp),
+                    modifier = Modifier.clickable { menuExpanded = true },
+                    tonalElevation = 0.dp,
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                     ) {
-                        Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(baseColor))
-                        Spacer(Modifier.width(8.dp))
-                        Text(selectedCategory?.name ?: "Select Category", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(baseColor))
+                        Spacer(Modifier.width(9.dp))
+                        Text(
+                            selectedCategory?.name ?: "Select Category",
+                            color = textColor,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
+                        )
                         Spacer(Modifier.width(4.dp))
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = mutedTextColor)
                     }
                 }
                 DropdownMenu(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false },
-                    modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surface),
                 ) {
                     settings.categories.forEach { cat ->
                         DropdownMenuItem(
                             text = { Text(cat.name, color = MaterialTheme.colorScheme.onSurface) },
                             leadingIcon = { Box(Modifier.size(12.dp).clip(RoundedCornerShape(50)).background(Color(cat.color))) },
-                            onClick = { onCategorySelect(cat); menuExpanded = false }
+                            onClick = { onCategorySelect(cat); menuExpanded = false },
                         )
                     }
                 }

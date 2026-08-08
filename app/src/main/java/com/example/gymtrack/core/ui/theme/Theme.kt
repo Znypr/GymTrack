@@ -11,22 +11,38 @@ import androidx.compose.runtime.CompositionLocalProvider
 
 private val DarkColorScheme = darkColorScheme(
     primary = GymAccent,
-    background = SpotBlack,
-    surface = SpotDarkGray,
-    onPrimary = AppleBlack,
-    onSurface = SpotWhite,
-    onBackground = SpotWhite,
+    onPrimary = GymTextPrimaryLight,
+    secondary = GymRecoveryBlue,
+    onSecondary = GymTextPrimaryLight,
+    tertiary = GymEffortOrange,
+    onTertiary = GymTextPrimaryLight,
+    background = GymDarkBackground,
+    onBackground = GymTextPrimaryDark,
+    surface = GymDarkSurface,
+    onSurface = GymTextPrimaryDark,
+    surfaceVariant = GymDarkSurfaceRaised,
+    onSurfaceVariant = GymTextSecondaryDark,
+    outline = GymDarkOutline,
+    error = GymDanger,
+    onError = GymTextPrimaryDark,
 )
 
 private val LightColorScheme = lightColorScheme(
     primary = GymAccent,
-    onPrimary = TextBlack,
-    secondary = GymAccent,
-    background = AppleWhite,
-    surface = AppleLightCard,
-    surfaceVariant = AppleWhite,
-    onSurface = TextBlack,
-    onBackground = TextBlack,
+    onPrimary = GymTextPrimaryLight,
+    secondary = GymAccentStrong,
+    onSecondary = GymTextPrimaryLight,
+    tertiary = GymEffortOrange,
+    onTertiary = GymTextPrimaryLight,
+    background = GymLightBackground,
+    onBackground = GymTextPrimaryLight,
+    surface = GymLightSurface,
+    onSurface = GymTextPrimaryLight,
+    surfaceVariant = GymLightSurfaceRaised,
+    onSurfaceVariant = GymTextSecondaryLight,
+    outline = GymLightOutline,
+    error = GymDanger,
+    onError = GymTextPrimaryDark,
 )
 
 @Composable
@@ -38,7 +54,7 @@ fun GymTrackTheme(
 
     val selectionColors = TextSelectionColors(
         handleColor = GymAccent,
-        backgroundColor = GymAccent.copy(alpha = 0.4f),
+        backgroundColor = GymAccent.copy(alpha = 0.35f),
     )
 
     CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
