@@ -11,11 +11,21 @@ import androidx.compose.runtime.CompositionLocalProvider
 
 private val DarkColorScheme = darkColorScheme(
     primary = GymAccent,
-    background = SpotBlack,
-    surface = SpotDarkGray,
     onPrimary = AppleBlack,
-    onSurface = SpotWhite,
+    background = AppleBlack,
     onBackground = SpotWhite,
+    surface = AppleBlack,
+    onSurface = SpotWhite,
+    surfaceVariant = AppleBlack,
+    onSurfaceVariant = TextGray,
+    surfaceTint = AppleBlack,
+    surfaceDim = AppleBlack,
+    surfaceBright = AppleBlack,
+    surfaceContainerLowest = AppleBlack,
+    surfaceContainerLow = AppleBlack,
+    surfaceContainer = AppleBlack,
+    surfaceContainerHigh = AppleBlack,
+    surfaceContainerHighest = AppleBlack,
 )
 
 private val LightColorScheme = lightColorScheme(
