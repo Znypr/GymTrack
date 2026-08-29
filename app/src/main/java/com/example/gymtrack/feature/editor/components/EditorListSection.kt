@@ -1,10 +1,5 @@
 package com.example.gymtrack.feature.editor.components
 
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -73,6 +68,22 @@ import kotlinx.coroutines.launch
 internal const val EDITOR_FIRST_INPUT_TEST_TAG = "editor-first-input"
 internal const val EDITOR_INPUT_FRAME_TEST_TAG = "editor-input-frame"
 
+internal fun isFastSetEntryCandidate(
+    index: Int,
+    currentText: String,
+    previousText: String?,
+    nextText: String?,
+    timestamp: String,
+): Boolean {
+    val isMain = index == 0 || previousText.isNullOrBlank()
+    if (isMain || timestamp.isNotBlank()) return false
+
+    // Once a nonblank exercise exists after this blank row, the row is the separator
+    // between exercises, not an editable set row for the exercise above it.
+    val isSeparatorBeforeExercise = currentText.isBlank() && !nextText.isNullOrBlank()
+    return !isSeparatorBeforeExercise
+}
+
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
@@ -80,7 +91,7 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
     val notebookRuleColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.34f)
-    var activeFastSetIndex by remember { mutableStateOf<Int?>(null) }
+    var activeFastSetRowId by remember { mutableStateOf<Long?>(null) }
 
     Column(
         modifier = modifier
@@ -102,23 +113,36 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                 itemsIndexed(state.lines, key = { _, row -> row.id }) { index, row ->
                     val fr = row.focusRequester
                     val bringIntoViewRequester = remember { BringIntoViewRequester() }
-                    val isMain = index == 0 || state.lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
+                    val previousText = state.lines.getOrNull(index - 1)?.text?.value?.text
+                    val nextText = state.lines.getOrNull(index + 1)?.text?.value?.text
+                    val isMain = index == 0 || previousText.isNullOrBlank()
                     val absText = state.timestamps.getOrElse(index) { "" }
-                    val isFastSetEntry = !isMain && absText.isBlank()
+                    val isFastSetEntry = isFastSetEntryCandidate(
+                        index = index,
+                        currentText = row.text.value.text,
+                        previousText = previousText,
+                        nextText = nextText,
+                        timestamp = absText,
+                    )
                     var isFocused by remember(row.id) { mutableStateOf(false) }
 
-                    LaunchedEffect(row.id) {
+                    LaunchedEffect(row.id, isFastSetEntry) {
                         if (isFastSetEntry) {
                             delay(50L)
                             focusManager.clearFocus(force = true)
-                            activeFastSetIndex = index
+                            activeFastSetRowId = row.id
                             keyboardController?.hide()
                             delay(50L)
                             keyboardController?.hide()
-                        } else if (index == 0 && state.lines.size == 1 && row.text.value.text.isBlank()) {
-                            delay(150L)
-                            fr.requestFocus()
-                            keyboardController?.show()
+                        } else {
+                            if (activeFastSetRowId == row.id) {
+                                activeFastSetRowId = null
+                            }
+                            if (index == 0 && state.lines.size == 1 && row.text.value.text.isBlank()) {
+                                delay(150L)
+                                fr.requestFocus()
+                                keyboardController?.show()
+                            }
                         }
                     }
 
@@ -172,7 +196,7 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                                             Modifier.clickable {
                                                 coroutineScope.launch {
                                                     focusManager.clearFocus(force = true)
-                                                    activeFastSetIndex = index
+                                                    activeFastSetRowId = row.id
                                                     keyboardController?.hide()
                                                     delay(50L)
                                                     keyboardController?.hide()
@@ -199,7 +223,7 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                                     visualTransformation = visualTransformation,
                                     decorationBox = { innerTextField ->
                                         NotebookInputFrame {
-                                            if (isFastSetEntry && activeFastSetIndex == index) {
+                                            if (isFastSetEntry && activeFastSetRowId == row.id) {
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     Text(
                                                         text = row.text.value.text,
@@ -221,7 +245,7 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                                         .onFocusChanged {
                                             isFocused = it.isFocused
                                             if (it.isFocused) {
-                                                activeFastSetIndex = null
+                                                activeFastSetRowId = null
                                                 coroutineScope.launch {
                                                     bringIntoViewRequester.bringIntoView()
                                                     delay(50L)
@@ -268,13 +292,23 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
             }
         }
 
-        val keypadIndex = activeFastSetIndex
+        val keypadIndex = activeFastSetRowId?.let { activeRowId ->
+            state.lines.indexOfFirst { it.id == activeRowId }.takeIf { it >= 0 }
+        }
         val keypadRow = keypadIndex?.let(state.lines::getOrNull)
-        if (
-            keypadIndex != null &&
-            keypadRow != null &&
-            state.timestamps.getOrElse(keypadIndex) { "" }.isBlank()
-        ) {
+        val keypadIsFastSetEntry = if (keypadIndex != null && keypadRow != null) {
+            isFastSetEntryCandidate(
+                index = keypadIndex,
+                currentText = keypadRow.text.value.text,
+                previousText = state.lines.getOrNull(keypadIndex - 1)?.text?.value?.text,
+                nextText = state.lines.getOrNull(keypadIndex + 1)?.text?.value?.text,
+                timestamp = state.timestamps.getOrElse(keypadIndex) { "" },
+            )
+        } else {
+            false
+        }
+
+        if (keypadIndex != null && keypadRow != null && keypadIsFastSetEntry) {
             SetEntryKeypad(
                 onDigit = { digit ->
                     val current = keypadRow.text.value
@@ -337,22 +371,21 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
 
 @Composable
 private fun BlinkingFastSetCaret() {
-    val transition = rememberInfiniteTransition(label = "fast-set-caret")
-    val caretAlpha by transition.animateFloat(
-        initialValue = 1f,
-        targetValue = 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 550),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "fast-set-caret-alpha",
-    )
+    var visible by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(500L)
+            visible = !visible
+        }
+    }
+
     Text(
-        text = "|",
-        color = MaterialTheme.colorScheme.primary,
+        text = "│",
+        color = MaterialTheme.colorScheme.onSurface,
         fontSize = 14.sp,
-        fontWeight = FontWeight.Medium,
-        modifier = Modifier.alpha(caretAlpha),
+        fontWeight = FontWeight.Black,
+        modifier = Modifier.alpha(if (visible) 1f else 0f),
     )
 }
 
