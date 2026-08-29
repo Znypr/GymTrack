@@ -23,6 +23,22 @@ internal fun insertSetEntryToken(value: TextFieldValue, token: String): TextFiel
     return TextFieldValue(updated, TextRange(cursor))
 }
 
+internal fun canInsertMyoRepPlus(value: TextFieldValue): Boolean {
+    val cursor = value.selection.start.coerceIn(0, value.text.length)
+    val beforeCursor = value.text.take(cursor)
+    val afterCursor = value.text.drop(cursor)
+    val separatorIndex = value.text.indexOfFirst { it == 'x' || it == 'X' || it == 's' || it == 'S' }
+
+    if (separatorIndex >= 0 && cursor > separatorIndex) return false
+    if (beforeCursor.isEmpty() || !beforeCursor.last().isDigit()) return false
+    if (afterCursor.firstOrNull() == '+') return false
+
+    val repsPart = if (separatorIndex >= 0) value.text.substring(0, separatorIndex) else value.text
+    val candidate = repsPart.take(cursor.coerceAtMost(repsPart.length)) + "+" +
+        repsPart.drop(cursor.coerceAtMost(repsPart.length))
+    return candidate.matches(Regex("\\d+(?:\\+\\d*)*"))
+}
+
 internal fun backspaceSetEntry(value: TextFieldValue): TextFieldValue {
     val start = minOf(value.selection.start, value.selection.end).coerceIn(0, value.text.length)
     val end = maxOf(value.selection.start, value.selection.end).coerceIn(0, value.text.length)
@@ -40,6 +56,7 @@ internal fun SetEntryKeypad(
     onDigit: (Char) -> Unit,
     onDecimal: () -> Unit,
     onRepsSeparator: () -> Unit,
+    onPlus: () -> Unit,
     onBackspace: () -> Unit,
     onNext: () -> Unit,
     modifier: Modifier = Modifier,
@@ -68,12 +85,13 @@ internal fun SetEntryKeypad(
             KeypadButton("7") { onDigit('7') }
             KeypadButton("8") { onDigit('8') }
             KeypadButton("9") { onDigit('9') }
-            KeypadButton("S", enabled = secondsEnabled, onClick = onSeconds)
+            KeypadButton("+", onClick = onPlus)
         }
         KeypadRow {
             KeypadButton(".", onClick = onDecimal)
             KeypadButton("0") { onDigit('0') }
-            KeypadButton("Enter", weight = 2f, onClick = onNext)
+            KeypadButton("S", enabled = secondsEnabled, onClick = onSeconds)
+            KeypadButton("Enter", onClick = onNext)
         }
     }
 }
