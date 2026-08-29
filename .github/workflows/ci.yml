@@ -1,6 +1,7 @@
 name: Android CI
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [master]
     paths-ignore:
@@ -59,8 +60,8 @@ jobs:
           fi
           exit "$status"
 
-      - name: Build master APK
-        if: github.event_name == 'push'
+      - name: Build APK
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set +e
@@ -71,8 +72,8 @@ jobs:
           fi
           exit "$status"
 
-      - name: Upload master debug APK
-        if: success() && github.event_name == 'push'
+      - name: Upload debug APK
+        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: actions/upload-artifact@v4
         with:
           name: GymTrack-debug-apk
