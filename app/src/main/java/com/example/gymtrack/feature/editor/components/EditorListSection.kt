@@ -101,8 +101,6 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                     val isFastSetEntry = !isMain && absText.isBlank()
                     var isFocused by remember(row.id) { mutableStateOf(false) }
 
-                    // Active unsaved set rows use GymTrack's keypad and deliberately own no Android
-                    // text-input session. This prevents the system IME and custom keypad overlapping.
                     LaunchedEffect(row.id) {
                         if (isFastSetEntry) {
                             delay(50L)
@@ -124,17 +122,12 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                     val rowIsUnilateral = row.flag.value == ExerciseFlag.UNILATERAL
 
                     val visualTransformation = if (isMain) {
-                        if (isFocused) {
-                            VisualTransformation.None
-                        } else {
-                            remember(rowIsUnilateral) { CanonicalExerciseVisualTransformation(rowIsUnilateral) }
-                        }
+                        if (isFocused) VisualTransformation.None
+                        else remember(rowIsUnilateral) { CanonicalExerciseVisualTransformation(rowIsUnilateral) }
                     } else {
                         rememberRelativeTimeVisualTransformation(fontSize)
                     }
 
-                    // The notebook rule is part of the real row. Its vertical position therefore follows
-                    // the row's measured height: taller exercise rows and shorter set rows align naturally.
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Row(
                             modifier = Modifier
@@ -179,9 +172,7 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                                                     keyboardController?.hide()
                                                 }
                                             }
-                                        } else {
-                                            Modifier
-                                        },
+                                        } else Modifier,
                                     )
                                     .padding(
                                         top = if (isMain) 8.dp else 2.dp,
@@ -201,7 +192,26 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                                     visualTransformation = visualTransformation,
                                     decorationBox = { innerTextField ->
-                                        NotebookInputFrame(innerTextField = innerTextField)
+                                        NotebookInputFrame {
+                                            if (isFastSetEntry && activeFastSetIndex == index) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        text = row.text.value.text,
+                                                        color = textColor,
+                                                        fontSize = fontSize,
+                                                        fontWeight = fontWeight,
+                                                    )
+                                                    Text(
+                                                        text = "|",
+                                                        color = MaterialTheme.colorScheme.primary,
+                                                        fontSize = fontSize,
+                                                        fontWeight = FontWeight.Medium,
+                                                    )
+                                                }
+                                            } else {
+                                                innerTextField()
+                                            }
+                                        }
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -213,9 +223,6 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                                                 activeFastSetIndex = null
                                                 coroutineScope.launch {
                                                     bringIntoViewRequester.bringIntoView()
-                                                    // Existing notes do not use the blank-row auto-focus path above.
-                                                    // Explicitly request the IME after focus/layout settles so tapping any
-                                                    // saved exercise or set row reliably opens the software keyboard.
                                                     delay(50L)
                                                     keyboardController?.show()
                                                 }
@@ -249,9 +256,6 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                     }
                 }
 
-                // Continue the ruled paper after the final editable row. This is actual LazyColumn
-                // content, so it scrolls naturally with the workout instead of needing a synchronized
-                // background offset. Real rows above keep their own measured-height boundaries.
                 item(key = "notebook-page-filler") {
                     NotebookPageFiller(
                         ruleColor = notebookRuleColor,
@@ -303,12 +307,20 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                     state.onTextChange(keypadIndex, backspaceSetEntry(keypadRow.text.value))
                 },
                 onNext = {
+                    val firstVisibleIndex = state.listState.firstVisibleItemIndex
+                    val firstVisibleOffset = state.listState.firstVisibleItemScrollOffset
                     val current = keypadRow.text.value
                     val submitted = current.copy(
                         text = current.text + "\n",
                         selection = TextRange(current.text.length + 1),
                     )
                     state.onTextChange(keypadIndex, submitted)
+                    coroutineScope.launch {
+                        delay(160L)
+                        if (firstVisibleIndex < state.lines.size) {
+                            state.listState.scrollToItem(firstVisibleIndex, firstVisibleOffset)
+                        }
+                    }
                 },
                 secondsEnabled = true,
             )
@@ -321,8 +333,6 @@ internal fun NotebookInputFrame(
     modifier: Modifier = Modifier,
     innerTextField: @Composable () -> Unit = {},
 ) {
-    // Deliberately transparent: the page ruling is the only field boundary. Focus is communicated
-    // by the native blinking caret rather than a card, outline, or focused container state.
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -376,9 +386,7 @@ private fun ExerciseIdentityPreview(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            labels.take(4).forEach { label ->
-                InlineVariantChip(label)
-            }
+            labels.take(4).forEach { label -> InlineVariantChip(label) }
         }
     }
 }
