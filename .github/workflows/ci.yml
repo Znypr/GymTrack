@@ -22,22 +22,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: android-ci-${{ github.ref }}
+  group: android-ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   validate:
-    name: ${{ matrix.task }}
+    name: Validate and build
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
-    strategy:
-      fail-fast: false
-      matrix:
-        task:
-          - testDebugUnitTest
-          - lintDebug
-          - assembleDebug
 
     steps:
       - name: Check out repository
@@ -55,30 +47,43 @@ jobs:
       - name: Make wrapper executable
         run: chmod +x gradlew
 
-      - name: Run ${{ matrix.task }}
+      - name: Validate pull request
+        if: github.event_name == 'pull_request'
         shell: bash
         run: |
           set +e
-          ./gradlew "${{ matrix.task }}" --console=plain > gradle-output.log 2>&1
+          ./gradlew testDebugUnitTest lintDebug assembleDebug --console=plain > gradle-output.log 2>&1
           status=$?
           if [ "$status" -ne 0 ]; then
-            tail -n 120 gradle-output.log
+            tail -n 160 gradle-output.log
           fi
           exit "$status"
 
-      - name: Upload debug APK
-        if: success() && matrix.task == 'assembleDebug'
+      - name: Build master APK
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set +e
+          ./gradlew assembleDebug --console=plain > gradle-output.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            tail -n 160 gradle-output.log
+          fi
+          exit "$status"
+
+      - name: Upload master debug APK
+        if: success() && github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
           name: GymTrack-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 14
 
       - name: Upload Gradle diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: gradle-${{ matrix.task }}
+          name: gradle-diagnostics
           path: gradle-output.log
           retention-days: 3
