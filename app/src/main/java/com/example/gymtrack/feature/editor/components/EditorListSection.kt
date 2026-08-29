@@ -337,22 +337,21 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
 
 @Composable
 private fun BlinkingFastSetCaret() {
-    val transition = rememberInfiniteTransition(label = "fast-set-caret")
-    val caretAlpha by transition.animateFloat(
-        initialValue = 1f,
-        targetValue = 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 550),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "fast-set-caret-alpha",
-    )
+    var visible by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(500L)
+            visible = !visible
+        }
+    }
+
     Text(
-        text = "|",
-        color = MaterialTheme.colorScheme.primary,
+        text = "│",
+        color = MaterialTheme.colorScheme.onSurface,
         fontSize = 14.sp,
-        fontWeight = FontWeight.Medium,
-        modifier = Modifier.alpha(caretAlpha),
+        fontWeight = FontWeight.Black,
+        modifier = Modifier.alpha(if (visible) 1f else 0f),
     )
 }
 
