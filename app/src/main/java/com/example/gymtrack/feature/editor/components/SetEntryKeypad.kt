@@ -68,12 +68,13 @@ internal fun SetEntryKeypad(
             KeypadButton("7") { onDigit('7') }
             KeypadButton("8") { onDigit('8') }
             KeypadButton("9") { onDigit('9') }
-            KeypadButton("S", enabled = secondsEnabled, onClick = onSeconds)
+            KeypadButton("+") { onDigit('+') }
         }
         KeypadRow {
             KeypadButton(".", onClick = onDecimal)
             KeypadButton("0") { onDigit('0') }
-            KeypadButton("Enter", weight = 2f, onClick = onNext)
+            KeypadButton("S", enabled = secondsEnabled, onClick = onSeconds)
+            KeypadButton("Enter", onClick = onNext)
         }
     }
 }
