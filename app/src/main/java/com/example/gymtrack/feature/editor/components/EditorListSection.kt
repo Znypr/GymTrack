@@ -1,5 +1,10 @@
 package com.example.gymtrack.feature.editor.components
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -37,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -201,12 +207,7 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                                                         fontSize = fontSize,
                                                         fontWeight = fontWeight,
                                                     )
-                                                    Text(
-                                                        text = "|",
-                                                        color = MaterialTheme.colorScheme.primary,
-                                                        fontSize = fontSize,
-                                                        fontWeight = FontWeight.Medium,
-                                                    )
+                                                    BlinkingFastSetCaret()
                                                 }
                                             } else {
                                                 innerTextField()
@@ -295,6 +296,12 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                         state.onTextChange(keypadIndex, insertSetEntryToken(current, "x "))
                     }
                 },
+                onPlus = {
+                    val current = keypadRow.text.value
+                    if (canInsertMyoRepPlus(current)) {
+                        state.onTextChange(keypadIndex, insertSetEntryToken(current, "+"))
+                    }
+                },
                 onSeconds = {
                     val current = keypadRow.text.value
                     val beforeCursor = current.text.take(current.selection.start.coerceIn(0, current.text.length))
@@ -326,6 +333,27 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
             )
         }
     }
+}
+
+@Composable
+private fun BlinkingFastSetCaret() {
+    val transition = rememberInfiniteTransition(label = "fast-set-caret")
+    val caretAlpha by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 550),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "fast-set-caret-alpha",
+    )
+    Text(
+        text = "|",
+        color = MaterialTheme.colorScheme.primary,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Medium,
+        modifier = Modifier.alpha(caretAlpha),
+    )
 }
 
 @Composable
