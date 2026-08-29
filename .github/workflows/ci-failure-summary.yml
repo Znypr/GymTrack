@@ -2,6 +2,7 @@ name: CI Failure Summary
 
 on:
   workflow_run:
+    workflows: ["Android CI", "Migration Tests"]
     types: [completed]
 
 permissions:
@@ -12,7 +13,7 @@ permissions:
 
 jobs:
   summarize:
-    if: ${{ github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.name != 'CI Failure Summary' }}
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ubuntu-latest
     steps:
       - name: Comment on failed pull request checks
