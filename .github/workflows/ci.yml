@@ -66,6 +66,15 @@ jobs:
           fi
           exit "$status"
 
+      - name: Upload debug APK
+        if: success() && matrix.task == 'assembleDebug'
+        uses: actions/upload-artifact@v4
+        with:
+          name: GymTrack-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Upload Gradle diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
