@@ -20,6 +20,19 @@ class FastSetEntryTargetTest {
     }
 
     @Test
+    fun `blank separator before still-blank new exercise is not a fast set target`() {
+        assertFalse(
+            isFastSetEntryCandidate(
+                index = 3,
+                currentText = "",
+                previousText = "      8x 80 (0'45'')",
+                nextText = "",
+                timestamp = "",
+            ),
+        )
+    }
+
+    @Test
     fun `blank row after current exercise is a fast set target`() {
         assertTrue(
             isFastSetEntryCandidate(
