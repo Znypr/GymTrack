@@ -78,12 +78,11 @@ internal fun isFastSetEntryCandidate(
     val isMain = index == 0 || previousText.isNullOrBlank()
     if (isMain || timestamp.isNotBlank()) return false
 
-    // A blank fast-set row becomes the exercise separator as soon as Enter inserts any row
-    // after it, even if that new exercise row is still blank. This is what makes the second
-    // Enter hand focus to the exercise-name field instead of letting the old set row retake it.
     val isSeparatorBeforeExercise = currentText.isBlank() && nextText != null
     return !isSeparatorBeforeExercise
 }
+
+internal fun activeSetAnchorIndex(activeIndex: Int): Int = (activeIndex - 2).coerceAtLeast(0)
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -135,13 +134,23 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                     var isFocused by remember(row.id) { mutableStateOf(false) }
 
                     suspend fun revealFastSetRow() {
-                        // The keypad changes the LazyColumn viewport after activation. Re-checking
-                        // after both layout phases prevents later sets from ending up underneath it.
-                        delay(70L)
+                        // bringIntoView() alone can decide the row is visible using a stale viewport
+                        // while the keypad is still changing the Column height. Explicitly anchor the
+                        // active row with two preceding rows, then use bringIntoView only for the final
+                        // small correction. Repeating after layout settlement removes the dependency on
+                        // the user manually scrolling before adding more sets.
+                        delay(60L)
+                        val currentIndex = state.lines.indexOfFirst { it.id == row.id }
+                        if (currentIndex >= 0) {
+                            state.listState.scrollToItem(activeSetAnchorIndex(currentIndex))
+                        }
+                        delay(100L)
                         bringIntoViewRequester.bringIntoView()
                         delay(180L)
-                        bringIntoViewRequester.bringIntoView()
-                        delay(180L)
+                        val settledIndex = state.lines.indexOfFirst { it.id == row.id }
+                        if (settledIndex >= 0) {
+                            state.listState.scrollToItem(activeSetAnchorIndex(settledIndex))
+                        }
                         bringIntoViewRequester.bringIntoView()
                     }
 
