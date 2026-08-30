@@ -13,10 +13,21 @@ class CanonicalExerciseVisualTransformation(
         val raw = text.text
         if (raw.isBlank()) return TransformedText(text, OffsetMapping.Identity)
 
+        // Brand markers are represented by the variant pill below the exercise. Remove the
+        // recognized marker from the display input before canonicalizing so it is not duplicated
+        // in the title (for example "Dips Hs" -> "Dips" + Hammer Strength pill).
+        val displayRaw = raw
+            .replace(Regex("""(?i)\bhammer\s+strength\b"""), " ")
+            .replace(Regex("""(?i)\brealleader\b"""), " ")
+            .replace(Regex("""(?i)\b(hs|rl)\b"""), " ")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+            .ifBlank { raw }
+
         val canonical = ExerciseIdentityResolver.resolve(
-            rawName = raw,
+            rawName = displayRaw,
             isUnilateral = isUnilateral,
-        ).canonicalName.ifBlank { raw }
+        ).canonicalName.ifBlank { displayRaw }
 
         return TransformedText(
             text = AnnotatedString(canonical),

@@ -78,9 +78,10 @@ internal fun isFastSetEntryCandidate(
     val isMain = index == 0 || previousText.isNullOrBlank()
     if (isMain || timestamp.isNotBlank()) return false
 
-    // Once a nonblank exercise exists after this blank row, the row is the separator
-    // between exercises, not an editable set row for the exercise above it.
-    val isSeparatorBeforeExercise = currentText.isBlank() && !nextText.isNullOrBlank()
+    // A blank fast-set row becomes the exercise separator as soon as Enter inserts any row
+    // after it, even if that new exercise row is still blank. This is what makes the second
+    // Enter hand focus to the exercise-name field instead of letting the old set row retake it.
+    val isSeparatorBeforeExercise = currentText.isBlank() && nextText != null
     return !isSeparatorBeforeExercise
 }
 
@@ -124,39 +125,47 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                         nextText = nextText,
                         timestamp = absText,
                     )
-                    val isNewestRow = row.id == state.nextId - 1
                     val shouldAutoFocusExerciseInput =
                         isMain &&
                             row.text.value.text.isBlank() &&
                             (
                                 (index == 0 && state.lines.size == 1) ||
-                                    (index > 0 && isNewestRow && previousText.isNullOrBlank())
+                                    state.pendingExerciseFocusRowId == row.id
                                 )
                     var isFocused by remember(row.id) { mutableStateOf(false) }
 
+                    suspend fun revealFastSetRow() {
+                        // The keypad changes the LazyColumn viewport after activation. Re-checking
+                        // after both layout phases prevents later sets from ending up underneath it.
+                        delay(70L)
+                        bringIntoViewRequester.bringIntoView()
+                        delay(180L)
+                        bringIntoViewRequester.bringIntoView()
+                        delay(180L)
+                        bringIntoViewRequester.bringIntoView()
+                    }
+
                     LaunchedEffect(row.id, isFastSetEntry, shouldAutoFocusExerciseInput) {
                         if (isFastSetEntry) {
-                            delay(50L)
+                            delay(30L)
                             focusManager.clearFocus(force = true)
                             activeFastSetRowId = row.id
                             keyboardController?.hide()
-
-                            // Wait for the custom keypad to take up its final layout space, then move
-                            // only as much as necessary to keep the active set row above the keypad.
-                            delay(120L)
-                            bringIntoViewRequester.bringIntoView()
+                            revealFastSetRow()
                             keyboardController?.hide()
                         } else {
                             if (activeFastSetRowId == row.id) {
                                 activeFastSetRowId = null
                             }
                             if (shouldAutoFocusExerciseInput) {
-                                // Focus from the row's composition scope so the FocusRequester is
-                                // guaranteed to be attached. This fixes blank Enter -> new exercise.
-                                delay(80L)
+                                activeFastSetRowId = null
+                                focusManager.clearFocus(force = true)
+                                delay(40L)
                                 bringIntoViewRequester.bringIntoView()
                                 fr.requestFocus()
-                                delay(50L)
+                                state.consumePendingExerciseFocus(row.id)
+                                delay(60L)
+                                bringIntoViewRequester.bringIntoView()
                                 keyboardController?.show()
                             }
                         }
@@ -214,8 +223,7 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                                                     focusManager.clearFocus(force = true)
                                                     activeFastSetRowId = row.id
                                                     keyboardController?.hide()
-                                                    delay(120L)
-                                                    bringIntoViewRequester.bringIntoView()
+                                                    revealFastSetRow()
                                                     keyboardController?.hide()
                                                 }
                                             }
@@ -263,9 +271,11 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                                             isFocused = it.isFocused
                                             if (it.isFocused) {
                                                 activeFastSetRowId = null
+                                                state.consumePendingExerciseFocus(row.id)
                                                 coroutineScope.launch {
                                                     bringIntoViewRequester.bringIntoView()
-                                                    delay(50L)
+                                                    delay(80L)
+                                                    bringIntoViewRequester.bringIntoView()
                                                     keyboardController?.show()
                                                 }
                                             }
@@ -370,8 +380,6 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                         text = current.text + "\n",
                         selection = TextRange(current.text.length + 1),
                     )
-                    // The next row owns its own reveal/focus handoff. Do not restore a stale list
-                    // offset here, because that can put the new active row behind the keypad.
                     state.onTextChange(keypadIndex, submitted)
                 },
                 secondsEnabled = true,
