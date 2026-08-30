@@ -124,23 +124,39 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                         nextText = nextText,
                         timestamp = absText,
                     )
+                    val isNewestRow = row.id == state.nextId - 1
+                    val shouldAutoFocusExerciseInput =
+                        isMain &&
+                            row.text.value.text.isBlank() &&
+                            (
+                                (index == 0 && state.lines.size == 1) ||
+                                    (index > 0 && isNewestRow && previousText.isNullOrBlank())
+                                )
                     var isFocused by remember(row.id) { mutableStateOf(false) }
 
-                    LaunchedEffect(row.id, isFastSetEntry) {
+                    LaunchedEffect(row.id, isFastSetEntry, shouldAutoFocusExerciseInput) {
                         if (isFastSetEntry) {
                             delay(50L)
                             focusManager.clearFocus(force = true)
                             activeFastSetRowId = row.id
                             keyboardController?.hide()
-                            delay(50L)
+
+                            // Wait for the custom keypad to take up its final layout space, then move
+                            // only as much as necessary to keep the active set row above the keypad.
+                            delay(120L)
+                            bringIntoViewRequester.bringIntoView()
                             keyboardController?.hide()
                         } else {
                             if (activeFastSetRowId == row.id) {
                                 activeFastSetRowId = null
                             }
-                            if (index == 0 && state.lines.size == 1 && row.text.value.text.isBlank()) {
-                                delay(150L)
+                            if (shouldAutoFocusExerciseInput) {
+                                // Focus from the row's composition scope so the FocusRequester is
+                                // guaranteed to be attached. This fixes blank Enter -> new exercise.
+                                delay(80L)
+                                bringIntoViewRequester.bringIntoView()
                                 fr.requestFocus()
+                                delay(50L)
                                 keyboardController?.show()
                             }
                         }
@@ -198,7 +214,8 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                                                     focusManager.clearFocus(force = true)
                                                     activeFastSetRowId = row.id
                                                     keyboardController?.hide()
-                                                    delay(50L)
+                                                    delay(120L)
+                                                    bringIntoViewRequester.bringIntoView()
                                                     keyboardController?.hide()
                                                 }
                                             }
@@ -348,20 +365,14 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                     state.onTextChange(keypadIndex, backspaceSetEntry(keypadRow.text.value))
                 },
                 onNext = {
-                    val firstVisibleIndex = state.listState.firstVisibleItemIndex
-                    val firstVisibleOffset = state.listState.firstVisibleItemScrollOffset
                     val current = keypadRow.text.value
                     val submitted = current.copy(
                         text = current.text + "\n",
                         selection = TextRange(current.text.length + 1),
                     )
+                    // The next row owns its own reveal/focus handoff. Do not restore a stale list
+                    // offset here, because that can put the new active row behind the keypad.
                     state.onTextChange(keypadIndex, submitted)
-                    coroutineScope.launch {
-                        delay(160L)
-                        if (firstVisibleIndex < state.lines.size) {
-                            state.listState.scrollToItem(firstVisibleIndex, firstVisibleOffset)
-                        }
-                    }
                 },
                 secondsEnabled = true,
             )
