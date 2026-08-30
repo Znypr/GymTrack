@@ -51,6 +51,9 @@ class NoteEditorState(
     private var editRevision = 0L
     private var finishing = false
 
+    var pendingExerciseFocusRowId by mutableStateOf<Long?>(null)
+        private set
+
     var saved by mutableStateOf(false)
         private set
 
@@ -91,6 +94,12 @@ class NoteEditorState(
         saved = false
     }
 
+    fun consumePendingExerciseFocus(rowId: Long) {
+        if (pendingExerciseFocusRowId == rowId) {
+            pendingExerciseFocusRowId = null
+        }
+    }
+
     fun onTextChange(index: Int, newValue: TextFieldValue) {
         if (finishing) return
         markDirty()
@@ -124,14 +133,18 @@ class NoteEditorState(
             lines.add(nextIndex, newRow)
             if (flags.size <= nextIndex) flags.add(row.flag.value) else flags.add(nextIndex, row.flag.value)
             if (timestamps.size <= nextIndex) timestamps.add("") else timestamps.add(nextIndex, "")
-            scope.launch {
-                delay(100L)
-                if (nextIndex < lines.size && nextUsesSystemKeyboard) {
-                    // A blank Enter starts a new exercise and needs Android IME focus. Set rows are
-                    // kept in the current viewport and are revealed by EditorListSection after the
-                    // keypad lays out, avoiding the old jump that could leave a blank page visible.
-                    listState.scrollToItem(nextIndex)
-                    newRow.focusRequester.requestFocus()
+
+            if (nextUsesSystemKeyboard) {
+                // A second Enter on an empty set row explicitly hands ownership to the newly
+                // inserted exercise row. The UI consumes this stable row ID after focus succeeds.
+                pendingExerciseFocusRowId = newRow.id
+                scope.launch {
+                    delay(50L)
+                    if (lines.any { it.id == newRow.id }) {
+                        // Make sure the row is composed. EditorListSection performs the actual
+                        // focus request from the row's attached FocusRequester.
+                        listState.scrollToItem(nextIndex)
+                    }
                 }
             }
             saveNote(isLastNote = false, exit = false)
