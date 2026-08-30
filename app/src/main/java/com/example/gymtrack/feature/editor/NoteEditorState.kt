@@ -126,13 +126,12 @@ class NoteEditorState(
             if (timestamps.size <= nextIndex) timestamps.add("") else timestamps.add(nextIndex, "")
             scope.launch {
                 delay(100L)
-                if (nextIndex < lines.size) {
+                if (nextIndex < lines.size && nextUsesSystemKeyboard) {
+                    // A blank Enter starts a new exercise and needs Android IME focus. Set rows are
+                    // kept in the current viewport and are revealed by EditorListSection after the
+                    // keypad lays out, avoiding the old jump that could leave a blank page visible.
                     listState.scrollToItem(nextIndex)
-                    // Active set rows are controlled by GymTrack's keypad and deliberately do not
-                    // own an Android text-input session. Only a new exercise row requests IME focus.
-                    if (nextUsesSystemKeyboard) {
-                        newRow.focusRequester.requestFocus()
-                    }
+                    newRow.focusRequester.requestFocus()
                 }
             }
             saveNote(isLastNote = false, exit = false)
