@@ -44,6 +44,7 @@ fun NotesScreen(
     onImport: (List<Uri>) -> Unit,
     legacyCsvImportProgress: LegacyCsvImportProgress? = null,
     showLegacyCsvImport: Boolean = false,
+    onOpenNotebookImport: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenStats: () -> Unit,
     onSwipeRight: () -> Unit,
@@ -91,6 +92,13 @@ fun NotesScreen(
                     actions = {
                         IconButton(onClick = onOpenStats) {
                             Icon(Icons.Default.BarChart, contentDescription = "Stats", tint = MaterialTheme.colorScheme.onBackground)
+                        }
+                        IconButton(onClick = onOpenNotebookImport) {
+                            Icon(
+                                Icons.Default.PhotoCamera,
+                                contentDescription = "Import notebook photos",
+                                tint = MaterialTheme.colorScheme.onBackground,
+                            )
                         }
                         if (showLegacyCsvImport) {
                             IconButton(
