@@ -17,13 +17,17 @@ import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import com.example.gymtrack.MainActivity
 import com.example.gymtrack.core.data.ExerciseFlag
-import com.example.gymtrack.feature.editor.NOTE_EDITOR_FINISH_ACTION_TEST_TAG
-import com.example.gymtrack.feature.editor.components.EDITOR_CATEGORY_SELECTOR_TEST_TAG
+import com.example.gymtrack.feature.editor.components.EDITOR_FLAG_SEGMENT_TEST_TAG
+import com.example.gymtrack.feature.editor.components.EDITOR_MENU_CATEGORY_TEST_TAG
+import com.example.gymtrack.feature.editor.components.EDITOR_OVERFLOW_TEST_TAG
+import com.example.gymtrack.feature.editor.components.NOTE_EDITOR_FINISH_ACTION_TEST_TAG
 import com.example.gymtrack.feature.editor.components.NOTE_TIMER_ELAPSED_TEST_TAG
 import com.example.gymtrack.feature.editor.components.SET_ENTRY_KEYPAD_TEST_TAG
 import com.example.gymtrack.feature.editor.components.editorCategoryOptionTestTag
-import com.example.gymtrack.feature.editor.components.editorRowFlagTestTag
+import com.example.gymtrack.feature.editor.components.editorFlagOptionTestTag
 import com.example.gymtrack.feature.editor.components.editorRowInputTestTag
+import com.example.gymtrack.feature.editor.components.formatTopLineElapsed
+import com.example.gymtrack.feature.editor.components.segmentLabel
 import com.example.gymtrack.feature.editor.components.setEntryKeyTestTag
 import com.example.gymtrack.feature.home.HOME_CREATE_WORKOUT_TEST_TAG
 import com.example.gymtrack.feature.home.HOME_OPEN_STATS_TEST_TAG
@@ -73,7 +77,7 @@ class WorkoutRobot(
 
     val rows = mutableListOf<ExpectedRow>()
 
-    /** Flag label ("Bi", "Uni", "SS") each new exercise row showed before the robot touched it. */
+    /** Flag segment label ("Bi", "L/R", "SS") each new exercise showed before the robot touched it. */
     val initialFlagLabels = mutableListOf<String>()
 
     val nowMillis: Long get() = clock.nowMillis()
@@ -87,8 +91,11 @@ class WorkoutRobot(
         activeRow = 0
     }
 
+    /** Editor v2: the category lives in the accessory bar's ⋯ menu (thumb zone). */
     fun pickCategory(name: String) {
-        rule.onNodeWithTag(EDITOR_CATEGORY_SELECTOR_TEST_TAG).performClick()
+        rule.onNodeWithTag(EDITOR_OVERFLOW_TEST_TAG).performClick()
+        waitForTag(EDITOR_MENU_CATEGORY_TEST_TAG)
+        rule.onNodeWithTag(EDITOR_MENU_CATEGORY_TEST_TAG).performClick()
         waitForTag(editorCategoryOptionTestTag(name))
         rule.onNodeWithTag(editorCategoryOptionTestTag(name)).performClick()
         rule.waitForIdle()
@@ -101,22 +108,18 @@ class WorkoutRobot(
 
     /**
      * Types an exercise name on the active (empty) exercise row, sets its flag BEFORE pressing
-     * Enter, then presses Enter, which opens the set keypad on the next row.
+     * Enter (the accessory bar's Bi · L/R · SS segment acts on the focused exercise), then presses
+     * Enter, which opens the set keypad on the next row.
      */
     fun exercise(name: String, flag: ExerciseFlag = ExerciseFlag.BILATERAL, flagAfterEnter: Boolean = false) {
         val inputTag = editorRowInputTestTag(activeRow)
         waitForTag(inputTag)
         rule.onNodeWithTag(inputTag).performTextInput(name)
 
-        val flagTag = editorRowFlagTestTag(activeRow)
-        waitForTag(flagTag)
-        initialFlagLabels += textOf(flagTag)
+        initialFlagLabels += currentFlagLabel()
         if (!flagAfterEnter) {
-            val wanted = flag.label()
-            repeat(3) {
-                if (textOf(flagTag) != wanted) rule.onNodeWithTag(flagTag).performClick()
-            }
-            check(textOf(flagTag) == wanted) { "Flag on row $activeRow is ${textOf(flagTag)}, wanted $wanted" }
+            selectFlag(flag)
+            check(currentFlagLabel() == flag.label()) { "Flag on row $activeRow is ${currentFlagLabel()}, wanted ${flag.label()}" }
         }
 
         rule.onNodeWithTag(inputTag).performTextInput("\n")
@@ -129,13 +132,28 @@ class WorkoutRobot(
         waitForKeypad()
     }
 
-    /** Toggles the flag of an exercise row that is already on screen (e.g. after its Enter). */
+    /**
+     * Sets the flag of the exercise being logged (e.g. after its Enter). The segment acts on the
+     * exercise that owns the keypad row, so [rowIndex] only documents which exercise that is.
+     */
+    @Suppress("UNUSED_PARAMETER")
     fun toggleFlagOfRow(rowIndex: Int, flag: ExerciseFlag) {
-        val flagTag = editorRowFlagTestTag(rowIndex)
-        waitForTag(flagTag)
-        repeat(3) {
-            if (textOf(flagTag) != flag.label()) rule.onNodeWithTag(flagTag).performClick()
-        }
+        selectFlag(flag)
+    }
+
+    /** Label of the selected option in the accessory bar's flag segment. */
+    fun currentFlagLabel(): String {
+        waitForTag(EDITOR_FLAG_SEGMENT_TEST_TAG)
+        return ExerciseFlag.entries.first { flag ->
+            rule.onNodeWithTag(editorFlagOptionTestTag(flag)).fetchSemanticsNode().config
+                .getOrNull(SemanticsProperties.Selected) == true
+        }.label()
+    }
+
+    fun selectFlag(flag: ExerciseFlag) {
+        waitForTag(editorFlagOptionTestTag(flag))
+        if (currentFlagLabel() != flag.label()) rule.onNodeWithTag(editorFlagOptionTestTag(flag)).performClick()
+        rule.waitUntil(UI_TIMEOUT_MS) { currentFlagLabel() == flag.label() }
     }
 
     /** Taps the keys of one set on the keypad without pressing Enter. Returns the typed text. */
@@ -239,6 +257,9 @@ class WorkoutRobot(
         rule.waitUntil(UI_TIMEOUT_MS) { textOf(NOTE_TIMER_ELAPSED_TEST_TAG) == expected }
     }
 
+    /** Waits until the top line shows [elapsedSeconds] in its `m:ss` format. */
+    fun waitForTimerSeconds(elapsedSeconds: Long) = waitForTimer(formatTopLineElapsed(elapsedSeconds))
+
     fun isKeypadShown(): Boolean = exists(SET_ENTRY_KEYPAD_TEST_TAG)
 
     fun waitForKeypad(timeoutMs: Long = UI_TIMEOUT_MS) {
@@ -282,11 +303,7 @@ class WorkoutRobot(
         fun minutesSeconds(totalSeconds: Long): String =
             "${totalSeconds / 60}'${(totalSeconds % 60).toString().padStart(2, '0')}''"
 
-        fun ExerciseFlag.label(): String = when (this) {
-            ExerciseFlag.BILATERAL -> "Bi"
-            ExerciseFlag.UNILATERAL -> "Uni"
-            ExerciseFlag.SUPERSET -> "SS"
-        }
+        fun ExerciseFlag.label(): String = segmentLabel()
     }
 }
 

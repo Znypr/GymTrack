@@ -1,12 +1,15 @@
 package com.example.gymtrack.e2e
 
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.gymtrack.MainActivity
 import com.example.gymtrack.core.data.ExerciseFlag
 import com.example.gymtrack.e2e.WorkoutRobot.Companion.minutesSeconds
-import com.example.gymtrack.feature.editor.NOTE_EDITOR_FINISH_ACTION_TEST_TAG
+import com.example.gymtrack.feature.editor.components.NOTE_EDITOR_FINISH_ACTION_TEST_TAG
 import com.example.gymtrack.feature.editor.components.editorRowInputTestTag
 import com.example.gymtrack.feature.home.components.workoutCardTestTag
 import com.example.gymtrack.feature.stats.statsBadgeValueTestTag
@@ -80,7 +83,7 @@ class WorkoutSimulationTest {
         robot.rest(120); robot.exercise("Plank")
         robot.rest(30); robot.set("60s") // timed set
 
-        robot.waitForTimer(minutesSeconds((robot.nowMillis - robot.workoutTimestamp) / 1_000L))
+        robot.waitForTimerSeconds((robot.nowMillis - robot.workoutTimestamp) / 1_000L)
 
         robot.rest(120) // stretch, then Finish
         val timerAtFinishSeconds = (robot.nowMillis - robot.workoutTimestamp) / 1_000L
@@ -185,7 +188,7 @@ class WorkoutSimulationTest {
         robot.rest(60) // phone locked during the rest
         robot.bringToForeground()
 
-        robot.waitForTimer(minutesSeconds((robot.nowMillis - robot.workoutTimestamp) / 1_000L))
+        robot.waitForTimerSeconds((robot.nowMillis - robot.workoutTimestamp) / 1_000L)
         robot.waitForKeypad()
         robot.rest(90); robot.set("8x80")
 
@@ -212,7 +215,7 @@ class WorkoutSimulationTest {
         robot.rest(120) // checking last week's numbers on Home
         robot.openWorkoutFromHome()
         robot.waitForTag(NOTE_EDITOR_FINISH_ACTION_TEST_TAG)
-        robot.waitForTimer(minutesSeconds((robot.nowMillis - robot.workoutTimestamp) / 1_000L))
+        robot.waitForTimerSeconds((robot.nowMillis - robot.workoutTimestamp) / 1_000L)
         robot.waitForKeypad()
         robot.set("8x80")
         robot.finish()
@@ -238,7 +241,7 @@ class WorkoutSimulationTest {
         robot.recreateActivity()
 
         robot.waitForTag(editorRowInputTestTag(0))
-        robot.waitForTimer(minutesSeconds((robot.nowMillis - robot.workoutTimestamp) / 1_000L))
+        robot.waitForTimerSeconds((robot.nowMillis - robot.workoutTimestamp) / 1_000L)
         robot.waitForKeypad()
 
         robot.rest(90); robot.set("8x80") // rest measured across the recreation: 2'30''
@@ -324,6 +327,26 @@ class WorkoutSimulationTest {
             saved.elapsedColumn.getOrNull(1),
             minutesSeconds((set.enteredAtMillis!! - robot.workoutTimestamp) / 1_000L),
         )
+    }
+
+    /** #328 + #330: a finished workout opens at its top, keypad closed until a set is tapped. */
+    @Test
+    fun history_finishedWorkoutOpensAtTopWithKeypadClosed() {
+        robot.startWorkout()
+        robot.exercise("Bench Press")
+        robot.rest(120); robot.set("8x80")
+        robot.rest(120); robot.set("8x80")
+        robot.finish()
+        SavedWorkout.awaitSaved(appState.context, robot.workoutTimestamp) { it.workout?.status == "COMPLETED" }
+
+        robot.openWorkoutFromHome()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(editorRowInputTestTag(0)).assertIsDisplayed()
+        assertTrue("keypad stays closed on a past workout", !robot.isKeypadShown())
+
+        // Tapping a committed set edits it on the keypad, never the IME.
+        composeRule.onNodeWithTag(editorRowInputTestTag(1)).performClick()
+        robot.waitForKeypad()
     }
 
     private fun assertRowsMatch(saved: SavedWorkout) {
