@@ -353,7 +353,7 @@ class DeviceHistoryDriver(
         val statsCachedMs = measureTimeMillis {
             withStatsViewModel { vm -> withTimeout(60_000L) { vm.uiState.first { !it.isLoading && it.sourceNoteCount == n } } }
         }
-        budget("PERF-HOME-LOAD", "Home grid data load", homeMs, PerfBudget.HOME_LOAD_MS)
+        budget("PERF-HOME-LOAD", "History list data load", homeMs, PerfBudget.HOME_LOAD_MS)
         budget("PERF-EDITOR-OPEN", "Editor open (load newest workout)", editorMs, PerfBudget.EDITOR_OPEN_MS)
         budget("PERF-STATS-FIRST", "Stats first build", statsFirstMs, PerfBudget.STATS_FIRST_MS)
         budget("PERF-STATS-CACHED", "Stats cached build", statsCachedMs, PerfBudget.STATS_CACHED_MS)

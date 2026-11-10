@@ -2,16 +2,15 @@ package com.example.gymtrack.e2e
 
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.gymtrack.MainActivity
 import com.example.gymtrack.core.data.ExerciseFlag
 import com.example.gymtrack.e2e.WorkoutRobot.Companion.minutesSeconds
+import com.example.gymtrack.ACTIVE_WORKOUT_BAR_TEST_TAG
 import com.example.gymtrack.feature.editor.components.NOTE_EDITOR_FINISH_ACTION_TEST_TAG
 import com.example.gymtrack.feature.editor.components.editorRowInputTestTag
-import com.example.gymtrack.feature.home.components.workoutCardTestTag
 import com.example.gymtrack.feature.stats.statsBadgeValueTestTag
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -138,9 +137,8 @@ class WorkoutSimulationTest {
         // Timer stopped by Finish.
         assertNull(saved.timer.activeNoteTimestamp)
 
-        // #323: Home card duration = the timer at Finish, in minutes.
-        val card = workoutCardTestTag(robot.workoutTimestamp)
-        robot.waitForTag(card)
+        // #323: History row duration = the timer at Finish, in minutes.
+        val card = robot.showHistoryRow(robot.workoutTimestamp)
         val cardText = robot.textOf(card)
         assertTrue(cardText, cardText.contains("${timerAtFinishSeconds / 60} min"))
 
@@ -199,11 +197,10 @@ class WorkoutSimulationTest {
         }
         assertEquals(robot.workoutTimestamp, afterBack.timer.activeNoteTimestamp)
         assertTrue(afterBack.timer.isRunning)
-        robot.waitForTag(workoutCardTestTag(robot.workoutTimestamp))
+        // #293: every tab shows the running workout in the active-workout bar.
         expectations.expect(
-            "Home marks the running workout as in progress (#293)",
-            composeRule.onAllNodesWithText("progress", substring = true, ignoreCase = true)
-                .fetchSemanticsNodes().isNotEmpty(),
+            "the active-workout bar shows the running workout (#293)",
+            runCatching { robot.waitForTag(ACTIVE_WORKOUT_BAR_TEST_TAG) }.isSuccess,
             true,
         )
         expectations.expect(
