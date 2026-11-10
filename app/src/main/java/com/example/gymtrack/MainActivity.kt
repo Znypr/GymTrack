@@ -59,7 +59,7 @@ class MainActivity : ComponentActivity() {
             // Render nothing until stored settings are known: avoids the dark/light flash.
             val settings = loadedSettings ?: return@setContent
 
-            GymTrackTheme(darkTheme = settings.darkMode) {
+            GymTrackTheme(themeChoice = settings.themeChoice) {
                 val navController = rememberNavController()
 
                 NavigationHost(
