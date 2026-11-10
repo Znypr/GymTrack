@@ -79,6 +79,12 @@ android {
         compose = true
         buildConfig = true
     }
+    sourceSets {
+        // Deterministic workout-history generator and invariants, shared by the JVM
+        // long-horizon simulation (test) and the on-device simulation (androidTest).
+        getByName("test").java.srcDir("src/sharedTest/java")
+        getByName("androidTest").java.srcDir("src/sharedTest/java")
+    }
 }
 
 tasks.register("validateReleaseConfig") {
