@@ -208,8 +208,12 @@ class DeviceHistoryDriver(
         val stats = withStatsViewModel { vm ->
             withTimeout(30_000L) { vm.uiState.first { !it.isLoading && it.sourceNoteCount == notes.size } }
         }
-        if (stats.totalNotes != sessions.size + preexistingWorkouts) {
-            report("STATS-WORKOUT-COUNT", Severity.MEDIUM, "Stats 'Workouts' differs from workouts done", "stats ${stats.totalNotes}, done ${sessions.size}")
+        // #322: finished ones are counted, unfinished ones shown as "+N unfinished"; together they are everything done.
+        if (stats.totalNotes + stats.unfinishedCount != sessions.size + preexistingWorkouts) {
+            report(
+                "STATS-WORKOUT-COUNT", Severity.MEDIUM, "Stats loses workouts (counted + unfinished differs from workouts done)",
+                "stats ${stats.totalNotes} + ${stats.unfinishedCount} unfinished, done ${sessions.size + preexistingWorkouts}",
+            )
         }
         val finishedCount = sessions.count { it.isFinished } + preexistingWorkouts
         if (stats.totalNotes != finishedCount) {

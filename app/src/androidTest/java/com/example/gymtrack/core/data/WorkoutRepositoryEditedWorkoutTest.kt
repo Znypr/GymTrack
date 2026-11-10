@@ -63,14 +63,28 @@ class WorkoutRepositoryEditedWorkoutTest {
     }
 
     @Test
-    fun editOfAnUnfinishedPastWorkout_writesItsSetsAndStaysPartial() = runBlocking<Unit> {
+    fun editOfAnUnfinishedPastWorkout_staysUncountedAndPartial() = runBlocking<Unit> {
+        // #322: editing a never-finished workout must not turn it into a counted (finished) one.
         val repository = WorkoutRepository(database)
         database.noteDao().insert(note(weight = "80"))
 
         repository.saveEditedWorkout(note(weight = "82.5"), WeightUnit.KG)
 
-        assertEquals(listOf(82.5f, 82.5f), database.setDao().getAllForBackup().map { it.weight })
+        assertEquals(emptyList<Float>(), database.setDao().getAllForBackup().map { it.weight })
         assertEquals(WorkoutStatus.PARTIAL.name, database.canonicalWorkoutDao().getByLegacyTimestamp(START)!!.status)
+        assertEquals("82.5", database.noteDao().getAllForBackup().single().text.substringAfterLast("8x ").trim())
+    }
+
+    @Test
+    fun editOfAnOldWorkoutThatAlreadyHasSets_refreshesThem() = runBlocking<Unit> {
+        // Repaired pre-Finish databases: rows exist without a COMPLETED canonical row; edits still reach Stats.
+        val repository = WorkoutRepository(database)
+        database.noteDao().insert(note(weight = "80"))
+        repository.syncNoteToWorkout(note(weight = "80"))
+
+        repository.saveEditedWorkout(note(weight = "82.5"), WeightUnit.KG)
+
+        assertEquals(listOf(82.5f, 82.5f), database.setDao().getAllForBackup().map { it.weight })
     }
 
     private fun note(weight: String) = NoteEntity(

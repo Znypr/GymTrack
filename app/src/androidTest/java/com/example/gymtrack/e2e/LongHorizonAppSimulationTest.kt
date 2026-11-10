@@ -261,7 +261,8 @@ class LongHorizonAppSimulationTest {
     }
 
     private fun statsScreenShowsWorkoutCount(driver: DeviceHistoryDriver) {
-        val expected = driver.sessions.size
+        // #322: the Workouts badge counts finished workouts only; unfinished ones are shown separately.
+        val expected = driver.sessions.count { it.isFinished }
         ActivityScenario.launch(MainActivity::class.java).use {
             val robot = WorkoutRobot(composeRule, appState.clock) { it }
             robot.waitForTag(HOME_OPEN_STATS_TEST_TAG)

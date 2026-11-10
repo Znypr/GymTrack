@@ -257,6 +257,9 @@ interface SetDao {
     @Query("SELECT COUNT(*) FROM sets")
     suspend fun getCount(): Int
 
+    @Query("SELECT COUNT(*) FROM sets WHERE workoutId = :workoutId")
+    suspend fun countForWorkout(workoutId: Long): Int
+
     /** Rep-weighted average weight per workout, in KILOGRAMS (lb rows converted per set). */
     @Query(
         """
