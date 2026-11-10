@@ -46,8 +46,8 @@ fun buildStatsState(
     val minTime = notes.minOf { it.timestamp }
     val maxTime = notes.maxOf { it.timestamp }
     val durationWeeks = if (range == TimeRange.ALL_TIME) {
-        val diff = (maxTime - minTime).coerceAtLeast(1L)
-        diff.toFloat() / TimeUnit.DAYS.toMillis(7)
+        // At least one week: a single workout (or a few on one day) is "N per week", not N per millisecond.
+        ((maxTime - minTime).toFloat() / TimeUnit.DAYS.toMillis(7)).coerceAtLeast(1f)
     } else {
         range.days / 7f
     }

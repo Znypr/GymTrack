@@ -102,6 +102,16 @@ class StatsUnitsAndCompletionTest {
         assertEquals(WeightUnit.LB, state.displayUnit)
     }
 
+    @Test
+    fun singleWorkoutIsOnePerWeekNotPerMillisecond() {
+        // Device check found "604800000 per week" with one finished workout (all-time span 0).
+        val only = note("Squat\n    5x 100", day = 11)
+        val facts = StatsWorkoutFacts(completedTimestamps = setOf(only.timestamp))
+        val state = buildStatsState(listOf(only), TimeRange.ALL_TIME, facts, WeightUnit.KG, only.timestamp + 1, parser)
+        assertEquals(1, state.totalNotes)
+        assertEquals(1f, state.avgWorkoutsPerWeek, 0.001f)
+    }
+
     private fun note(text: String, day: Int = 1): NoteLine {
         val lines = text.lines()
         return NoteLine(

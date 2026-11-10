@@ -282,7 +282,7 @@ fun ExerciseProgressCard(
                 OutlinedTextField(
                     modifier = Modifier.menuAnchor().fillMaxWidth(),
                     readOnly = true,
-                    value = selectedExercise?.let { "${it.name} (${it.setTotalCount} sets)" } ?: "No exercises found",
+                    value = selectedExercise?.let { "${it.name} (${it.setTotalCount} ${if (it.setTotalCount == 1) "set" else "sets"})" } ?: "No exercises found",
                     onValueChange = {},
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expandedDropdown) },
                     colors = OutlinedTextFieldDefaults.colors(
@@ -371,7 +371,7 @@ private fun ExerciseOptionLabel(exercise: ExerciseGroupWithCount) {
     val summaryLabels = remember(exercise) { dropdownSummaryLabels(exercise) }
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(
-            text = "${exercise.name} (${exercise.setTotalCount} sets)",
+            text = "${exercise.name} (${exercise.setTotalCount} ${if (exercise.setTotalCount == 1) "set" else "sets"})",
             color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
