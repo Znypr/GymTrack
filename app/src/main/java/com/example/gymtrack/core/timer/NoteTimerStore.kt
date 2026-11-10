@@ -1,5 +1,6 @@
 package com.example.gymtrack.core.timer
 
+import com.example.gymtrack.core.time.AppClock
 import android.content.Context
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -25,7 +26,7 @@ object NoteTimerStore {
     suspend fun startOrRestore(
         context: Context,
         noteTimestamp: Long,
-        nowEpochMillis: Long = System.currentTimeMillis(),
+        nowEpochMillis: Long = AppClock.nowMillis(),
     ) {
         context.noteTimerDataStore.edit { preferences ->
             val current = preferences.toTimerState()
@@ -37,7 +38,7 @@ object NoteTimerStore {
     suspend fun pause(
         context: Context,
         noteTimestamp: Long,
-        nowEpochMillis: Long = System.currentTimeMillis(),
+        nowEpochMillis: Long = AppClock.nowMillis(),
     ) {
         context.noteTimerDataStore.edit { preferences ->
             val current = preferences.toTimerState()
@@ -49,7 +50,7 @@ object NoteTimerStore {
     suspend fun resume(
         context: Context,
         noteTimestamp: Long,
-        nowEpochMillis: Long = System.currentTimeMillis(),
+        nowEpochMillis: Long = AppClock.nowMillis(),
     ) {
         context.noteTimerDataStore.edit { preferences ->
             val current = preferences.toTimerState()

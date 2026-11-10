@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,6 +31,9 @@ import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.feature.home.components.WorkoutAlbumCard
+
+internal const val HOME_CREATE_WORKOUT_TEST_TAG = "home-create-workout"
+internal const val HOME_OPEN_STATS_TEST_TAG = "home-open-stats"
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -109,7 +113,9 @@ fun NotesScreen(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                     shape = CircleShape,
-                    modifier = Modifier.size(60.dp),
+                    modifier = Modifier
+                        .size(60.dp)
+                        .testTag(HOME_CREATE_WORKOUT_TEST_TAG),
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Add Note", modifier = Modifier.size(30.dp))
                 }
@@ -131,7 +137,10 @@ fun NotesScreen(
                         )
                     },
                     actions = {
-                        IconButton(onClick = onOpenStats) {
+                        IconButton(
+                            onClick = onOpenStats,
+                            modifier = Modifier.testTag(HOME_OPEN_STATS_TEST_TAG),
+                        ) {
                             Icon(Icons.Default.BarChart, contentDescription = "Stats", tint = MaterialTheme.colorScheme.onBackground)
                         }
                         if (showLegacyCsvImport) {

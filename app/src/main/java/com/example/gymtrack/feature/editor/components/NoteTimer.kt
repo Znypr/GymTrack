@@ -1,5 +1,6 @@
 package com.example.gymtrack.feature.editor.components
 
+import com.example.gymtrack.core.time.AppClock
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
@@ -18,11 +19,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import com.example.gymtrack.core.timer.NoteTimerState
 import com.example.gymtrack.core.timer.NoteTimerStore
 import com.example.gymtrack.core.util.formatSecondsToMinutesSeconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+internal const val NOTE_TIMER_ELAPSED_TEST_TAG = "note-timer-elapsed"
 
 @Composable
 fun NoteTimer(noteTimestamp: Long, startOnOpen: Boolean, modifier: Modifier = Modifier) {
@@ -30,16 +34,16 @@ fun NoteTimer(noteTimestamp: Long, startOnOpen: Boolean, modifier: Modifier = Mo
     val scope = rememberCoroutineScope()
     val states = remember(context) { NoteTimerStore.observe(context) }
     val state by states.collectAsState(initial = NoteTimerState())
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var now by remember { mutableLongStateOf(AppClock.nowMillis()) }
 
     LaunchedEffect(noteTimestamp, startOnOpen) {
         if (startOnOpen) NoteTimerStore.startOrRestore(context, noteTimestamp)
     }
     LaunchedEffect(state.isRunning, state.startedAtEpochMillis) {
-        now = System.currentTimeMillis()
+        now = AppClock.nowMillis()
         while (state.isRunning) {
             delay(1_000L)
-            now = System.currentTimeMillis()
+            now = AppClock.nowMillis()
         }
     }
 
@@ -48,7 +52,10 @@ fun NoteTimer(noteTimestamp: Long, startOnOpen: Boolean, modifier: Modifier = Mo
     val elapsed = if (active) state.elapsedSeconds(now) else 0L
 
     Row(modifier = modifier) {
-        Text(formatSecondsToMinutesSeconds(elapsed))
+        Text(
+            formatSecondsToMinutesSeconds(elapsed),
+            modifier = Modifier.testTag(NOTE_TIMER_ELAPSED_TEST_TAG),
+        )
         IconButton(onClick = {
             scope.launch {
                 if (running) NoteTimerStore.pause(context, noteTimestamp)

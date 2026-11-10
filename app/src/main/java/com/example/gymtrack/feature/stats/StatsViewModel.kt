@@ -1,5 +1,6 @@
 package com.example.gymtrack.feature.stats
 
+import com.example.gymtrack.core.time.AppClock
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -165,13 +166,13 @@ class StatsViewModel(
         return if (this == TimeRange.ALL_TIME) {
             null
         } else {
-            System.currentTimeMillis() / TimeUnit.DAYS.toMillis(1)
+            AppClock.nowMillis() / TimeUnit.DAYS.toMillis(1)
         }
     }
 
     private suspend fun calculateStats(allNotes: List<NoteLine>, range: TimeRange): StatsState = withContext(Dispatchers.Default) {
         val cutoff = if (range.days > 0) {
-            System.currentTimeMillis() - TimeUnit.DAYS.toMillis(range.days.toLong())
+            AppClock.nowMillis() - TimeUnit.DAYS.toMillis(range.days.toLong())
         } else 0L
 
         val notes = allNotes.filter { it.timestamp >= cutoff }

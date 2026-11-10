@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -23,6 +24,8 @@ import com.example.gymtrack.core.util.formatTime
 import com.example.gymtrack.core.util.formatWeekRelativeTime
 import com.example.gymtrack.core.util.parseDurationSeconds
 import com.example.gymtrack.core.util.parseNoteText
+
+internal fun workoutCardTestTag(timestamp: Long): String = "workout-card-$timestamp"
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -66,6 +69,7 @@ fun WorkoutAlbumCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .testTag(workoutCardTestTag(note.timestamp))
             .aspectRatio(1.1f)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .then(if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier),

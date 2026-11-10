@@ -1,5 +1,6 @@
 package com.example.gymtrack.feature.editor
 
+import com.example.gymtrack.core.time.AppClock
 import android.content.Context
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -46,8 +47,8 @@ class NoteEditorState(
     val flags = mutableStateListOf<ExerciseFlag>()
 
     private var startTime: Long? = initialNote?.timestamp
-    private var lastEnter: Long = System.currentTimeMillis()
-    val noteTimestamp: Long = initialNote?.timestamp ?: System.currentTimeMillis()
+    private var lastEnter: Long = AppClock.nowMillis()
+    val noteTimestamp: Long = initialNote?.timestamp ?: AppClock.nowMillis()
     private var editRevision = 0L
     private var finishing = false
 
@@ -107,7 +108,7 @@ class NoteEditorState(
         if (newValue.text.endsWith("\n")) {
             val content = newValue.text.dropLast(1)
             val hasTimestamp = content.trim().matches(Regex(".*\\(\\d+'\\d{2}''\\)$"))
-            val now = System.currentTimeMillis()
+            val now = AppClock.nowMillis()
             val differenceSeconds = (now - lastEnter) / 1_000L
             if (content.isNotBlank()) lastEnter = now
             val relative = formatSecondsToMinutesSeconds(differenceSeconds)
@@ -177,7 +178,7 @@ class NoteEditorState(
             val row = lines[index]
             if (row.text.value.text.isNotBlank() && timestamps.getOrElse(index) { "" }.isBlank()) {
                 ensureListSize(index)
-                timestamps[index] = formatElapsedMinutesSeconds(finalStartTime, System.currentTimeMillis(), settings)
+                timestamps[index] = formatElapsedMinutesSeconds(finalStartTime, AppClock.nowMillis(), settings)
             }
             ensureListSize(index)
             flags[index] = row.flag.value

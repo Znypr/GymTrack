@@ -11,9 +11,19 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+
+internal const val SET_ENTRY_KEYPAD_TEST_TAG = "set-entry-keypad"
+
+/** Stable test tag for a keypad key, e.g. `set-entry-key-8`, `set-entry-key-enter`. */
+internal fun setEntryKeyTestTag(label: String): String = "set-entry-key-" + when (label) {
+    "⌫" -> "backspace"
+    "." -> "decimal"
+    else -> label.lowercase()
+}
 
 internal fun insertSetEntryToken(value: TextFieldValue, token: String): TextFieldValue {
     val start = minOf(value.selection.start, value.selection.end).coerceIn(0, value.text.length)
@@ -66,6 +76,7 @@ internal fun SetEntryKeypad(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .testTag(SET_ENTRY_KEYPAD_TEST_TAG)
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -117,7 +128,8 @@ private fun RowScope.KeypadButton(
         enabled = enabled,
         modifier = Modifier
             .weight(weight)
-            .heightIn(min = 48.dp),
+            .heightIn(min = 48.dp)
+            .testTag(setEntryKeyTestTag(label)),
     ) {
         Text(text = label)
     }

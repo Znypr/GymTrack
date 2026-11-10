@@ -1,5 +1,6 @@
 package com.example.gymtrack.core.util
 
+import com.example.gymtrack.core.time.AppClock
 import com.example.gymtrack.core.data.Settings
 import java.text.SimpleDateFormat
 import java.util.*
@@ -97,7 +98,7 @@ fun parseFullDateTime(value: String): Long {
 
 
 fun formatRelativeTime(timestamp: Long, settings: Settings): String {
-    val now = System.currentTimeMillis()
+    val now = AppClock.nowMillis()
     val diff = now - timestamp
     val date = Date(timestamp)
     val timeFormat =

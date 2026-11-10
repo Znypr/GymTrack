@@ -1,5 +1,6 @@
 package com.example.gymtrack.core.data
 
+import com.example.gymtrack.core.time.AppClock
 import androidx.room.withTransaction
 import com.example.gymtrack.core.data.canonical.toDomain
 import com.example.gymtrack.core.data.transition.CanonicalExerciseCatalog
@@ -184,7 +185,7 @@ class WorkoutRepository(
         note: NoteEntity,
         defaultWeightUnit: WeightUnit = WeightUnit.KG,
     ) {
-        val completedAt = maxOf(System.currentTimeMillis(), note.timestamp)
+        val completedAt = maxOf(AppClock.nowMillis(), note.timestamp)
         database.withTransaction {
             noteDao.insert(note)
             val parsedSets = parser.parseWorkout(
