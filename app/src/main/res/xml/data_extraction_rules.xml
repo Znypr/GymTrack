@@ -1,19 +1,36 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android Auto Backup and device-to-device transfer rules for Android 12+ (API 31+).
+    Android 11 and older use @xml/backup_rules (android:fullBackupContent) instead.
+    Keep both files in sync. Behaviour is documented in docs/BACKUP_FORMAT.md.
+
+    Because <include> is used, ONLY the listed files are copied. Everything else stays on
+    the device, including:
+      - sharedpref/stats_cache.xml          (StatsPersistentCacheStore: rebuildable stats cache)
+      - file/datastore/note_timer.preferences_pb
+                                            (NoteTimerStore: wall-clock based running-timer state,
+                                             wrong after a restore days later or on another device)
+      - file/csv/, file/export_failed.log   (old CSV export copies, derived from the database)
+      - database/note_database-shm          (SQLite shared-memory index; rebuilt on open)
+      - cache, code_cache, no_backup        (never backed up by Android)
 -->
 <data-extraction-rules>
-    <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+    <!-- Google Drive backup. Only runs when the backup is end-to-end encrypted
+         (the device has a screen lock), because workouts may count as health data. -->
+    <cloud-backup disableIfNoEncryptionCapabilities="true">
+        <!-- Room database "note_database": the main file plus its write-ahead log, so
+             changes not yet checkpointed into the main file are not lost. -->
+        <include domain="database" path="note_database" />
+        <include domain="database" path="note_database-wal" />
+        <!-- SettingsStore (DataStore "settings"): 24h clock, rounding, dark mode,
+             categories, default weight unit. -->
+        <include domain="file" path="datastore/settings.preferences_pb" />
     </cloud-backup>
-    <!--
+
+    <!-- Phone-to-phone transfer during new-device setup: same data set. -->
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <include domain="database" path="note_database" />
+        <include domain="database" path="note_database-wal" />
+        <include domain="file" path="datastore/settings.preferences_pb" />
     </device-transfer>
-    -->
 </data-extraction-rules>

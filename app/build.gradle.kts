@@ -25,13 +25,12 @@ fun hasCompleteReleaseSigningConfig(): Boolean = releaseSigningKeys.all { key ->
 
 android {
     namespace = "com.example.gymtrack"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = releaseApplicationId
         minSdk = 26
-        //noinspection OldTargetApi
-        targetSdk = 35
+        targetSdk = 36
         versionCode = releaseVersionCode
         versionName = releaseVersionName
 
