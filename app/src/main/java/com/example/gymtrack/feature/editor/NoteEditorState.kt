@@ -34,6 +34,27 @@ data class NoteRow(
 internal fun shouldStopTimerOnExit(isLastNote: Boolean, finishWorkout: Boolean): Boolean =
     isLastNote && finishWorkout
 
+/** What the set keypad is typing into (EDITOR_V2 §6). */
+enum class KeypadMode {
+    /** The open set row (the last row, or a half-typed draft): keys edit the row itself. */
+    LIVE,
+
+    /** A committed set: keys edit a copy of its entry; Next writes it back, times untouched. */
+    EDIT,
+
+    /** `+ set` on an earlier exercise: keys fill a new set that Next inserts after the anchor row. */
+    INSERT,
+}
+
+/** A deleted set row, kept so the Undo snackbar can put it back where it was. */
+class DeletedEditorRow internal constructor(
+    internal val index: Int,
+    internal val row: NoteRow,
+    internal val timestamp: String,
+    internal val flag: ExerciseFlag,
+    internal val wasCommitted: Boolean,
+)
+
 /** Where [NoteEditorState] sends its saves. Production wraps [EditorViewModel]; tests use a fake. */
 internal interface NoteEditorPersistence {
     val currentId: Long
@@ -106,6 +127,29 @@ class NoteEditorState internal constructor(
     var pendingExerciseFocusRowId by mutableStateOf<Long?>(null)
         private set
 
+    /**
+     * The row the set keypad works on, or null when the keypad is closed. Owned by the state, not
+     * the UI, so opening a past workout can keep it closed (#328) and every path is unit-tested.
+     * In [KeypadMode.INSERT] this is the row the new set goes after.
+     */
+    var keypadRowId by mutableStateOf<Long?>(null)
+        private set
+
+    var keypadMode by mutableStateOf(KeypadMode.LIVE)
+        private set
+
+    /** The entry typed in [KeypadMode.EDIT] / [KeypadMode.INSERT]; the stored row is untouched until Next. */
+    var keypadBuffer by mutableStateOf(TextFieldValue(""))
+        private set
+
+    /** The exercise row that has IME focus, so the flag segment knows its exercise. */
+    var focusedRowId by mutableStateOf<Long?>(null)
+        private set
+
+    /** Bumped when the UI should drop IME focus (Enter on an exercise that already has sets). */
+    var releaseFocusTick by mutableStateOf(0)
+        private set
+
     var saved by mutableStateOf(false)
         private set
 
@@ -144,6 +188,225 @@ class NoteEditorState internal constructor(
         if (finishing) return
         editRevision += 1L
         saved = false
+    }
+
+    fun indexOfRow(rowId: Long?): Int =
+        if (rowId == null) -1 else lines.indexOfFirst { it.id == rowId }
+
+    /** The value the keypad shows and edits. */
+    val keypadValue: TextFieldValue
+        get() = if (keypadMode == KeypadMode.LIVE) {
+            lines.getOrNull(indexOfRow(keypadRowId))?.text?.value ?: TextFieldValue("")
+        } else {
+            keypadBuffer
+        }
+
+    /**
+     * Exercise the flag segment acts on: the one owning the keypad row, else the focused exercise
+     * row. Null when nothing is being edited (the segment is then hidden).
+     */
+    val currentExerciseIndex: Int?
+        get() {
+            val index = indexOfRow(keypadRowId).takeIf { it >= 0 } ?: indexOfRow(focusedRowId).takeIf { it >= 0 }
+            return index?.let(::exerciseIndexOf)
+        }
+
+    /** True once at least one set has been committed: Finish is enabled from then on. */
+    val hasLoggedSet: Boolean
+        get() = lines.indices.any { i ->
+            !isMainRow(i) && lines[i].text.value.text.isNotBlank() && timestamps.getOrElse(i) { "" }.isNotBlank()
+        }
+
+    /**
+     * Opens the keypad on a set row. A committed set is edited through a copy of its entry, so its
+     * indent and times can never be touched (#330 / B14). Exercise and separator rows are ignored.
+     */
+    fun openKeypad(rowId: Long) {
+        if (finishing) return
+        val index = indexOfRow(rowId)
+        if (index < 0 || isMainRow(index)) return
+        val row = lines[index]
+        val text = row.text.value.text
+        if (text.isBlank() && index < lines.lastIndex) return // a separator, not a set
+        focusedRowId = null
+        if (text.isNotBlank() && row.id in committedRowIds) {
+            val entry = splitSetRow(text).entry
+            keypadBuffer = TextFieldValue(entry, TextRange(entry.length))
+            keypadMode = KeypadMode.EDIT
+        } else {
+            row.text.value = row.text.value.copy(selection = TextRange(text.length))
+            keypadBuffer = TextFieldValue("")
+            keypadMode = KeypadMode.LIVE
+        }
+        keypadRowId = rowId
+    }
+
+    fun closeKeypad() {
+        keypadRowId = null
+        keypadMode = KeypadMode.LIVE
+        keypadBuffer = TextFieldValue("")
+    }
+
+    /**
+     * Opening a workout: an active workout comes back with the keypad on its open set row; a past
+     * workout opens at the top with the keypad closed until a row is tapped (#328).
+     */
+    fun restoreKeypadOnOpen(isActiveWorkout: Boolean) {
+        if (!isActiveWorkout || keypadRowId != null) return
+        val last = lines.lastIndex
+        if (last <= 0 || isMainRow(last) || timestamps.getOrElse(last) { "" }.isNotBlank()) return
+        openKeypad(lines[last].id)
+    }
+
+    /** One keypad key (digit, X, S, +, ., ⌫) already applied to [keypadValue]. */
+    fun onKeypadInput(newValue: TextFieldValue) {
+        if (finishing) return
+        when (keypadMode) {
+            KeypadMode.LIVE -> {
+                val index = indexOfRow(keypadRowId)
+                if (index >= 0) onTextChange(index, newValue)
+            }
+            KeypadMode.EDIT, KeypadMode.INSERT -> keypadBuffer = newValue
+        }
+    }
+
+    /** The keypad's Next key. LIVE keeps today's flow: commit + new set row, or next exercise. */
+    fun onKeypadNext() {
+        if (finishing) return
+        val index = indexOfRow(keypadRowId)
+        if (index < 0) {
+            closeKeypad()
+            return
+        }
+        when (keypadMode) {
+            KeypadMode.LIVE -> {
+                val current = lines[index].text.value.text
+                onTextChange(index, TextFieldValue(current + "\n", TextRange(current.length + 1)))
+            }
+            KeypadMode.EDIT -> {
+                val entry = keypadBuffer.text.trim()
+                val row = lines[index]
+                if (entry.isNotEmpty()) {
+                    val updated = splitSetRow(row.text.value.text).withEntry(entry)
+                    if (updated != row.text.value.text) {
+                        markDirty()
+                        row.text.value = TextFieldValue(updated, TextRange(updated.length))
+                        saveNote(isLastNote = false, exit = false)
+                    }
+                }
+                closeKeypad()
+            }
+            KeypadMode.INSERT -> {
+                val entry = keypadBuffer.text.trim()
+                if (entry.isEmpty()) {
+                    closeKeypad()
+                    return
+                }
+                insertCommittedSet(afterIndex = index, entry = entry)
+            }
+        }
+    }
+
+    /** `+ set` at the end of an exercise block (#330 / B9). */
+    fun addSetToExercise(rowIndex: Int) {
+        if (finishing || rowIndex !in lines.indices) return
+        val ex = exerciseIndexOf(rowIndex)
+        if (lines[ex].text.value.text.isBlank()) return
+        var last = ex
+        while (last + 1 < lines.size && !isMainRow(last + 1)) last++
+        val lastRow = lines[last]
+        val lastBlank = lastRow.text.value.text.isBlank()
+        val lastIsListEnd = last == lines.lastIndex
+        focusedRowId = null
+        when {
+            // The open set row of the current exercise: bring the keypad back to it.
+            last != ex && lastIsListEnd && (lastBlank || lastRow.id !in committedRowIds) -> openKeypad(lastRow.id)
+            // The last exercise ends on a committed row: open a fresh set row at the end, as Enter would.
+            lastIsListEnd && !lastBlank -> {
+                val newRow = NoteRow(nextId++, mutableStateOf(TextFieldValue("")), mutableStateOf(lines[ex].flag.value))
+                lines.add(newRow)
+                ensureListSize(lines.lastIndex)
+                flags[lines.lastIndex] = newRow.flag.value
+                openKeypad(newRow.id)
+            }
+            // An earlier exercise: type the set first, insert it on Next (no blank row in between).
+            else -> {
+                val anchor = if (lastBlank) last - 1 else last
+                keypadBuffer = TextFieldValue("")
+                keypadMode = KeypadMode.INSERT
+                keypadRowId = lines[anchor].id
+            }
+        }
+    }
+
+    private fun insertCommittedSet(afterIndex: Int, entry: String) {
+        markDirty()
+        val now = clock()
+        val text = "      $entry (${formatSecondsToMinutesSeconds((now - lastEnter) / 1_000L)})"
+        lastEnter = now
+        val flag = lines[exerciseIndexOf(afterIndex)].flag.value
+        val newRow = NoteRow(nextId++, mutableStateOf(TextFieldValue(text, TextRange(text.length))), mutableStateOf(flag))
+        val at = afterIndex + 1
+        ensureListSize(afterIndex)
+        lines.add(at, newRow)
+        flags.add(at, flag)
+        timestamps.add(at, formatElapsedMinutesSeconds(noteTimestamp, now, settings))
+        committedRowIds += newRow.id
+        // Next = commit and a new set: stay in INSERT, now after the set just added.
+        keypadBuffer = TextFieldValue("")
+        keypadRowId = newRow.id
+        saveNote(isLastNote = false, exit = false)
+    }
+
+    /** Swipe-left delete of a set row (#330 / B8). Returns what Undo needs, or null if not a set. */
+    fun deleteSetRow(index: Int): DeletedEditorRow? {
+        if (finishing || index !in lines.indices || isMainRow(index)) return null
+        val row = lines[index]
+        if (row.text.value.text.isBlank()) return null
+        markDirty()
+        if (keypadRowId == row.id) closeKeypad()
+        ensureListSize(index)
+        val deleted = DeletedEditorRow(index, row, timestamps[index], flags[index], row.id in committedRowIds)
+        lines.removeAt(index)
+        timestamps.removeAt(index)
+        flags.removeAt(index)
+        saveNote(isLastNote = false, exit = false)
+        return deleted
+    }
+
+    fun undoDelete(deleted: DeletedEditorRow) {
+        if (finishing || lines.any { it.id == deleted.row.id }) return
+        markDirty()
+        val at = deleted.index.coerceIn(0, lines.size)
+        lines.add(at, deleted.row)
+        timestamps.add(at, deleted.timestamp)
+        flags.add(at, deleted.flag)
+        if (deleted.wasCommitted) committedRowIds += deleted.row.id
+        saveNote(isLastNote = false, exit = false)
+    }
+
+    /** "Edit as text" from a set row's long-press: replaces only the entry, keeping indent and times. */
+    fun replaceSetEntry(index: Int, entry: String) {
+        if (finishing || index !in lines.indices || isMainRow(index)) return
+        val trimmed = entry.replace("\n", " ").replace("\r", " ").trim()
+        if (trimmed.isEmpty()) return
+        val row = lines[index]
+        val updated = splitSetRow(row.text.value.text).withEntry(trimmed)
+        if (updated == row.text.value.text) return
+        markDirty()
+        row.text.value = TextFieldValue(updated, TextRange(updated.length))
+        saveNote(isLastNote = false, exit = false)
+    }
+
+    /** An exercise row gained IME focus: the keypad closes (one input owner at a time). */
+    fun onExerciseFocused(rowId: Long) {
+        focusedRowId = rowId
+        if (keypadRowId != null) closeKeypad()
+        consumePendingExerciseFocus(rowId)
+    }
+
+    fun onExerciseFocusLost(rowId: Long) {
+        if (focusedRowId == rowId) focusedRowId = null
     }
 
     fun consumePendingExerciseFocus(rowId: Long) {
@@ -192,6 +455,14 @@ class NoteEditorState internal constructor(
         val startsNextExercise = formatted.isBlank()
         if (!startsNextExercise && next != null && next.text.value.text.isBlank()) {
             // The next row already waits for input: move on to it, do not add another (#327).
+            if (nextIndex == lines.lastIndex) openKeypad(next.id) else closeKeypad()
+            saveNote(isLastNote = false, exit = false)
+            return
+        }
+        if (isMain && committed && next != null && next.text.value.text.isNotBlank()) {
+            // Enter after renaming an exercise that already has sets: nothing to open, and no stray
+            // blank row that would turn its first set into an "exercise".
+            releaseFocusTick += 1
             saveNote(isLastNote = false, exit = false)
             return
         }
@@ -205,6 +476,13 @@ class NoteEditorState internal constructor(
         lines.add(nextIndex, newRow)
         if (flags.size <= nextIndex) flags.add(newFlag) else flags.add(nextIndex, newFlag)
         if (timestamps.size <= nextIndex) timestamps.add("") else timestamps.add(nextIndex, "")
+
+        closeKeypad()
+        if (!startsNextExercise) {
+            // One tap per set: the keypad follows to the new set row (§8.1 #1). A row opened
+            // mid-list (IME re-Enter) is not a keypad target and stays closed.
+            openKeypad(newRow.id)
+        }
 
         if (startsNextExercise) {
             // A second Enter on an empty set row explicitly hands ownership to the newly
@@ -229,9 +507,15 @@ class NoteEditorState internal constructor(
      */
     fun toggleFlag(index: Int) {
         if (finishing || index !in lines.indices) return
-        markDirty()
+        setFlag(index, lines[exerciseIndexOf(index)].flag.value.next())
+    }
+
+    /** Sets the flag of the exercise that owns [index] and all its sets (the `Bi · L/R · SS` segment). */
+    fun setFlag(index: Int, newFlag: ExerciseFlag) {
+        if (finishing || index !in lines.indices) return
         val exerciseIndex = exerciseIndexOf(index)
-        val newFlag = lines[exerciseIndex].flag.value.next()
+        if (lines[exerciseIndex].flag.value == newFlag) return
+        markDirty()
         var i = exerciseIndex
         while (i < lines.size) {
             lines[i].flag.value = newFlag
@@ -246,7 +530,7 @@ class NoteEditorState internal constructor(
     private fun isMainRow(index: Int): Boolean =
         index == 0 || lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
 
-    private fun exerciseIndexOf(index: Int): Int {
+    internal fun exerciseIndexOf(index: Int): Int {
         var i = index
         while (i > 0 && !isMainRow(i)) i--
         return i
