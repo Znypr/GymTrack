@@ -9,6 +9,7 @@ plugins {
 
 val releaseApplicationId = "app.znypr.gymtrack"
 val debugApplicationIdSuffix = ".debug"
+val releaseCheckApplicationIdSuffix = ".releasecheck"
 val releaseVersionCode = 2026070701
 val releaseVersionName = "0.1.0"
 val releaseSigningPropertiesFile = rootProject.file("release-signing.properties")
@@ -18,10 +19,28 @@ val releaseSigningProperties = Properties().apply {
     }
 }
 val releaseSigningKeys = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
-fun releaseSigningProperty(name: String): String? = releaseSigningProperties.getProperty(name)
+// CI fallback: when no local properties file exists, the upload key can come from
+// environment variables (GitHub encrypted secrets). See docs/RELEASE.md.
+val releaseSigningEnvironment = mapOf(
+    "storeFile" to "GYMTRACK_UPLOAD_STORE_FILE",
+    "storePassword" to "GYMTRACK_UPLOAD_STORE_PASSWORD",
+    "keyAlias" to "GYMTRACK_UPLOAD_KEY_ALIAS",
+    "keyPassword" to "GYMTRACK_UPLOAD_KEY_PASSWORD",
+)
+fun releaseSigningProperty(name: String): String? =
+    if (releaseSigningPropertiesFile.exists()) {
+        releaseSigningProperties.getProperty(name)
+    } else {
+        releaseSigningEnvironment[name]?.let { System.getenv(it) }
+    }
 fun hasCompleteReleaseSigningConfig(): Boolean = releaseSigningKeys.all { key ->
     !releaseSigningProperty(key).isNullOrBlank()
 }
+// Opt-in escape hatch for CI before the upload key exists: -Pgymtrack.allowUnsignedRelease=true
+// builds an UNSIGNED release AAB/APK instead of failing. Play rejects unsigned uploads.
+val allowUnsignedRelease = providers.gradleProperty("gymtrack.allowUnsignedRelease")
+    .map { it.toBoolean() }
+    .getOrElse(false)
 
 android {
     namespace = "com.example.gymtrack"
@@ -57,8 +76,8 @@ android {
             isDebuggable = true
         }
         release {
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             isDebuggable = false
             signingConfigs.findByName("release")?.let { signingConfig = it }
             proguardFiles(
@@ -66,7 +85,16 @@ android {
                 "proguard-rules.pro"
             )
         }
-
+        // Local-only twin of release: same R8/shrink rules, signed with the debug key and
+        // installed beside the real app (app.znypr.gymtrack.releasecheck) so the minified
+        // build can be smoke-tested on a device without the upload key. Never uploaded.
+        create("releaseCheck") {
+            initWith(getByName("release"))
+            applicationIdSuffix = releaseCheckApplicationIdSuffix
+            versionNameSuffix = "-releasecheck"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -121,6 +149,16 @@ tasks.register("validateReleaseConfig") {
         check(release.signingConfig?.name != "debug") {
             "Release builds must never use the debug signing configuration."
         }
+        check(release.isMinifyEnabled && release.isShrinkResources) {
+            "Release builds must keep R8 minification and resource shrinking on (#337)."
+        }
+        val releaseCheck = android.buildTypes.getByName("releaseCheck")
+        check(releaseCheck.applicationIdSuffix == releaseCheckApplicationIdSuffix) {
+            "The debug-signed releaseCheck build must install as $releaseApplicationId$releaseCheckApplicationIdSuffix, never as the real app."
+        }
+        check(releaseCheck.isMinifyEnabled == release.isMinifyEnabled && releaseCheck.isShrinkResources == release.isShrinkResources) {
+            "releaseCheck must use the same R8 settings as release, or it proves nothing."
+        }
         if (releaseSigningPropertiesFile.exists()) {
             check(hasCompleteReleaseSigningConfig()) {
                 "release-signing.properties exists but is missing one of: ${releaseSigningKeys.joinToString()}."
@@ -163,6 +201,42 @@ tasks.register("validateReleaseHandoff") {
 
 tasks.named("check") {
     dependsOn("validateReleaseConfig")
+}
+
+// Fails a release APK/AAB package step early and clearly when no upload key is configured,
+// instead of silently producing an unsigned artifact. Compile, lint and unit-test tasks
+// of the release variant are not affected.
+val requireReleaseSigning = tasks.register("requireReleaseSigning") {
+    group = "verification"
+    description = "Fails unless the release upload key is configured (or unsigned output was explicitly allowed)."
+    val signed = hasCompleteReleaseSigningConfig()
+    val allowUnsigned = allowUnsignedRelease
+    val propertiesFileExists = releaseSigningPropertiesFile.exists()
+    doLast {
+        if (signed) return@doLast
+        if (allowUnsigned) {
+            logger.warn(
+                "WARNING: building an UNSIGNED release artifact (gymtrack.allowUnsignedRelease=true). " +
+                    "Google Play will not accept it. See docs/RELEASE.md to set up the upload key."
+            )
+            return@doLast
+        }
+        val where = if (propertiesFileExists) {
+            "release-signing.properties exists but is missing one of: ${releaseSigningKeys.joinToString()}."
+        } else {
+            "No release-signing.properties and no GYMTRACK_UPLOAD_* environment variables."
+        }
+        throw GradleException(
+            "Release signing is not configured. $where " +
+                "Create the upload key and release-signing.properties as described in docs/RELEASE.md, " +
+                "use the debug-signed 'releaseCheck' build type for local testing, " +
+                "or pass -Pgymtrack.allowUnsignedRelease=true for an unsigned CI artifact."
+        )
+    }
+}
+
+tasks.matching { it.name == "packageRelease" || it.name == "packageReleaseBundle" }.configureEach {
+    dependsOn(requireReleaseSigning)
 }
 
 dependencies {
