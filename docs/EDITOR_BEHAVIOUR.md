@@ -110,7 +110,7 @@ The grammar is **reps first**: `reps x weight`. Typical keypad sequences:
 - Scroll reveal: first `scrollToItem(index-2)`, then `bringIntoView`, then a second pass after 180 ms to absorb keypad/IME height changes. The list has `imePadding` and 150 dp bottom padding.
 
 ### 2.7 Leaving
-- **Back** (top-left arrow or system back): `saveNote(exit=true)` as a **draft**, then pop. The timer keeps running for the active workout.
+- **Back** (top-left arrow or system back): `saveNote(exit=true)`, then pop. On the active workout it saves a **draft** and the timer keeps running. On a past workout (finished, or no longer the active one), every save, Back included, also re-derives its `sets` and canonical rows (#325, see section 6).
 - **Finish** (top-right text button, only on the active workout): `saveNote(exit=true, finishWorkout=true)` **finalises** (parse + derived set rows + training-summary outbox, in one transaction), stops the timer, then pops. See section 6.
 
 ---
@@ -192,13 +192,14 @@ Redundant or low-value today:
 
 ## 6. Save and finish semantics
 
-- **Draft** = `NoteRepository.saveNote` (note row only, no parsing). It is triggered by Enter (every row), flag toggle, `ON_STOP`, and Back. Each save serialises `text` + `rowMetadata` + title, category and learnings.
-- **Finalize** = `WorkoutRepository.saveCompletedWorkout` (`core/data/WorkoutRepository.kt:183-207`). It runs in one Room transaction: upsert note, parse, replace derived legacy sets, canonical projection, training-summary outbox. It is triggered **only by Finish**.
+- **Draft** = `NoteRepository.saveNote` (note row only, no parsing). It is triggered by Enter (every row), flag toggle, `ON_STOP`, and Back on the **active** workout. Each save serialises `text` + `rowMetadata` + title, category and learnings.
+- **History-edit save** (#325) = `WorkoutRepository.saveEditedWorkout`. The same triggers on a workout that is not the active one, or is already `COMPLETED` (`shouldRefreshDerivedDataOnSave`). It runs in one transaction: note, parse, derived legacy sets and canonical rows. Status, Finish time (`ended_at`) and `created_at` are kept, and no training summary is enqueued.
+- **Finalize** = `WorkoutRepository.saveCompletedWorkout` (`core/data/WorkoutRepository.kt:183-207`). It runs in one Room transaction: upsert note, parse, replace derived legacy sets, canonical projection (`ended_at` = Finish time per `docs/WORKOUT_DURATION.md`), training-summary outbox. It is triggered **only by Finish**.
 - `EditorSaveCoordinator`: a mutex serialises writes and skips a queued draft once a newer revision exists. A finalize is never dropped. On failure the editor stays open and shows a snackbar error. `finishing=true` blocks later edits and autosaves.
 - `saveNote` early-returns when `saved && !exit` (nothing changed). A new empty workout with no title or learnings is not saved at all on exit.
 - Timer (`docs/TIMER.md`): starts automatically for a new workout. Back keeps it running, so you can browse history mid-workout. Finish stops it after a successful finalize (`shouldStopTimerOnExit`, tested in `NoteEditorExitPolicyTest`). Stop on the timer row clears it without leaving.
 - **Finish visibility**: `isLastNote = noteId == -1 || noteId == activeTimer.noteTimestamp` (`ActiveWorkoutControls.kt`, `NavigationHost.kt:147-164`). Historical workouts have **no Finish**.
-- **Doc vs code mismatch**: `docs/EDITOR_SAVE_PIPELINE.md` says "Back navigation → Workout finalization". In code, Back only saves a draft (`NoteEditor.kt:94, 121`, `NoteEditorState.saveNote` with `finishWorkout=false`).
+- **Doc vs code** (resolved by #325): `docs/EDITOR_SAVE_PIPELINE.md` used to say that Back finalizes. It now describes the real behaviour: Back is a draft on the active workout and a history-edit save on a past one. Back never finalizes.
 
 ---
 
@@ -331,7 +332,7 @@ The superset is logged as two consecutive blocks. Nothing pairs them, and the re
 **Data correctness**
 - **B1 Flag drift.** Toggling an exercise flag after its sets exist updates only the exercise row (`NoteEditorState.kt:156-165`). Set rows keep the old flag in `rowMetadata`, and the parser reads the *set* flag (`WorkoutParser.kt:375`), while the UI tag reads the *parent* (`EditorListSection.kt:215-218`). What is shown and what is counted disagree.
 - **B2 Flag carries into the next exercise** through the separator (`NoteEditorState.kt:131`). Uni and SS leak forward, so the user must remember to reset.
-- **B3 History edits never reach stats.** Historical workouts have no Finish button, and Back saves only a draft (`NoteEditor.kt:94,121,130-139`), so derived set rows and charts stay stale. An abandoned active workout (Back, never Finish) is never finalised either. This also contradicts `docs/EDITOR_SAVE_PIPELINE.md`.
+- **B3 History edits never reach stats.** *(Fixed by #325: past-workout saves now re-derive `sets` and canonical rows. An abandoned active workout is re-derived as soon as it is edited after it stops being the active one.)* Historical workouts have no Finish button, and Back saves only a draft (`NoteEditor.kt:94,121,130-139`), so derived set rows and charts stay stale. An abandoned active workout (Back, never Finish) is never finalised either. This also contradicts `docs/EDITOR_SAVE_PIPELINE.md`.
 - **B4 Re-Enter restamps.** Pressing Enter at the end of an already committed row overwrites its absolute time with *now* (`NoteEditorState.kt:124`; only the relative is protected by `hasTimestamp`, `:109,119`). It also inserts an extra row.
 - **B5 Clock base shifts on reopen.** A new session measures absolute time from the first exercise Enter (`:115`). After reopening, `startTime = note.timestamp` (editor-open time, `:86`), so absolute times jump by the delay between opening and the first exercise. `lastEnter` is reconstructed from that base (`:87`), so the first relative time after reopening can also be wrong or huge.
 - **B6 [inferred] Keypad pops when viewing history.** The trailing blank set row that every Enter leaves is persisted. On reopen it is a fast-set candidate, so the keypad opens and the list scrolls to the bottom, against `scrollToItem(0)` (`EditorListSection.kt:157-164` vs `NoteEditor.kt:72-76`).

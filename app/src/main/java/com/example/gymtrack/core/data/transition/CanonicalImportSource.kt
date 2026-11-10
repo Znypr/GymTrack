@@ -54,12 +54,16 @@ internal object CanonicalImportSource {
     /**
      * The import rule for a row that already exists: content comes from the new projection, but the
      * import never lowers the status (a `COMPLETED` row written by the completion path stays
-     * `COMPLETED`), never moves `createdAt` later and never moves `updatedAt` back in time.
+     * `COMPLETED`), never moves `createdAt` later and never moves `updatedAt` back in time. A
+     * `COMPLETED` row also keeps its `endedAt`: that is the Finish time, which the note text cannot
+     * reproduce (docs/WORKOUT_DURATION.md).
      */
     fun merge(existing: CanonicalWorkoutEntity?, projected: CanonicalWorkoutEntity): CanonicalWorkoutEntity {
         if (existing == null) return projected
+        val keepFinishTime = existing.status == WorkoutStatus.COMPLETED.name && existing.endedAt != null
         return projected.copy(
             status = higherStatus(existing.status, projected.status),
+            endedAt = if (keepFinishTime) existing.endedAt else projected.endedAt,
             createdAt = minOf(existing.createdAt, projected.createdAt),
             updatedAt = maxOf(existing.updatedAt, projected.updatedAt),
         )

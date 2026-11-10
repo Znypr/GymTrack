@@ -74,6 +74,12 @@ The branch is rebased onto `origin/master` (#351, #352, #353, #354), and the JVM
 - **No other change:** all other JVM findings (9–16, 19–23) appear with the same first day and the same counts.
 - **#354 (API 36, backup rules)** does not affect any finding.
 
+### Fixed on `claude/save-and-duration-1610cc` (#325, #321, #323)
+
+- **#4 / #24 (#325):** saves of a past workout now re-derive its `sets` and canonical rows (`WorkoutRepository.saveEditedWorkout`). `DeviceHistoryDriver` now edits through that path. The device check `LEGACY-STALE-AFTER-EDIT` should be clean on the next emulator run, which has not been done yet.
+- **#16 (#321) and #20 (#323):** one duration rule, documented in docs/WORKOUT_DURATION.md: start → Finish (or the last row), ending before a pause of more than 3 h. The JVM run (3 seeds) no longer reports `IMPLAUSIBLE-DURATION`, `DURATION-ENDS-AT-LAST-SET` or `STATS-DROPS-LONG-WORKOUTS`.
+- **#3 (#293), partly:** a workout left with Back and replaced is re-derived the next time it is opened and left. It is still not re-derived automatically, and it still cannot be finished.
+
 ### Checked with no finding
 
 These ran on the device or JVM without finding a problem:

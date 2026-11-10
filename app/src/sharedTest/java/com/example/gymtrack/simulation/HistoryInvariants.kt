@@ -139,7 +139,9 @@ class HistoryInvariants(
                 )
             }
             val finished = session.finishedAtMillis
-            if (finished != null && abs(finished - ended) > 4L * 60_000L && duration <= MAX_PLAUSIBLE_WORKOUT_MILLIS) {
+            // A workout resumed after a long pause (lateSet) ends before the pause by design
+            // (docs/WORKOUT_DURATION.md), so its Finish next morning is not the end.
+            if (finished != null && w.lateSet == null && abs(finished - ended) > 4L * 60_000L && duration <= MAX_PLAUSIBLE_WORKOUT_MILLIS) {
                 report(
                     "DURATION-ENDS-AT-LAST-SET", Severity.LOW,
                     "Saved duration ends at the last set, not at Finish (card shows less than the timer)",

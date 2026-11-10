@@ -31,12 +31,40 @@ class EditorViewModel(
 
     var currentDefaultWeightUnit: WeightUnit = WeightUnit.KG
 
-    private val saveCoordinator = EditorSaveCoordinator(
-        persistDraft = noteRepo::saveNote,
+    /**
+     * Whether this editor shows the running workout (the one with Finish). Set by the editor
+     * screen; true until then, which keeps the cheap draft-only path as the default.
+     */
+    @Volatile
+    var isActiveWorkout: Boolean = true
+
+    private val saveCoordinator = EditorSaveCoordinator<NoteLine>(
+        persistDraft = { note ->
+            val refresh = shouldRefreshDerivedDataOnSave(
+                isActiveWorkout = isActiveWorkout,
+                isCompleted = { workoutRepo.isCompleted(note.timestamp) },
+            )
+            if (refresh) persistHistoryEdit(note) else noteRepo.saveNote(note)
+        },
         finalizeWorkout = { note ->
             workoutRepo.saveCompletedWorkout(note.toEntity(), currentDefaultWeightUnit)
         },
     )
+
+    /**
+     * An edit to a past workout updates its derived Stats data (#325). If that fails, the text is
+     * still saved as a plain draft so nothing typed is lost. The failure is not rethrown: Back
+     * would then fail every time and trap the user in the editor. The derived rows stay as they
+     * were and are re-derived on the next successful save of this workout.
+     */
+    private suspend fun persistHistoryEdit(note: NoteLine) {
+        try {
+            workoutRepo.saveEditedWorkout(note.toEntity(), currentDefaultWeightUnit)
+        } catch (error: Exception) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
+            noteRepo.saveNote(note)
+        }
+    }
 
     private val idLock = Any()
 
@@ -175,3 +203,14 @@ class EditorViewModel(
         }
     }
 }
+
+/**
+ * Draft saves of a workout that is not the running one, or that is already finished, also
+ * re-derive its sets and canonical rows, because such a workout has no Finish button and would
+ * otherwise never reach Stats (#325). The running workout keeps the cheap draft-only save until
+ * Finish. [isCompleted] is only queried when the workout is the running one.
+ */
+internal suspend fun shouldRefreshDerivedDataOnSave(
+    isActiveWorkout: Boolean,
+    isCompleted: suspend () -> Boolean,
+): Boolean = !isActiveWorkout || isCompleted()

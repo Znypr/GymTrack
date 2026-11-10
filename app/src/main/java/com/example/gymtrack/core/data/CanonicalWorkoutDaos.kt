@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CanonicalWorkoutDao {
@@ -31,7 +32,19 @@ interface CanonicalWorkoutDao {
 
     @Query("SELECT COUNT(*) FROM workouts")
     suspend fun getCount(): Int
+
+    /** Finish time (`ended_at`) of every completed legacy-backed workout, for the Home cards. */
+    @Query(
+        "SELECT legacy_timestamp AS legacyTimestamp, ended_at AS endedAt FROM workouts " +
+            "WHERE status = 'COMPLETED' AND legacy_timestamp IS NOT NULL AND ended_at IS NOT NULL",
+    )
+    fun observeCompletedEndTimes(): Flow<List<CompletedWorkoutEndTime>>
 }
+
+data class CompletedWorkoutEndTime(
+    val legacyTimestamp: Long,
+    val endedAt: Long,
+)
 
 @Dao
 interface CanonicalWorkoutExerciseDao {

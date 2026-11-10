@@ -39,6 +39,7 @@ internal const val HOME_OPEN_STATS_TEST_TAG = "home-open-stats"
 @Composable
 fun NotesScreen(
     notes: List<NoteLine>,
+    finishTimes: Map<Long, Long> = emptyMap(),
     selectedNotes: Set<NoteLine> = emptySet(),
     onSelect: (Set<NoteLine>) -> Unit,
     onEdit: (NoteLine) -> Unit,
@@ -278,6 +279,7 @@ fun NotesScreen(
                     val isSelected = selectedNotes.contains(note)
                     WorkoutAlbumCard(
                         note = note,
+                        finishedAtMillis = finishTimes[note.timestamp],
                         isSelected = isSelected,
                         onClick = {
                             if (selectedNotes.isNotEmpty()) {
