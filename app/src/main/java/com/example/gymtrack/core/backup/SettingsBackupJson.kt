@@ -2,13 +2,16 @@ package com.example.gymtrack.core.backup
 
 import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.Settings
+import com.example.gymtrack.core.data.ThemeChoice
 import com.example.gymtrack.core.data.WeightUnit
 import org.json.JSONObject
 
 internal fun Settings.asBackupJson(): JSONObject = JSONObject()
     .put("is24Hour", is24Hour)
     .put("roundingSeconds", roundingSeconds)
-    .put("darkMode", darkMode)
+    .put("themeChoice", themeChoice.storageValue)
+    // Kept so older app versions (which require it) can still restore this backup.
+    .put("darkMode", themeChoice.isDark(systemDark = true))
     .put("defaultWeightUnit", defaultWeightUnit.storageValue)
     .put("categories", categories.asJsonArray { value ->
         JSONObject().put("name", value.name).put("color", value.color)
@@ -17,7 +20,11 @@ internal fun Settings.asBackupJson(): JSONObject = JSONObject()
 internal fun JSONObject.asBackupSettings(): Settings = Settings(
     is24Hour = getBoolean("is24Hour"),
     roundingSeconds = getInt("roundingSeconds"),
-    darkMode = getBoolean("darkMode"),
+    // Optional since v2: old backups only have darkMode, which maps to Normal dark/light.
+    themeChoice = ThemeChoice.fromStorage(
+        value = optString("themeChoice", "").ifEmpty { null },
+        legacyDarkMode = if (has("darkMode")) optBoolean("darkMode") else null,
+    ),
     categories = getJSONArray("categories").mapJsonObjects { value ->
         Category(value.getString("name"), value.getLong("color"))
     },

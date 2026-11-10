@@ -1,7 +1,7 @@
 package com.example.gymtrack.core.backup
 
 internal fun GymTrackBackupPayload.replacementPayload(): GymTrackBackupPayload = copy(
-    settings = settings.copy(darkMode = !settings.darkMode),
+    settings = settings.copy(themeChoice = settings.themeChoice.flipped()),
     legacyNotes = legacyNotes.map { it.copy(title = "Replacement") },
     canonicalWorkouts = canonicalWorkouts.map { it.copy(title = "Replacement") },
     canonicalWorkoutSets = canonicalWorkoutSets.map { it.copy(weight = 120.0) },
@@ -10,7 +10,7 @@ internal fun GymTrackBackupPayload.replacementPayload(): GymTrackBackupPayload =
 internal fun GymTrackBackupPayload.cyclicPayload(): GymTrackBackupPayload {
     val template = canonicalExercises.single()
     return copy(
-        settings = settings.copy(darkMode = !settings.darkMode),
+        settings = settings.copy(themeChoice = settings.themeChoice.flipped()),
         canonicalExercises = listOf(
             template.copy(
                 id = "cycle-a",
@@ -31,3 +31,10 @@ internal fun GymTrackBackupPayload.cyclicPayload(): GymTrackBackupPayload {
         canonicalWorkoutSets = emptyList(),
     )
 }
+
+private fun com.example.gymtrack.core.data.ThemeChoice.flipped() =
+    if (this == com.example.gymtrack.core.data.ThemeChoice.NOTEBOOK) {
+        com.example.gymtrack.core.data.ThemeChoice.NORMAL_DARK
+    } else {
+        com.example.gymtrack.core.data.ThemeChoice.NOTEBOOK
+    }

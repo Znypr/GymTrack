@@ -19,11 +19,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.Settings
+import com.example.gymtrack.core.data.ThemeChoice
 import com.example.gymtrack.core.data.WeightUnit
 
 private val CardDeepDark = Color(0xFF181818)
@@ -74,7 +78,10 @@ fun SettingsScreen(
             item {
                 SettingsSectionTitle("Preferences")
                 SettingsCard {
-                    SettingsSwitchRow("Dark Mode", settings.darkMode) { update { copy(darkMode = it) } }
+                    SettingsThemeRow(
+                        selected = settings.themeChoice,
+                        onSelected = { choice -> update { copy(themeChoice = choice) } },
+                    )
                     HorizontalDivider(color = textColor.copy(alpha = 0.1f))
                     SettingsSwitchRow("24-Hour Time", settings.is24Hour) { update { copy(is24Hour = it) } }
                     HorizontalDivider(color = textColor.copy(alpha = 0.1f))
@@ -190,6 +197,56 @@ private fun SettingsActionRow(
         )
     }
 }
+
+/** Theme picker (#333): replaces the v1 Dark Mode switch. One radio row per choice. */
+@Composable
+private fun SettingsThemeRow(
+    selected: ThemeChoice,
+    onSelected: (ThemeChoice) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp)) {
+        Text(
+            text = "Theme",
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+        Column(Modifier.selectableGroup()) {
+            THEME_OPTIONS.forEach { (choice, description) ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp)
+                        .selectable(
+                            selected = choice == selected,
+                            onClick = { onSelected(choice) },
+                            role = Role.RadioButton,
+                        )
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RadioButton(selected = choice == selected, onClick = null)
+                    Spacer(Modifier.width(16.dp))
+                    Column {
+                        Text(choice.label, color = MaterialTheme.colorScheme.onSurface)
+                        Text(
+                            text = description,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private val THEME_OPTIONS = listOf(
+    ThemeChoice.NORMAL_DARK to "Black OLED background",
+    ThemeChoice.NORMAL_LIGHT to "Light background",
+    ThemeChoice.SYSTEM to "Normal, light or dark like your phone",
+    ThemeChoice.NOTEBOOK to "Hand-drawn paper and pencil",
+)
 
 @Composable
 private fun SettingsWeightUnitRow(
