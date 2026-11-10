@@ -2,10 +2,9 @@ package com.example.gymtrack.simulation
 
 import com.example.gymtrack.core.data.ExerciseFlag
 import com.example.gymtrack.core.data.NoteEntity
-import com.example.gymtrack.core.data.Settings
-import com.example.gymtrack.core.util.buildNoteRowMetadata
-import com.example.gymtrack.core.util.formatElapsedMinutesSeconds
-import com.example.gymtrack.core.util.formatSecondsToMinutesSeconds
+import com.example.gymtrack.core.util.parseNoteText
+import com.example.gymtrack.feature.editor.NoteEditorDriver
+import com.example.gymtrack.feature.editor.SavedEditorNote
 
 /** A set the user really did, in generator truth (independent of how the app stores it). */
 data class TruthSet(
@@ -20,13 +19,13 @@ data class TruthSet(
 data class EditorRow(val text: String, val elapsed: String, val flag: ExerciseFlag)
 
 /**
- * The note an editor session leaves behind, built with the same rules as
- * `NoteEditorState.onTextChange` / `saveNote` (verified against the UI by `WorkoutSimulationTest`):
- * - the grey elapsed column counts from the first exercise Enter, rounded to 5 s;
- * - after a reopen (Back, then open from Home, or process death) it counts from the + tap;
- * - set rows read `"      <keys> (<rest>)"`, rest = time since the previous non-blank Enter;
- * - a new row inherits the flag of the row Enter was pressed on;
- * - ON_STOP stamps a half-typed row with the stop time and leaves its text as typed.
+ * The note an editor session leaves behind. The session is played through the real
+ * `NoteEditorState` (fake clock, saves captured in memory, see [NoteEditorDriver]) with the
+ * keystrokes a user makes:
+ * - IME name + Enter per exercise, the flag tapped before or after that Enter;
+ * - keypad keys + Enter per set; an empty Enter before the next exercise;
+ * - ON_STOP with a half-typed set, then a kill (a new editor from the draft) and Finish;
+ * - Back, then a reopen (a new editor from the draft) next morning for a forgotten set.
  */
 data class EditorSession(
     val workout: SimWorkout,
@@ -42,78 +41,83 @@ data class EditorSession(
 }
 
 object EditorTranscript {
-    private val settings = Settings()
 
     fun build(workout: SimWorkout): EditorSession {
-        val t0 = workout.startMillis
-        var now = t0
-        var lastEnter = t0
-        var base: Long? = null
-        var rowFlag = ExerciseFlag.BILATERAL
-        val rows = mutableListOf<EditorRow>()
+        var editor = NoteEditorDriver(startMillis = workout.startMillis) // the + tap
         val truth = mutableListOf<TruthSet>()
 
-        fun elapsed(at: Long) = formatElapsedMinutesSeconds(base ?: at, at, settings)
-
-        workout.exercises.forEach { exercise ->
-            now += exercise.walkSeconds * 1_000L
-            val headerInitialFlag = rowFlag
-            if (base == null) base = now
-            lastEnter = now
-            rows += EditorRow(exercise.typedName, elapsed(now), exercise.flag)
-            val setFlag = if (exercise.flagAfterEnter) headerInitialFlag else exercise.flag
-            exercise.sets.forEach { set ->
-                now += set.restBeforeSeconds * 1_000L
-                val rest = (now - lastEnter) / 1_000L
-                lastEnter = now
-                rows += EditorRow("      ${set.editorText} (${formatSecondsToMinutesSeconds(rest)})", elapsed(now), setFlag)
-                truth += set.truth(exercise, now)
+        fun setFlag(row: Int, flag: ExerciseFlag) {
+            repeat(ExerciseFlag.entries.size) {
+                if (editor.state.lines[row].flag.value != flag) editor.state.toggleFlag(row)
             }
-            rows += EditorRow("", "", setFlag)
-            rowFlag = setFlag
+        }
+
+        workout.exercises.forEachIndexed { index, exercise ->
+            if (index > 0) editor.enter(editor.lastIndex) // empty Enter ends the previous exercise
+            editor.advance(exercise.walkSeconds)
+            val row = editor.lastIndex
+            editor.type(row, exercise.typedName)
+            if (!exercise.flagAfterEnter) setFlag(row, exercise.flag)
+            editor.enter(row)
+            if (exercise.flagAfterEnter) setFlag(row, exercise.flag)
+            exercise.sets.forEach { set ->
+                editor.advance(set.restBeforeSeconds)
+                editor.typeAndEnter(editor.lastIndex, set.editorText)
+                truth += set.truth(exercise, editor.now)
+            }
         }
 
         var draftAtBack: NoteEntity? = null
         when {
             workout.partialKeys != null -> {
-                // User taps "8x8" on the keypad, the phone locks (ON_STOP draft save stamps the
-                // row), Android kills the process, the user reopens and taps Finish.
-                now += 90_000L
-                rows[rows.lastIndex] = EditorRow(workout.partialKeys.replace("x", "x "), elapsed(now), rowFlag)
-                draftAtBack = note(workout, rows)
+                // User taps "8x8" on the keypad, the phone locks (ON_STOP draft save), Android
+                // kills the process, the user reopens and taps Finish.
+                editor.advance(90)
+                editor.type(editor.lastIndex, workout.partialKeys.replace("x", "x "))
+                editor.stop()
+                val draft = editor.lastSave
+                draftAtBack = note(workout, draft)
+                editor = NoteEditorDriver(initialNote = draft.toNoteLine(), startMillis = editor.now)
             }
             workout.lateSet != null -> {
                 // Back after the last set; reopened next morning, one forgotten set added.
-                draftAtBack = note(workout, rows)
-                val lastAbsSeconds = rows.last { it.elapsed.isNotBlank() }.elapsed.toSeconds()
-                base = t0
-                lastEnter = t0 + lastAbsSeconds * 1_000L
-                now += workout.lateSet.restBeforeSeconds * 1_000L
-                val rest = (now - lastEnter) / 1_000L
-                lastEnter = now
-                rows[rows.lastIndex] = EditorRow(
-                    "      ${workout.lateSet.editorText} (${formatSecondsToMinutesSeconds(rest)})",
-                    elapsed(now),
-                    rowFlag,
-                )
-                rows += EditorRow("", "", rowFlag)
-                truth += workout.lateSet.truth(workout.exercises.last(), now)
+                editor.back()
+                val draft = editor.lastSave
+                draftAtBack = note(workout, draft)
+                editor = NoteEditorDriver(initialNote = draft.toNoteLine(), startMillis = editor.now)
+                editor.advance(workout.lateSet.restBeforeSeconds)
+                editor.typeAndEnter(editor.lastIndex, workout.lateSet.editorText)
+                truth += workout.lateSet.truth(workout.exercises.last(), editor.now)
             }
-            workout.finishMode == FinishMode.NEVER_FINISHED -> draftAtBack = note(workout, rows)
+            workout.finishMode == FinishMode.NEVER_FINISHED -> {
+                editor.back()
+                draftAtBack = note(workout, editor.lastSave)
+            }
         }
 
-        val finishedAt = if (workout.finishMode == FinishMode.NEVER_FINISHED) null else now + workout.finishDelaySeconds * 1_000L
-        return EditorSession(workout, rows.toList(), truth, draftAtBack, note(workout, rows), finishedAt)
+        val finishedAt = if (workout.finishMode == FinishMode.NEVER_FINISHED) {
+            null
+        } else {
+            editor.advance(workout.finishDelaySeconds)
+            editor.finish()
+            editor.now
+        }
+        val final = editor.lastSave
+        val parsed = parseNoteText(final.text, final.rowMetadata)
+        val rows = parsed.first.mapIndexed { i, text ->
+            EditorRow(text, parsed.second.getOrElse(i) { "" }, parsed.third.getOrElse(i) { ExerciseFlag.BILATERAL })
+        }
+        return EditorSession(workout, rows, truth, draftAtBack, note(workout, final), finishedAt)
     }
 
-    fun note(workout: SimWorkout, rows: List<EditorRow>): NoteEntity = NoteEntity(
-        timestamp = workout.startMillis,
+    private fun note(workout: SimWorkout, saved: SavedEditorNote): NoteEntity = NoteEntity(
+        timestamp = saved.timestamp,
         title = "",
-        text = rows.joinToString("\n") { it.text },
+        text = saved.text,
         categoryName = workout.category.name,
         categoryColor = workout.category.color,
         learnings = workout.learnings,
-        rowMetadata = buildNoteRowMetadata(rows.map { it.elapsed }, rows.map { it.flag }),
+        rowMetadata = saved.rowMetadata,
     )
 
     /** "12'05''" → 725. */

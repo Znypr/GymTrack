@@ -76,6 +76,11 @@ class LongHorizonSimulationTest {
         out.writeText(report)
         println(report)
         assertTrue("simulation produced no output", report.isNotBlank())
+
+        // Editor-state findings fixed in #316 #317 #319 #320 are hard invariants now: the
+        // transcript plays the real NoteEditorState, so a regression fails the build.
+        val regressed = all.all.filter { it.id in FIXED_EDITOR_FINDINGS }
+        assertTrue("fixed editor findings came back: ${regressed.map { "${it.id}: ${it.example}" }}", regressed.isEmpty())
     }
 
     private fun simulate(history: SimHistory, findings: SimulationFindings) {
@@ -173,5 +178,13 @@ class LongHorizonSimulationTest {
     private companion object {
         val SEEDS = listOf(11L, 23L, 47L)
         val PERF_DAYS = setOf(91, 182, 364) // months 3, 6, 12
+        val FIXED_EDITOR_FINDINGS = setOf(
+            "UNILATERAL-LOST", // #316
+            "UNILATERAL-INHERITED", // #317
+            "SET-TIME-SHIFTED", // #319
+            "PHANTOM-SET", // #320
+            "LOST-SET",
+            "CANONICAL-NEEDS-REVIEW", // #320: nameless exercise from the half-typed set
+        )
     }
 }
