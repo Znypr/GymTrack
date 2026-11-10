@@ -49,6 +49,8 @@ On macOS or Linux:
 ./gradlew assembleRelease
 ```
 
+Since #337 the release APK is minified with R8 and resource shrinking (rules in `docs/RELEASE.md`), so this handoff also exercises the minified build. Google Play itself takes the AAB from `bundleRelease`, not this APK.
+
 `validateReleaseHandoff` is intentionally stricter than the normal `check` task. It fails unless local release signing is configured and the release build remains tied to `app.znypr.gymtrack`.
 
 ## Install without touching debug data
