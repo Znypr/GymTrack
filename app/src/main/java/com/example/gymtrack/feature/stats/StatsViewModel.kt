@@ -21,6 +21,8 @@ import kotlinx.coroutines.withContext
 
 enum class TimeRange(val label: String, val days: Int) {
     LAST_WEEK("Last Week", 7),
+    /** Progress tab "4W" (exactly 28 days, so the label is honest). */
+    LAST_4_WEEKS("Last 4 Weeks", 28),
     LAST_MONTH("Last Month", 30),
     LAST_3_MONTHS("Last 3 Months", 90),
     LAST_6_MONTHS("Last 6 Months", 180),
