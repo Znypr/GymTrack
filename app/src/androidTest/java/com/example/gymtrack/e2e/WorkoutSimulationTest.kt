@@ -80,7 +80,6 @@ class WorkoutSimulationTest {
         robot.rest(120); robot.exercise("Plank")
         robot.rest(30); robot.set("60s") // timed set
 
-        val lastSet = robot.rows.last { it.isSet }
         robot.waitForTimer(minutesSeconds((robot.nowMillis - robot.workoutTimestamp) / 1_000L))
 
         robot.rest(120) // stretch, then Finish
@@ -99,7 +98,8 @@ class WorkoutSimulationTest {
         val workout = assertNotNull(saved.workout)
         assertEquals("COMPLETED", workout.status)
         assertEquals(robot.workoutTimestamp, workout.startedAt)
-        assertEquals(robot.workoutTimestamp + lastSet.elapsedSeconds!! * 1_000L, workout.endedAt)
+        // #323: the workout ends at Finish, not at the last set.
+        assertEquals(robot.workoutTimestamp + timerAtFinishSeconds * 1_000L, workout.endedAt)
         assertEquals(
             listOf("BILATERAL", "BILATERAL", "UNILATERAL", "SUPERSET", "SUPERSET", "BILATERAL"),
             saved.exercises.map { it.mode },
@@ -135,22 +135,17 @@ class WorkoutSimulationTest {
         // Timer stopped by Finish.
         assertNull(saved.timer.activeNoteTimestamp)
 
-        // Home card duration = last elapsed time in minutes.
+        // #323: Home card duration = the timer at Finish, in minutes.
         val card = workoutCardTestTag(robot.workoutTimestamp)
         robot.waitForTag(card)
         val cardText = robot.textOf(card)
-        assertTrue(cardText, cardText.contains("${lastSet.elapsedSeconds!! / 60} min"))
+        assertTrue(cardText, cardText.contains("${timerAtFinishSeconds / 60} min"))
 
         // User expectations that the app does not meet (recorded, not failed).
         expectations.expect(
             "every new exercise row starts as Bi (bilateral)",
             robot.initialFlagLabels,
             List(robot.initialFlagLabels.size) { "Bi" },
-        )
-        expectations.expect(
-            "Home card duration equals the timer at Finish (minutes)",
-            lastSet.elapsedSeconds!! / 60,
-            timerAtFinishSeconds / 60,
         )
         expectations.expect(
             "canonical workout_sets.weight_unit stores the unit used (docs/WEIGHT_UNITS.md)",
