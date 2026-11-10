@@ -69,4 +69,25 @@ class SetEntryKeypadInputTest {
         assertEquals("10x ", single.text)
         assertEquals(4, single.selection.start)
     }
+
+    @Test
+    fun `X and S only once and only after a digit`() {
+        assertFalse(canInsertSetMode(TextFieldValue("", TextRange(0))))
+        assertTrue(canInsertSetMode(TextFieldValue("8", TextRange(1))))
+        assertFalse(canInsertSetMode(TextFieldValue("8x ", TextRange(3))))
+        assertFalse(canInsertSetMode(TextFieldValue("60s ", TextRange(4))))
+    }
+
+    @Test
+    fun `decimal only in the weight part, at most once`() {
+        assertFalse(canInsertDecimal(TextFieldValue("8", TextRange(1))))
+        assertTrue(canInsertDecimal(TextFieldValue("8x 82", TextRange(5))))
+        assertFalse(canInsertDecimal(TextFieldValue("8x 82.5", TextRange(7))))
+    }
+
+    @Test
+    fun `the Next key keeps the enter test tag robots rely on`() {
+        assertEquals("set-entry-key-enter", setEntryKeyTestTag(NEXT_KEY_LABEL))
+        assertEquals("set-entry-key-enter", setEntryKeyTestTag("Enter"))
+    }
 }

@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import com.example.gymtrack.feature.editor.NoteEditorState
 
 internal const val SET_ENTRY_KEYPAD_TEST_TAG = "set-entry-keypad"
 
@@ -22,7 +23,25 @@ internal const val SET_ENTRY_KEYPAD_TEST_TAG = "set-entry-keypad"
 internal fun setEntryKeyTestTag(label: String): String = "set-entry-key-" + when (label) {
     "⌫" -> "backspace"
     "." -> "decimal"
+    NEXT_KEY_LABEL -> "enter"
     else -> label.lowercase()
+}
+
+/** The commit key: Next = commit this set and open the next row (Enter on an empty row = next exercise). */
+internal const val NEXT_KEY_LABEL = "Next ↵"
+
+private fun hasSetMode(text: String): Boolean = text.any { it == 'x' || it == 'X' || it == 's' || it == 'S' }
+
+/** X / S guard: only once, and only after a digit (reps first). */
+internal fun canInsertSetMode(value: TextFieldValue): Boolean {
+    val beforeCursor = value.text.take(value.selection.start.coerceIn(0, value.text.length))
+    return !hasSetMode(value.text) && beforeCursor.any(Char::isDigit)
+}
+
+/** `.` guard: only in the weight part, at most once. */
+internal fun canInsertDecimal(value: TextFieldValue): Boolean {
+    val separatorIndex = value.text.indexOfFirst { it == 'x' || it == 'X' || it == 's' || it == 'S' }
+    return separatorIndex >= 0 && !value.text.substring(separatorIndex + 1).contains('.')
 }
 
 internal fun insertSetEntryToken(value: TextFieldValue, token: String): TextFieldValue {
@@ -102,7 +121,7 @@ internal fun SetEntryKeypad(
             KeypadButton(".", onClick = onDecimal)
             KeypadButton("0") { onDigit('0') }
             KeypadButton("S", enabled = secondsEnabled, onClick = onSeconds)
-            KeypadButton("Enter", onClick = onNext)
+            KeypadButton(NEXT_KEY_LABEL, onClick = onNext)
         }
     }
 }
@@ -133,4 +152,22 @@ private fun RowScope.KeypadButton(
     ) {
         Text(text = label)
     }
+}
+
+
+/** The keypad wired to the editor state, with the reps-first guards (§8.1 #3). */
+@Composable
+internal fun EditorSetKeypad(state: NoteEditorState, modifier: Modifier = Modifier) {
+    fun apply(token: String) = state.onKeypadInput(insertSetEntryToken(state.keypadValue, token))
+    SetEntryKeypad(
+        onDigit = { digit -> apply(digit.toString()) },
+        onDecimal = { if (canInsertDecimal(state.keypadValue)) apply(".") },
+        onRepsSeparator = { if (canInsertSetMode(state.keypadValue)) apply("x ") },
+        onPlus = { if (canInsertMyoRepPlus(state.keypadValue)) apply("+") },
+        onSeconds = { if (canInsertSetMode(state.keypadValue)) apply("s ") },
+        onBackspace = { state.onKeypadInput(backspaceSetEntry(state.keypadValue)) },
+        onNext = { state.onKeypadNext() },
+        secondsEnabled = true,
+        modifier = modifier,
+    )
 }

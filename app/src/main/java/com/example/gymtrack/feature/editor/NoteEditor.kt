@@ -1,38 +1,60 @@
 package com.example.gymtrack.feature.editor
 
-import android.annotation.SuppressLint
 import android.app.Activity
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.Settings
-import com.example.gymtrack.feature.editor.components.EditorHeroHeader
+import com.example.gymtrack.feature.editor.components.EditorAccessoryBar
 import com.example.gymtrack.feature.editor.components.EditorListSection
+import com.example.gymtrack.feature.editor.components.EditorMenuPage
+import com.example.gymtrack.feature.editor.components.EditorSetKeypad
+import com.example.gymtrack.feature.editor.components.EditorTopLine
 import com.example.gymtrack.feature.editor.components.LearningsPopup
-import com.example.gymtrack.feature.editor.components.NoteTimer
+import com.example.gymtrack.feature.editor.components.rememberWorkoutTimer
+import kotlinx.coroutines.launch
 
-internal const val NOTE_EDITOR_FINISH_ACTION_TEST_TAG = "note-editor-finish-action"
-internal const val NOTE_EDITOR_TIMER_CONTROLS_TEST_TAG = "note-editor-timer-controls"
-internal const val NOTE_EDITOR_WEIGHT_UNIT_INDICATOR_TEST_TAG = "note-editor-weight-unit-indicator"
-
-@SuppressLint("UnusedBoxWithConstraintsScope")
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Editor v2 (docs/design/EDITOR_V2.md): a read-only top line, the compact list, and everything
+ * actionable at the bottom in the thumb zone (accessory bar + keypad). Storage is unchanged.
+ */
 @Composable
 fun NoteEditor(
     viewModel: EditorViewModel,
@@ -55,6 +77,7 @@ fun NoteEditor(
 
     val state = rememberNoteEditorState(viewModel, settings, note, onSaveSuccess)
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(settings.defaultWeightUnit) {
         viewModel.currentDefaultWeightUnit = settings.defaultWeightUnit
@@ -69,31 +92,33 @@ fun NoteEditor(
         }
     }
 
-    // Opening a note should always start at its beginning. Live entry still scrolls forward from
-    // NoteEditorState when Enter creates the next row, but reopening history must not jump to the end.
+    // A past workout opens at its top with the keypad closed until a row is tapped (#328). The
+    // active workout reopens on its open set row with the keypad up: the keypad effect in
+    // EditorListSection scrolls that row into view, so no jump to the top first.
     LaunchedEffect(state.noteTimestamp) {
-        if (state.lines.isNotEmpty()) {
-            state.listState.scrollToItem(0)
-        }
+        state.restoreKeypadOnOpen(isActiveWorkout = isLastNote)
+        if (state.keypadRowId == null && state.lines.isNotEmpty()) state.listState.scrollToItem(0)
     }
 
-    val noteTimestamp = state.noteTimestamp
     var selectedCategory by remember(note) {
         mutableStateOf(
             settings.categories.find { it.name == note?.categoryName }
                 ?: Category("Push", 0xFFFF3B30),
         )
     }
-    var learningsValue by remember(note) {
-        mutableStateOf(TextFieldValue(note?.learnings ?: ""))
-    }
+    var learningsValue by remember(note) { mutableStateOf(TextFieldValue(note?.learnings ?: "")) }
     var showLearnings by remember { mutableStateOf(false) }
+    var menuPage by remember { mutableStateOf(EditorMenuPage.CLOSED) }
+    // Session-level toggle; a persisted setting waits for the shared SettingsStore (theme session).
+    var hintsEnabled by rememberSaveable { mutableStateOf(true) }
+    var editAsTextIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(selectedCategory) { viewModel.currentCategory = selectedCategory }
     LaunchedEffect(learningsValue.text) { viewModel.currentLearnings = learningsValue.text }
     LaunchedEffect(note) { note?.let { viewModel.currentTitle = it.title } }
 
-    BackHandler { state.saveNote(isLastNote = isLastNote, exit = true) }
+    val exitEditor = { state.saveNote(isLastNote = isLastNote, exit = true) }
+    BackHandler { exitEditor() }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -112,82 +137,94 @@ fun NoteEditor(
         WindowInsetsControllerCompat(window, view).isAppearanceLightStatusBars = !settings.darkMode
     }
 
+    val timer = if (isLastNote) rememberWorkoutTimer(state.noteTimestamp, startTimerOnOpen) else null
+    // Derived so that typing (which changes row texts) does not recompose the whole editor.
+    val currentExercise by remember(state) { derivedStateOf { state.currentExerciseIndex } }
+    val currentFlag by remember(state) {
+        derivedStateOf {
+            state.currentExerciseIndex?.let { index ->
+                state.lines.getOrNull(index)
+                    ?.takeIf { it.text.value.text.isNotBlank() || it.id == state.focusedRowId }
+                    ?.flag?.value
+            }
+        }
+    }
+    val hasLoggedSet by remember(state) { derivedStateOf { state.hasLoggedSet } }
+    val keypadOpen by remember(state) { derivedStateOf { state.keypadRowId != null } }
+
+    val onDeleteSet: (Int) -> Unit = remember(state) {
+        { index ->
+            state.deleteSetRow(index)?.let { deleted ->
+                scope.launch {
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    val result = snackbarHostState.showSnackbar(
+                        message = "Set deleted",
+                        actionLabel = "Undo",
+                        duration = SnackbarDuration.Short,
+                    )
+                    if (result == SnackbarResult.ActionPerformed) state.undoDelete(deleted)
+                }
+            }
+        }
+    }
+    val onEditSetAsText: (Int) -> Unit = remember { { index -> editAsTextIndex = index } }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                title = {},
-                navigationIcon = {
-                    IconButton(onClick = { state.saveNote(isLastNote = isLastNote, exit = true) }) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                },
-                actions = {
-                    NoteEditorFinishAction(
-                        isVisible = isLastNote,
-                        onFinish = {
-                            state.saveNote(
-                                isLastNote = true,
-                                exit = true,
-                                finishWorkout = true,
-                            )
-                        },
-                    )
-                    IconButton(onClick = { showLearnings = true }) {
-                        Icon(
-                            Icons.Default.Menu,
-                            contentDescription = "Learnings",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                },
-            )
-        },
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                EditorHeroHeader(
-                    timestamp = noteTimestamp,
-                    settings = settings,
-                    selectedCategory = selectedCategory,
-                    onCategorySelect = {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .consumeWindowInsets(padding),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .imePadding(),
+            ) {
+                EditorTopLine(
+                    category = selectedCategory,
+                    timestamp = state.noteTimestamp,
+                    timer = timer,
+                    onLongPress = { menuPage = EditorMenuPage.CATEGORIES },
+                )
+                EditorListSection(
+                    state = state,
+                    defaultUnit = settings.defaultWeightUnit,
+                    hintsEnabled = hintsEnabled,
+                    onDeleteSet = onDeleteSet,
+                    onEditSetAsText = onEditSetAsText,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                )
+                EditorAccessoryBar(
+                    onBack = exitEditor,
+                    currentFlag = currentFlag,
+                    onFlagSelected = { flag -> currentExercise?.let { state.setFlag(it, flag) } },
+                    menuPage = menuPage,
+                    onMenuPageChange = { menuPage = it },
+                    timer = timer,
+                    onNotes = { showLearnings = true },
+                    categories = settings.categories,
+                    onCategorySelected = {
                         selectedCategory = it
                         viewModel.currentCategory = it
                         state.markDirty()
                     },
-                    topPadding = padding.calculateTopPadding(),
+                    hintsEnabled = hintsEnabled,
+                    onHintsToggle = { hintsEnabled = !hintsEnabled },
+                    showFinish = isLastNote,
+                    finishEnabled = hasLoggedSet,
+                    onFinish = {
+                        state.closeKeypad()
+                        state.saveNote(isLastNote = true, exit = true, finishWorkout = true)
+                    },
                 )
-
-                NoteEditorTimerControls(
-                    isVisible = isLastNote,
-                    noteTimestamp = noteTimestamp,
-                    startTimerOnOpen = startTimerOnOpen,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-
-                NoteEditorWeightUnitIndicator(
-                    unitLabel = settings.defaultWeightUnit.displayLabel,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                )
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .padding(horizontal = 16.dp),
-                ) {
-                    Spacer(Modifier.height(16.dp))
-                    EditorListSection(state, modifier = Modifier.fillMaxSize())
+                if (keypadOpen) {
+                    EditorSetKeypad(state)
                 }
             }
 
@@ -203,52 +240,44 @@ fun NoteEditor(
             )
         }
     }
-}
 
-@Composable
-internal fun NoteEditorWeightUnitIndicator(
-    unitLabel: String,
-    modifier: Modifier = Modifier,
-) {
-    Text(
-        text = "Default weight unit: $unitLabel",
-        modifier = modifier.testTag(NOTE_EDITOR_WEIGHT_UNIT_INDICATOR_TEST_TAG),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        style = MaterialTheme.typography.bodySmall,
-    )
-}
-
-@Composable
-internal fun NoteEditorFinishAction(
-    isVisible: Boolean,
-    onFinish: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    if (!isVisible) return
-
-    TextButton(
-        modifier = modifier.testTag(NOTE_EDITOR_FINISH_ACTION_TEST_TAG),
-        onClick = onFinish,
-    ) {
-        Text("Finish")
+    editAsTextIndex?.let { index ->
+        EditSetAsTextDialog(
+            initial = state.lines.getOrNull(index)?.text?.value?.text?.let { splitSetRow(it).entry }.orEmpty(),
+            onDismiss = { editAsTextIndex = null },
+            onConfirm = { entry ->
+                state.replaceSetEntry(index, entry)
+                editAsTextIndex = null
+            },
+        )
     }
 }
 
+/**
+ * Long-press → "Edit as text": the only IME path for a set, for what the keypad cannot type (a
+ * per-set unit like `lb`). Only the entry is editable; indent and times are never shown.
+ */
 @Composable
-internal fun NoteEditorTimerControls(
-    isVisible: Boolean,
-    noteTimestamp: Long,
-    startTimerOnOpen: Boolean,
-    modifier: Modifier = Modifier,
-    timerContent: @Composable (Modifier) -> Unit = { timerModifier ->
-        NoteTimer(
-            noteTimestamp = noteTimestamp,
-            startOnOpen = startTimerOnOpen,
-            modifier = timerModifier,
-        )
-    },
+private fun EditSetAsTextDialog(
+    initial: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
 ) {
-    if (!isVisible) return
-
-    timerContent(modifier.testTag(NOTE_EDITOR_TIMER_CONTROLS_TEST_TAG))
+    var value by remember(initial) { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit set") },
+        text = {
+            OutlinedTextField(
+                value = value,
+                onValueChange = { value = it.replace("\n", "") },
+                singleLine = true,
+                supportingText = { Text("Reps × weight, e.g. 8x 70 lb") },
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(value) }, enabled = value.isNotBlank()) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
