@@ -27,10 +27,12 @@ object SettingsStore {
         } ?: emptyList()
         val cats = (custom + DEFAULT_CATEGORIES).distinctBy { it.name }
 
+        // Missing keys fall back to the model defaults, so there is one default per setting.
+        val defaults = Settings()
         return Settings(
-            is24Hour = prefs[IS_24_HOUR] ?: true,
-            roundingSeconds = prefs[ROUNDING_SECONDS] ?: 5,
-            darkMode = prefs[DARK_MODE] ?: false,
+            is24Hour = prefs[IS_24_HOUR] ?: defaults.is24Hour,
+            roundingSeconds = prefs[ROUNDING_SECONDS] ?: defaults.roundingSeconds,
+            darkMode = prefs[DARK_MODE] ?: defaults.darkMode,
             categories = cats,
             defaultWeightUnit = WeightUnit.fromStorage(prefs[DEFAULT_WEIGHT_UNIT]),
         )
