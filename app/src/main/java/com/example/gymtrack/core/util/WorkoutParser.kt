@@ -32,6 +32,13 @@ class WorkoutParser {
         private val plusNumberRegex = Regex("\\+\\d+")
         private val isolatedNumberRegex = Regex("""\b\d+\b""")
         private val parenNumberRegex = Regex("""\(\s*\d+\s*\)""")
+        private val repsAfterXRegex = Pattern.compile("(?i)(?<![a-z])x\\s*([0-9+]+)")
+        private val repsWordRegex = Pattern.compile("(?i)([0-9+]+)\\s*reps?\\b")
+        private val bareNumberRegex = Regex("""\d+(?:\.\d+)?""")
+        private val decimalCommaRegex = Regex("""(\d),(\d{1,2})(?![\dxX])""")
+
+        /** `62,5` -> `62.5`. A comma followed by a reps marker (`60,8x`) is left alone. */
+        fun normalizeDecimalComma(text: String): String = text.replace(decimalCommaRegex, "$1.$2")
 
         fun normalizeWeightUnit(raw: String?): String = when (raw?.trim()?.lowercase()) {
             "lb", "lbs" -> "LB"
@@ -147,20 +154,91 @@ class WorkoutParser {
         return costs[rhsLen]
     }
 
-    private fun autocorrect(word: String): String {
-        if (VOCABULARY.contains(word)) return word
-        if (word.length < 3) return word
+    /**
+     * Real exercise words, body parts and gym terms that are not correction targets but must never
+     * be "corrected" into a vocabulary word (#300: hip -> dip, rack -> back, side -> wide,
+     * chin -> chinup, cheat -> chest, pulley -> pullup).
+     */
+    private val PROTECTED_WORDS = setOf(
+        "hip", "hips", "rack", "thrust", "chin", "side", "rear", "front", "face", "sumo", "good", "morning",
+        "pec", "deck", "split", "sissy", "goblet", "hammer", "preacher", "shrug", "upright", "bent", "over",
+        "plank", "bridge", "kickback", "crossover", "pullover", "wrist", "farmer", "walk", "sled", "nordic",
+        "donkey", "toe", "skull", "crusher", "arnold", "military", "overhead", "reverse", "landmine", "trap",
+        "traps", "hex", "belt", "cossack", "spider", "drag", "zottman", "pendlay", "seal", "meadows", "ab",
+        "abs", "wheel", "russian", "twist", "cheat", "pulley", "abduction", "adduction", "flat", "grip",
+        "chest", "neck", "core", "oblique", "forearm", "upper", "lower", "inner", "outer", "front", "mid",
+        "middle", "pause", "paused", "tempo", "deficit", "block", "pin", "board", "floor", "box", "jump",
+        "squeeze", "lateral", "posterior", "anterior", "frontal", "glutes", "calves", "quads", "hamstrings",
+        "lats", "delts", "pecs", "triceps", "biceps", "y", "w", "jm", "zercher", "jefferson", "hack",
+        "pendulum", "belt", "lever", "plate", "loaded", "free", "weight", "bodyweight", "weighted", "band",
+        "banded", "chain", "chains", "ring", "rings", "trx", "inverted", "renegade", "pallof", "woodchopper",
+        "chopper", "curtsy", "goodmorning", "kneeling", "prone", "supine", "flexion", "rotation", "torso",
+        "stair",
+    )
+
+    private val KNOWN_WORDS = VOCABULARY + PROTECTED_WORDS
+
+    /** Tokens shorter than this are never spell-corrected: short real words sit one edit apart. */
+    private val MIN_AUTOCORRECT_LENGTH = 5
+    private val AUTOCORRECT_CACHE_SIZE = 512
+
+    private val autocorrectCache = object : LinkedHashMap<String, String>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?): Boolean =
+            size > AUTOCORRECT_CACHE_SIZE
+    }
+
+    /** True for known words and plurals that [singularize] turns back into a known word. */
+    private fun isKnownWord(word: String): Boolean =
+        word in KNOWN_WORDS ||
+            (word.endsWith("ies") && word.dropLast(3) + "y" in KNOWN_WORDS) ||
+            (word.endsWith("s") && word.dropLast(1) in KNOWN_WORDS)
+
+    /** Same word up to a trailing plural `s`/`es` (tricep/triceps, crunches/crunch). */
+    private fun sameStem(a: String, b: String): Boolean {
+        fun stem(w: String) = w.removeSuffix("s").removeSuffix("e")
+        return stem(a) == stem(b)
+    }
+
+    /** True when [replacement] only removes a plural ending from [original]; not a spelling fix. */
+    internal fun isPluralNormalisation(original: String, replacement: String): Boolean =
+        original != replacement && sameStem(original, replacement) && original.startsWith(replacement)
+
+    /**
+     * Spelling fix for one exercise-name token. Rules (#300):
+     * - known words (vocabulary, protected real words, and their plurals) are kept;
+     * - tokens under [MIN_AUTOCORRECT_LENGTH] letters or containing digits are kept;
+     * - the correction must keep the first letter (first-letter swaps make different real words);
+     * - the closest candidate must be unique; ties are left alone.
+     * Results are memoized in a small LRU cache.
+     */
+    internal fun autocorrect(word: String): String {
+        synchronized(autocorrectCache) { autocorrectCache[word]?.let { return it } }
+        val corrected = computeAutocorrect(word)
+        synchronized(autocorrectCache) { autocorrectCache[word] = corrected }
+        return corrected
+    }
+
+    private fun computeAutocorrect(word: String): String {
+        if (word.length < MIN_AUTOCORRECT_LENGTH || word.any { it.isDigit() } || isKnownWord(word)) return word
         var bestMatch = word
         var lowestDistance = Int.MAX_VALUE
+        var tie = false
         for (term in VOCABULARY) {
+            if (term.isEmpty() || term[0] != word[0]) continue
             val distance = levenshtein(word, term)
             val threshold = if (term.length > 5) 2 else 1
-            if (distance <= threshold && distance < lowestDistance) {
-                lowestDistance = distance
-                bestMatch = term
+            if (distance > threshold) continue
+            when {
+                distance < lowestDistance -> {
+                    lowestDistance = distance
+                    bestMatch = term
+                    tie = false
+                }
+                // tricep vs triceps is not a real tie: keep the first, as before #300.
+                distance == lowestDistance && !sameStem(term, bestMatch) -> tie = true
             }
         }
-        return bestMatch
+        return if (tie) word else bestMatch
     }
 
     private fun singularize(text: String): String {
@@ -176,7 +254,11 @@ class WorkoutParser {
         }
     }
 
-    private fun extractDetails(rawLine: String, rawMetadata: String): Triple<String, String?, String?> {
+    private fun extractDetails(
+        rawLine: String,
+        rawMetadata: String,
+        onAutocorrect: (original: String, replacement: String) -> Unit = { _, _ -> },
+    ): Triple<String, String?, String?> {
         val rawLower = rawLine.trim().lowercase()
         val usesBarbellPrefix = rawLower.startsWith("bar ") &&
             !rawLower.contains("pushdown") &&
@@ -189,7 +271,11 @@ class WorkoutParser {
             .trim()
 
         var tokens = cleanedLine.split("\\s+".toRegex()).toMutableList()
-        val correctedTokens = tokens.map { autocorrect(it) }.toMutableList()
+        val correctedTokens = tokens.map { token ->
+            autocorrect(token).also {
+                if (it != token && !isPluralNormalisation(token, it)) onAutocorrect(token, it)
+            }
+        }.toMutableList()
         tokens = correctedTokens
 
         val foundBrands = mutableSetOf<String>()
@@ -258,12 +344,25 @@ class WorkoutParser {
         else -> "$visibleMetadata $absoluteTime"
     }
 
+    /** Parses [rawText] and returns only the sets. See [parse] for the diagnostics. */
     fun parseWorkout(
         rawText: String,
         defaultWeightUnit: String = "KG",
         rowMetadata: String? = null,
-    ): List<ParsedSetDTO> {
+    ): List<ParsedSetDTO> = parse(rawText, defaultWeightUnit, rowMetadata).sets
+
+    /**
+     * Parses a workout note into typed sets. Every line that looks like a set either becomes a
+     * set or a [ParseDiagnostic] explaining why it was not saved; every autocorrected name word
+     * is reported too (#300, #301). The raw text is never changed.
+     */
+    fun parse(
+        rawText: String,
+        defaultWeightUnit: String = "KG",
+        rowMetadata: String? = null,
+    ): WorkoutParseResult {
         val results = mutableListOf<ParsedSetDTO>()
+        val diagnostics = mutableListOf<ParseDiagnostic>()
         val fallbackWeightUnit = normalizeWeightUnit(defaultWeightUnit)
 
         var currentExerciseName = "Unknown"
@@ -283,6 +382,10 @@ class WorkoutParser {
         for ((index, line) in lines.withIndex()) {
             if (line.isBlank()) continue
 
+            fun report(reason: ParseDiagnosticReason, original: String? = null, replacement: String? = null) {
+                diagnostics += ParseDiagnostic(index, line, reason, original, replacement)
+            }
+
             val matchResult = metadataStartRegex.find(line)
             val rawNamePart = if (matchResult != null) line.substring(0, matchResult.range.first) else line
             val visibleMetadataPart = if (matchResult != null) line.substring(matchResult.range.first) else ""
@@ -290,11 +393,12 @@ class WorkoutParser {
             val rowFlag = flags.getOrNull(index) ?: ExerciseFlag.BILATERAL
 
             val cleanLine = rawNamePart.trim()
+            val lineContent = normalizeDecimalComma(cleanLine)
 
             val looksLikeSet = cleanLine.matches(Regex("(?i)^[\\d+]+\\s*x.*")) ||
                 cleanLine.matches(Regex("(?i)^x\\s*[\\d+]+.*")) ||
                 repsRegex.matcher(cleanLine).find() ||
-                timedSetRegex.matcher(cleanLine).matches() ||
+                timedSetRegex.matcher(lineContent).matches() ||
                 cleanLine.matches(Regex("^\\d+$")) ||
                 line.startsWith("    ")
 
@@ -306,7 +410,9 @@ class WorkoutParser {
                 currentRelTime = rel
                 currentAbsTime = abs
 
-                val (name, mod, brand) = extractDetails(cleanLine, rawMetadataPart)
+                val (name, mod, brand) = extractDetails(cleanLine, rawMetadataPart) { original, replacement ->
+                    report(ParseDiagnosticReason.NAME_AUTOCORRECTED, original, replacement)
+                }
                 currentRawExerciseName = cleanLine
                 currentExerciseName = name
                 currentModifier = mod
@@ -319,22 +425,29 @@ class WorkoutParser {
                 var weightUnit = fallbackWeightUnit
                 var reps = 0
                 var durationSeconds: Int? = null
+                var rejection: ParseDiagnosticReason? = null
 
-                val lineContent = cleanLine
-                var remainder = cleanLine
                 val timedMatcher = timedSetRegex.matcher(lineContent)
 
                 if (timedMatcher.matches()) {
                     durationSeconds = timedMatcher.group(1)?.toIntOrNull()?.takeIf { it > 0 }
+                    if (durationSeconds == null) rejection = ParseDiagnosticReason.ZERO_DURATION
                     weight = timedMatcher.group(2)?.toFloatOrNull() ?: 0f
                     weightUnit = timedMatcher.group(3)?.let(::normalizeWeightUnit) ?: fallbackWeightUnit
+                } else if (bareNumberRegex.matches(lineContent)) {
+                    // A lone number counts as reps for cardio only (docs/EDITOR_BEHAVIOUR.md 4.5).
+                    val wholeNumber = lineContent.toIntOrNull()
+                    if (isCardio && wholeNumber != null && wholeNumber > 0) {
+                        reps = wholeNumber
+                    } else {
+                        rejection = ParseDiagnosticReason.AMBIGUOUS_NUMBER
+                    }
                 } else {
-                    val repsMatcher = repsCaptureRegex.matcher(lineContent)
-                    if (repsMatcher.find()) {
-                        val rawRepString = repsMatcher.group(1)
-                        reps = calculateReps(rawRepString)
-                        val matchedRepExpression = repsMatcher.group(0)
-                        remainder = lineContent.replaceFirst(matchedRepExpression, "").trim()
+                    var remainder = lineContent
+                    val repsMatch = findReps(lineContent)
+                    if (repsMatch != null) {
+                        reps = calculateReps(repsMatch.first)
+                        remainder = lineContent.replaceFirst(repsMatch.second, "").trim()
                     }
 
                     if (reps > 0) {
@@ -347,17 +460,12 @@ class WorkoutParser {
                                 weightUnit = explicitUnit?.let(::normalizeWeightUnit) ?: fallbackWeightUnit
                             }
                         }
+                    } else {
+                        rejection = ParseDiagnosticReason.UNRECOGNISED_SET
                     }
                 }
 
-                if (isCardio && durationSeconds == null) {
-                    if (reps == 0 && weight > 0) {
-                        reps = weight.toInt()
-                        weight = 0f
-                    }
-                }
-
-                if (durationSeconds == null && weight > 0f) {
+                if (rejection == null && durationSeconds == null && weight > 0f) {
                     currentWeight = weight
                     currentWeightUnit = weightUnit
                 }
@@ -374,13 +482,13 @@ class WorkoutParser {
                 }
                 val isUnilateralSet = rowFlag == ExerciseFlag.UNILATERAL || line.lowercase().contains("uni")
 
-                val isValidSet = when {
-                    durationSeconds != null -> durationSeconds > 0
-                    isBodyweight || isCardio -> reps > 0
-                    else -> reps > 0 && finalWeight > 0f
+                if (rejection == null && durationSeconds == null && !isBodyweight && !isCardio && finalWeight <= 0f) {
+                    rejection = ParseDiagnosticReason.MISSING_WEIGHT
                 }
 
-                if (isValidSet) {
+                if (rejection != null) {
+                    report(rejection)
+                } else {
                     val exerciseIdentity = ExerciseIdentityResolver.resolve(
                         rawName = currentRawExerciseName,
                         parsedName = currentExerciseName,
@@ -407,6 +515,18 @@ class WorkoutParser {
                 }
             }
         }
-        return results
+        return WorkoutParseResult(results, diagnostics)
+    }
+
+    /**
+     * Finds the reps part of a set line and returns (raw reps, matched text). Reps-first `10x`
+     * wins (the editor grammar); then `x10` (`x10 50`, `100kg x5`); then `10 reps`.
+     */
+    private fun findReps(line: String): Pair<String, String>? {
+        for (pattern in listOf(repsCaptureRegex, repsAfterXRegex, repsWordRegex)) {
+            val matcher = pattern.matcher(line)
+            if (matcher.find()) return matcher.group(1) to matcher.group(0)
+        }
+        return null
     }
 }
