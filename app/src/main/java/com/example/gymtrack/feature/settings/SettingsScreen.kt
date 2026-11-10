@@ -97,7 +97,7 @@ fun SettingsScreen(
                 SettingsCard {
                     SettingsActionRow(
                         title = "Back up all data",
-                        subtitle = "Create one portable GymTrack backup file",
+                        subtitle = "Create one portable ZnyprFit backup file",
                         enabled = !dataOperationInProgress,
                         onClick = onCreateBackup,
                     )
