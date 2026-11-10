@@ -26,6 +26,11 @@ class FakeClock(startMillis: Long) : Clock {
         require(seconds >= 0) { "Time only moves forward in a workout simulation" }
         now.addAndGet(seconds * 1_000L)
     }
+
+    /** Jumps to an absolute time (long-horizon runs move between simulated days). */
+    fun setTo(epochMillis: Long) {
+        now.set(epochMillis)
+    }
 }
 
 /**

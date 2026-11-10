@@ -4,11 +4,13 @@ import android.util.Log
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
+import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.Lifecycle
+import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import com.example.gymtrack.MainActivity
@@ -48,9 +50,12 @@ data class ExpectedRow(
  * "8x 80"; "6+2x80" is a myo-rep set; "10x32.5" uses the decimal key; "60s" is a timed set.
  */
 class WorkoutRobot(
-    private val rule: GymTrackRule,
+    private val rule: ComposeTestRule,
     private val clock: FakeClock,
+    private val scenario: () -> ActivityScenario<MainActivity>,
 ) {
+    constructor(rule: GymTrackRule, clock: FakeClock) : this(rule, clock, { rule.activityRule.scenario })
+
     var workoutTimestamp: Long = 0L
         private set
 
@@ -96,7 +101,7 @@ class WorkoutRobot(
      * Types an exercise name on the active (empty) exercise row, sets its flag BEFORE pressing
      * Enter, then presses Enter, which opens the set keypad on the next row.
      */
-    fun exercise(name: String, flag: ExerciseFlag = ExerciseFlag.BILATERAL) {
+    fun exercise(name: String, flag: ExerciseFlag = ExerciseFlag.BILATERAL, flagAfterEnter: Boolean = false) {
         val inputTag = editorRowInputTestTag(activeRow)
         waitForTag(inputTag)
         rule.onNodeWithTag(inputTag).performTextInput(name)
@@ -104,13 +109,16 @@ class WorkoutRobot(
         val flagTag = editorRowFlagTestTag(activeRow)
         waitForTag(flagTag)
         initialFlagLabels += textOf(flagTag)
-        val wanted = flag.label()
-        repeat(3) {
-            if (textOf(flagTag) != wanted) rule.onNodeWithTag(flagTag).performClick()
+        if (!flagAfterEnter) {
+            val wanted = flag.label()
+            repeat(3) {
+                if (textOf(flagTag) != wanted) rule.onNodeWithTag(flagTag).performClick()
+            }
+            check(textOf(flagTag) == wanted) { "Flag on row $activeRow is ${textOf(flagTag)}, wanted $wanted" }
         }
-        check(textOf(flagTag) == wanted) { "Flag on row $activeRow is ${textOf(flagTag)}, wanted $wanted" }
 
         rule.onNodeWithTag(inputTag).performTextInput("\n")
+        if (flagAfterEnter) toggleFlagOfRow(activeRow, flag)
         val now = clock.nowMillis()
         if (firstExerciseAtMillis == null) firstExerciseAtMillis = now
         lastEnterMillis = now
@@ -176,22 +184,30 @@ class WorkoutRobot(
         waitForTag(editorRowInputTestTag(0))
     }
 
+    /** Opens any workout card on Home (it must be on screen). */
+    fun openWorkoutCard(timestamp: Long) {
+        val card = workoutCardTestTag(timestamp)
+        waitForTag(card)
+        rule.onNodeWithTag(card).performClick()
+        waitForTag(editorRowInputTestTag(0))
+    }
+
     fun openStats() {
         rule.onNodeWithTag(HOME_OPEN_STATS_TEST_TAG).performClick()
     }
 
     /** Home button + reopen from recents: ON_STOP then ON_START/ON_RESUME. */
     fun sendToBackground() {
-        rule.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
+        scenario().moveToState(Lifecycle.State.CREATED)
     }
 
     fun bringToForeground() {
-        rule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        scenario().moveToState(Lifecycle.State.RESUMED)
         rule.waitForIdle()
     }
 
     fun recreateActivity() {
-        rule.activityRule.scenario.recreate()
+        scenario().recreate()
         rule.waitForIdle()
     }
 
