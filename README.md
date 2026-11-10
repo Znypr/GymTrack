@@ -46,6 +46,7 @@ See [work-tracking rules](docs/TICKET_BOARD.md) and [CONTRIBUTING.md](CONTRIBUTI
 - [Architecture](docs/ARCHITECTURE.md)
 - [Workout timer](docs/TIMER.md)
 - [Editor save pipeline](docs/EDITOR_SAVE_PIPELINE.md)
+- [Editor behaviour (rows, keypad grammar, flags, must-keep time savers)](docs/EDITOR_BEHAVIOUR.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Work-tracking rules](docs/TICKET_BOARD.md)
 - [Canonical-data transition](docs/CANONICAL_DATA_TRANSITION.md)
