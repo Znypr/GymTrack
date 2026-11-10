@@ -9,7 +9,12 @@ import com.example.gymtrack.core.util.ParsedSetDTO
 import com.example.gymtrack.core.util.WorkoutParser
 import com.example.gymtrack.core.util.parseDurationSeconds
 import com.example.gymtrack.core.util.parseNoteText
+import com.example.gymtrack.feature.stats.StatsWorkoutFacts
+import com.example.gymtrack.feature.stats.TimeRange
+import com.example.gymtrack.feature.stats.buildStatsState
 import com.example.gymtrack.feature.stats.buildTrainingInsights
+import com.example.gymtrack.feature.stats.convertWeight
+import com.example.gymtrack.feature.stats.resolveSetUnits
 import com.example.gymtrack.feature.stats.buildWeeklyWorkoutCounts
 import com.example.gymtrack.feature.stats.countUnreasonableWorkoutDurations
 import com.example.gymtrack.feature.stats.isoWeekStart
@@ -179,22 +184,40 @@ class HistoryInvariants(
         }
     }
 
-    /** Weekly statistics invariants over everything the app holds at [day]. */
-    fun checkStats(day: Int, notes: List<NoteLine>, sessions: List<EditorSession>) {
+    /**
+     * Weekly statistics invariants over everything the app holds at [day].
+     *
+     * [facts] are what Stats reads from the database (finished workouts, stored set units). The
+     * JVM run has no database, so by default they are derived the way the completion path
+     * writes them: finished sessions only, each set with the default unit in force at Finish.
+     */
+    fun checkStats(
+        day: Int,
+        notes: List<NoteLine>,
+        sessions: List<EditorSession>,
+        facts: StatsWorkoutFacts = factsFromSessions(sessions),
+    ) {
         if (notes.isEmpty()) return
         fun report(id: String, severity: Severity, title: String, example: String, issue: String? = null) =
             findings.report(id, severity, title, history, day, null, example, issue)
 
         val unfinished = sessions.count { !it.isFinished }
+        val finished = sessions.count { it.isFinished }
         val weekly = buildWeeklyWorkoutCounts(notes)
         if (weekly.sumOf { it.count } != notes.size) {
             report("WEEKLY-COUNT-SUM", Severity.HIGH, "Weekly workout counts do not add up to the workout count", "${weekly.sumOf { it.count }} vs ${notes.size}")
         }
-        if (unfinished > 0) {
+        val displayUnit = sessions.lastOrNull()?.workout?.unit ?: WeightUnit.KG
+        val nowMillis = notes.maxOf { it.timestamp } + 1L
+        val stats = buildStatsState(notes, TimeRange.ALL_TIME, facts, displayUnit, nowMillis, WorkoutParser())
+        if (stats.totalNotes != finished || stats.weeklyWorkoutCounts.sumOf { it.count } != finished ||
+            stats.filteredNotes.size != finished || stats.unfinishedCount != unfinished
+        ) {
             report(
                 "STATS-COUNTS-UNFINISHED", Severity.LOW,
                 "Stats 'Workouts' counts workouts that were never finished",
-                "$unfinished unfinished of ${notes.size}",
+                "$unfinished unfinished of ${notes.size}: Workouts=${stats.totalNotes}, weekly sum=${stats.weeklyWorkoutCounts.sumOf { it.count }}, " +
+                    "duration notes=${stats.filteredNotes.size}, unfinished shown=${stats.unfinishedCount}",
             )
         }
 
@@ -223,40 +246,71 @@ class HistoryInvariants(
             )
         }
 
-        // Volume and progress across the kg -> lb switch.
+        // Volume and progress across the kg -> lb switch: Stats must convert per set.
         val parser = WorkoutParser()
-        val truthKg = sessions.flatMap { s -> s.truth.map { t -> t.weight * t.reps * if (s.workout.unit == WeightUnit.LB) KG_PER_LB else 1.0 } }.sum()
-        val appMixed = sessions.flatMap { s -> parser.parseWorkout(s.finalNote.text, s.workout.unit.storageValue, s.finalNote.rowMetadata) }
-            .sumOf { (it.weight * it.reps).toDouble() }
-        if (sessions.any { it.workout.unit == WeightUnit.LB } && abs(appMixed - truthKg) / truthKg > 0.02) {
-            report(
-                "VOLUME-MIXES-UNITS", Severity.MEDIUM,
-                "Volume and progress averages add lb and kg numbers as if they were the same unit",
-                "after the switch: summed ${appMixed.toLong()} vs ${truthKg.toLong()} kg real; progress query AVG(weight*reps)/reps ignores sets.weightUnit",
-            )
-            val insights = buildTrainingInsights(notes, parser)
-            report(
-                "INSIGHTS-LABEL-KG", Severity.LOW, "Training insights always label weights 'kg', also after switching to lb",
-                "StatsViewModel calls buildTrainingInsights(notes, parser) with the default 'kg' label; ${insights.size} rows",
-            )
-        }
+        val finishedSessions = sessions.filter { it.isFinished }
+        val switched = finishedSessions.map { it.workout.unit }.distinct().size > 1
+        if (switched) {
+            val truthKg = finishedSessions.flatMap { s -> s.truth.map { t -> t.weight * t.reps * if (s.workout.unit == WeightUnit.LB) KG_PER_LB else 1.0 } }.sum()
+            val resolved = finishedSessions.map { s ->
+                s to resolveSetUnits(s.finalNote.toLine(), parser, facts.storedSetUnits[s.workout.startMillis])
+            }
+            val appKg = resolved.flatMap { it.second }
+                .filter { it.unit != null }
+                .sumOf { convertWeight((it.set.weight * it.set.reps).toDouble(), it.unit!!, WeightUnit.KG) }
+            if (truthKg > 0 && abs(appKg - truthKg) / truthKg > 0.02) {
+                report(
+                    "VOLUME-MIXES-UNITS", Severity.MEDIUM,
+                    "Volume and progress averages add lb and kg numbers as if they were the same unit",
+                    "after the switch: Stats volume ${appKg.toLong()} kg vs ${truthKg.toLong()} kg real",
+                )
+            }
+            val insights = buildTrainingInsights(stats.filteredNotes, parser, displayUnit, facts.storedSetUnits)
+            if (insights.any { it.strength.unit != displayUnit.displayLabel }) {
+                report(
+                    "INSIGHTS-LABEL-KG", Severity.LOW, "Training insights always label weights 'kg', also after switching to lb",
+                    "display unit ${displayUnit.displayLabel}, insight units ${insights.map { it.strength.unit }.distinct()}",
+                )
+            }
 
-        // PRs per exercise group: heaviest set should be in one unit.
-        sessions.groupBy { it.workout.unit }.takeIf { it.size > 1 }?.let {
-            val bench = sessions.flatMap { s -> s.truth.filter { t -> t.exerciseKey == "bench_press" }.map { t -> s.workout.unit to t.weight } }
-            val maxKg = bench.filter { it.first == WeightUnit.KG }.maxOfOrNull { it.second }
-            val maxLbRaw = bench.filter { it.first == WeightUnit.LB }.maxOfOrNull { it.second }
-            if (maxKg != null && maxLbRaw != null) {
+            // Best bench in one unit: the heaviest set Stats sees equals the real heaviest set.
+            val truthBestKg = finishedSessions.flatMap { s ->
+                s.truth.filter { t -> t.exerciseKey == "bench_press" }
+                    .map { t -> t.weight * if (s.workout.unit == WeightUnit.LB) KG_PER_LB else 1.0 }
+            }.maxOrNull()
+            val appBestKg = resolved.flatMap { (s, sets) ->
+                val benchIndexes = s.truth.withIndex().filter { it.value.exerciseKey == "bench_press" }.map { it.index }.toSet()
+                sets.withIndex().filter { it.index in benchIndexes && it.value.unit != null }
+                    .map { convertWeight(it.value.set.weight.toDouble(), it.value.unit!!, WeightUnit.KG) }
+            }.maxOrNull()
+            if (truthBestKg != null && (appBestKg == null || abs(appBestKg - truthBestKg) > 0.5)) {
                 report(
                     "PR-JUMP-AT-UNIT-SWITCH", Severity.MEDIUM,
                     "Best-weight/progress for an exercise jumps ×2.2 at the kg → lb switch",
-                    "bench best ${maxKg} kg before, raw ${maxLbRaw} after (= ${(maxLbRaw * KG_PER_LB).toInt()} kg)",
+                    "bench best real ${"%.1f".format(truthBestKg)} kg, Stats ${appBestKg?.let { "%.1f".format(it) }} kg",
                 )
             }
         }
     }
 
     companion object {
+        /** Facts as the completion path writes them: finished sessions, units at Finish. */
+        fun factsFromSessions(sessions: List<EditorSession>): StatsWorkoutFacts {
+            val parser = WorkoutParser()
+            val finished = sessions.filter { it.isFinished }
+            return StatsWorkoutFacts(
+                completedTimestamps = finished.map { it.workout.startMillis }.toSet(),
+                storedSetUnits = finished.associate { s ->
+                    s.workout.startMillis to parser
+                        .parseWorkout(s.finalNote.text, s.workout.unit.storageValue, s.finalNote.rowMetadata)
+                        .map { WeightUnit.fromStorage(it.weightUnit) }
+                }.filterValues { it.isNotEmpty() },
+            )
+        }
+
+        private fun com.example.gymtrack.core.data.NoteEntity.toLine(): NoteLine =
+            NoteLine(title, text, timestamp, categoryName, categoryColor, learnings.orEmpty(), rowMetadata.orEmpty())
+
         /** Grey elapsed column maximum in minutes, as the Home card shows it. */
         fun cardMinutes(note: NoteLine): Int =
             (parseNoteText(note.text, note.rowMetadata).second.filter(String::isNotBlank).maxOfOrNull(::parseDurationSeconds) ?: 0) / 60

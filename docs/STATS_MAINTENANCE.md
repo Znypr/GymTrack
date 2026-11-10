@@ -15,6 +15,11 @@ Derived statistics are maintained at the same boundaries that change workout dat
 - Import routes through explicit workout completion.
 - Delete routes through `WorkoutRepository.deleteWorkout(note)` so the note, legacy derived set rows, canonical workout row, and pending summary outbox entry are removed together.
 
+## What Stats counts
+
+Stats counts finished workouts only and converts weights to the display unit before aggregating.
+Rules: docs/STATS_RULES.md.
+
 ## Manual repair path
 
 `WorkoutRepository.forceUpdateStats()` remains a manual compatibility repair. It reparses every saved workout and should not be called unconditionally from application startup.

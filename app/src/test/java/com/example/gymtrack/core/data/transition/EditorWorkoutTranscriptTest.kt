@@ -5,6 +5,7 @@ import com.example.gymtrack.core.data.ExerciseFlag.BILATERAL
 import com.example.gymtrack.core.data.ExerciseFlag.SUPERSET
 import com.example.gymtrack.core.data.ExerciseFlag.UNILATERAL
 import com.example.gymtrack.core.data.NoteEntity
+import com.example.gymtrack.core.data.WeightUnit
 import com.example.gymtrack.core.util.WorkoutParser
 import com.example.gymtrack.core.util.buildNoteRowMetadata
 import org.junit.Assert.assertEquals
@@ -99,15 +100,25 @@ class EditorWorkoutTranscriptTest {
 
     /**
      * docs/WEIGHT_UNITS.md: "Every finalized weighted set stores the unit that was actually used",
-     * including `workout_sets.weight_unit`. The keypad never types a unit, and the projector only
-     * keeps explicit units, so every keypad set lands as NULL (UNKNOWN) in the canonical table.
+     * including `workout_sets.weight_unit`. The keypad never types a unit, so the completion path
+     * passes the default unit in force at Finish to the projector (#326).
      */
-    @Ignore("Known deviation: keypad sets store weight_unit = NULL in workout_sets (see report)")
     @Test
     fun canonicalSetsStoreTheDefaultUnitActuallyUsed() {
-        val weighted = projection.workoutSets.filter { (it.weight ?: 0.0) > 0.0 }
+        val atFinish = LegacyWorkoutProjector().project(
+            note, null, CanonicalExerciseCatalog(emptyList()), WeightUnit.KG,
+        )
+        val weighted = atFinish.workoutSets.filter { (it.weight ?: 0.0) > 0.0 }
         assertTrue(weighted.isNotEmpty())
         assertTrue(weighted.all { it.weightUnit == "KILOGRAM" })
+        assertTrue(atFinish.workoutSets.filter { it.weight == null }.all { it.weightUnit == null })
+    }
+
+    /** Without a known default (startup import of old notes) the unit stays NULL, never guessed. */
+    @Test
+    fun canonicalSetsWithoutKnownDefaultStayUnknown() {
+        val weighted = projection.workoutSets.filter { (it.weight ?: 0.0) > 0.0 }
+        assertTrue(weighted.all { it.weightUnit == null })
     }
 
     /**

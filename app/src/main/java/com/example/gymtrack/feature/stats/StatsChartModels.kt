@@ -1,6 +1,7 @@
 package com.example.gymtrack.feature.stats
 
 import com.example.gymtrack.core.data.NoteLine
+import com.example.gymtrack.core.data.WeightUnit
 import com.example.gymtrack.core.util.WorkoutParser
 import com.example.gymtrack.core.util.parseDurationSeconds
 import com.example.gymtrack.core.util.parseNoteText
@@ -49,6 +50,8 @@ data class TrainingInsightRow(
     val reps: TrainingMetricShift,
     val duration: TrainingMetricShift,
     val trendPoints: List<TrainingTrendPoint>,
+    /** Weighted sets left out of Strength because their unit is unknown (kept visible, not guessed). */
+    val unknownUnitSets: Int = 0,
 )
 
 private data class WorkoutStrategyMetrics(
@@ -60,6 +63,7 @@ private data class WorkoutStrategyMetrics(
     val totalReps: Int,
     val loadedReps: Int,
     val totalLoad: Float,
+    val unknownUnitSets: Int,
 ) {
     val avgWorkingWeight: Float = if (loadedReps > 0) totalLoad / loadedReps else 0f
     val setsPerMinute: Float = if (durationMinutes > 0f) setCount / durationMinutes else 0f
@@ -104,14 +108,22 @@ fun buildWeeklyWorkoutCounts(notes: List<NoteLine>): List<WeeklyWorkoutCount> {
         }
 }
 
+/**
+ * Strategy rows for [notes]. Every weight is converted to [displayUnit] before it is summed or
+ * compared, using the unit each set was typed in ([storedSetUnits], see [resolveSetUnits]).
+ * Sets whose unit cannot be known are left out of Strength and counted in
+ * [TrainingInsightRow.unknownUnitSets].
+ */
 fun buildTrainingInsights(
     notes: List<NoteLine>,
     parser: WorkoutParser = WorkoutParser(),
-    weightUnitLabel: String = "kg",
+    displayUnit: WeightUnit = WeightUnit.KG,
+    storedSetUnits: Map<Long, List<WeightUnit>> = emptyMap(),
     maxCategories: Int = 5,
 ): List<TrainingInsightRow> {
+    val weightUnitLabel = displayUnit.displayLabel
     val workouts = notes
-        .mapNotNull { note -> note.toWorkoutStrategyMetrics(parser) }
+        .mapNotNull { note -> note.toWorkoutStrategyMetrics(parser, displayUnit, storedSetUnits[note.timestamp]) }
         .sortedBy { it.timestamp }
 
     if (workouts.size < 2) return emptyList()
@@ -138,7 +150,11 @@ fun buildTrainingInsights(
     return listOfNotNull(allWorkouts) + categoryRows
 }
 
-private fun NoteLine.toWorkoutStrategyMetrics(parser: WorkoutParser): WorkoutStrategyMetrics? {
+private fun NoteLine.toWorkoutStrategyMetrics(
+    parser: WorkoutParser,
+    displayUnit: WeightUnit,
+    storedUnits: List<WeightUnit>?,
+): WorkoutStrategyMetrics? {
     val parsedText = parseNoteText(text, rowMetadata)
     val visibleLines = parsedText.first
     val absoluteTimes = parsedText.second
@@ -148,18 +164,21 @@ private fun NoteLine.toWorkoutStrategyMetrics(parser: WorkoutParser): WorkoutStr
         ?.div(60f)
         ?: 0f
 
-    val parsedSets = parser.parseWorkout(text, rowMetadata = rowMetadata)
+    val resolvedSets = resolveSetUnits(this, parser, storedUnits)
     val exerciseCount = visibleLines.count { line ->
         val clean = line.trim()
         clean.isNotBlank() && !looksLikeSetLine(line)
     }
-    val setCount = parsedSets.size
+    val setCount = resolvedSets.size
     if (setCount == 0 && exerciseCount == 0) return null
 
-    val totalReps = parsedSets.sumOf { it.reps }
-    val loadedSets = parsedSets.filter { it.weight > 0f && it.reps > 0 }
-    val totalLoad = loadedSets.sumOf { (it.weight * it.reps).toDouble() }.toFloat()
-    val loadedReps = loadedSets.sumOf { it.reps }
+    val totalReps = resolvedSets.sumOf { it.set.reps }
+    val weightedSets = resolvedSets.filter { it.set.weight > 0f && it.set.reps > 0 }
+    val loadedSets = weightedSets.filter { it.unit != null }
+    val totalLoad = loadedSets.sumOf { resolved ->
+        convertWeight(resolved.set.weight.toDouble(), resolved.unit!!, displayUnit) * resolved.set.reps
+    }.toFloat()
+    val loadedReps = loadedSets.sumOf { it.set.reps }
 
     return WorkoutStrategyMetrics(
         timestamp = timestamp,
@@ -170,6 +189,7 @@ private fun NoteLine.toWorkoutStrategyMetrics(parser: WorkoutParser): WorkoutStr
         totalReps = totalReps,
         loadedReps = loadedReps,
         totalLoad = totalLoad,
+        unknownUnitSets = weightedSets.size - loadedSets.size,
     )
 }
 
@@ -233,8 +253,9 @@ private fun buildTrainingInsightRow(
     )
 
     val context = MetricDirectionContext(
-        strengthUp = rawStrength.isMeaningfullyUp(),
-        strengthDown = rawStrength.isMeaningfullyDown(),
+        // No known load on one side (bodyweight only, or unknown units) is missing data, not a change.
+        strengthUp = rawStrength.hasBothSides() && rawStrength.isMeaningfullyUp(),
+        strengthDown = rawStrength.hasBothSides() && rawStrength.isMeaningfullyDown(),
         densityUp = rawDensity.isMeaningfullyUp(),
         densityDown = rawDensity.isMeaningfullyDown(),
         depthUp = rawSetDepth.isMeaningfullyUp(),
@@ -265,6 +286,7 @@ private fun buildTrainingInsightRow(
         reps = reps,
         duration = duration,
         trendPoints = buildTrendPoints(workouts),
+        unknownUnitSets = workouts.sumOf { it.unknownUnitSets },
     )
 }
 
@@ -278,7 +300,14 @@ private fun summarizeStrategy(workouts: List<WorkoutStrategyMetrics>): WorkoutSt
         avgExerciseCount = averageOf { it.exerciseCount.toFloat() },
         avgSetCount = averageOf { it.setCount.toFloat() },
         avgReps = averageOf { it.totalReps.toFloat() },
-        avgWorkingWeight = averageOf { it.avgWorkingWeight },
+        // Only workouts with a known load: a workout whose sets are bodyweight or of unknown unit
+        // says nothing about working weight and must not pull the average towards zero.
+        avgWorkingWeight = workouts.filter { it.loadedReps > 0 }
+            .takeIf { it.isNotEmpty() }
+            ?.map { it.avgWorkingWeight }
+            ?.average()
+            ?.toFloat()
+            ?: 0f,
         avgSetsPerMinute = averageOf { it.setsPerMinute },
         avgSetsPerExercise = averageOf { it.avgSetsPerExercise },
     )
@@ -375,3 +404,5 @@ private fun TrainingMetricShift.isMeaningfullyDown(): Boolean {
     val change = percentChange
     return if (change != null) change <= -5f else absoluteChange < 0f
 }
+
+private fun TrainingMetricShift.hasBothSides(): Boolean = baseline > 0f && recent > 0f

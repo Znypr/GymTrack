@@ -122,7 +122,8 @@ class LongHorizonSimulationTest {
                     timer = NoteTimerState()
                     val note = session.finalNote
                     val parsed = parser.parseWorkout(note.text, workout.unit.storageValue, note.rowMetadata)
-                    val projection = projector.project(note, null, CanonicalExerciseCatalog(emptyList()))
+                    // The completion path passes the default unit in force at Finish (#326).
+                    val projection = projector.project(note, null, CanonicalExerciseCatalog(emptyList()), workout.unit)
                     invariants.checkFinishedWorkout(
                         session,
                         parsed,

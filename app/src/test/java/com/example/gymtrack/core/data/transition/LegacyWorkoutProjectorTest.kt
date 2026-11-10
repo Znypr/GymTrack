@@ -4,6 +4,7 @@ import com.example.gymtrack.core.data.CanonicalCategoryEntity
 import com.example.gymtrack.core.data.ExerciseEntity
 import com.example.gymtrack.core.data.ExerciseFlag
 import com.example.gymtrack.core.data.NoteEntity
+import com.example.gymtrack.core.data.WeightUnit
 import com.example.gymtrack.core.util.combineTextAndTimes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -148,5 +149,22 @@ class LegacyWorkoutProjectorTest {
         assertEquals(encoded, projection.workout.rawDraftText)
         assertTrue(projection.workoutExercises.isEmpty())
         assertTrue(projection.workoutSets.isEmpty())
+    }
+
+    @Test
+    fun defaultUnitAtFinishFillsKeypadSetsAndExplicitUnitsStillWin() {
+        val plainText = listOf("Bench", "      8x 100", "      5x 60 kg", "Plank", "      60s")
+        val encoded = combineTextAndTimes(
+            text = plainText.joinToString("\n"),
+            times = listOf("0'00''", "2'00''", "4'00''", "6'00''", "7'00''"),
+            flags = List(plainText.size) { ExerciseFlag.BILATERAL },
+        )
+        val note = NoteEntity(3_000_000L, "Lb day", encoded, null, null, null)
+
+        val projection = LegacyWorkoutProjector().project(
+            note, null, CanonicalExerciseCatalog(emptyList()), WeightUnit.LB,
+        )
+
+        assertEquals(listOf("POUND", "KILOGRAM", null), projection.workoutSets.map { it.weightUnit })
     }
 }

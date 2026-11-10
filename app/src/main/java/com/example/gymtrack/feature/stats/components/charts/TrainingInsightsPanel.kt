@@ -98,6 +98,14 @@ private fun TrainingInsightRowView(row: TrainingInsightRow) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
                 )
+                if (row.unknownUnitSets > 0) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "${row.unknownUnitSets} weighted sets have no known unit and are left out of Strength",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    )
+                }
             }
         }
 
