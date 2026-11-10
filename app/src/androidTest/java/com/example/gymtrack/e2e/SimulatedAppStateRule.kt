@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.gymtrack.core.data.NoteDatabase
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.data.SettingsStore
+import com.example.gymtrack.core.data.ThemeChoice
 import com.example.gymtrack.core.time.AppClock
 import com.example.gymtrack.core.time.Clock
 import com.example.gymtrack.core.time.SystemWallClock
@@ -66,7 +67,7 @@ class SimulatedAppStateRule : ExternalResource() {
     private fun resetAppData() = runBlocking {
         NoteDatabase.getDatabase(context).clearAllTables()
         NoteTimerStore.stop(context)
-        SettingsStore.save(context, Settings(darkMode = false))
+        SettingsStore.save(context, Settings(themeChoice = ThemeChoice.NORMAL_LIGHT))
         // Same name as StatsPersistentCacheStore's private PREFERENCES_NAME.
         context.getSharedPreferences("stats_cache", Context.MODE_PRIVATE)
             .edit()

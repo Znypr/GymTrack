@@ -16,6 +16,7 @@ object SettingsStore {
     private val DARK_MODE = booleanPreferencesKey("dark_mode")
     private val CATEGORIES = stringPreferencesKey("categories")
     private val DEFAULT_WEIGHT_UNIT = stringPreferencesKey("default_weight_unit")
+    private val THEME_CHOICE = stringPreferencesKey("theme_choice")
 
     suspend fun load(context: Context): Settings {
         val prefs = context.settingsDataStore.data.first()
@@ -32,7 +33,8 @@ object SettingsStore {
         return Settings(
             is24Hour = prefs[IS_24_HOUR] ?: defaults.is24Hour,
             roundingSeconds = prefs[ROUNDING_SECONDS] ?: defaults.roundingSeconds,
-            darkMode = prefs[DARK_MODE] ?: defaults.darkMode,
+            // v2 migration: no stored theme yet → the old dark-mode switch picks Normal dark/light.
+            themeChoice = ThemeChoice.fromStorage(prefs[THEME_CHOICE], legacyDarkMode = prefs[DARK_MODE]),
             categories = cats,
             defaultWeightUnit = WeightUnit.fromStorage(prefs[DEFAULT_WEIGHT_UNIT]),
         )
@@ -43,7 +45,9 @@ object SettingsStore {
             val custom = settings.categories.filter { it.name !in DEFAULT_CATEGORY_NAMES }
             prefs[IS_24_HOUR] = settings.is24Hour
             prefs[ROUNDING_SECONDS] = settings.roundingSeconds
-            prefs[DARK_MODE] = settings.darkMode
+            prefs[THEME_CHOICE] = settings.themeChoice.storageValue
+            // Still written so an older app version installed over this one keeps a sane look.
+            prefs[DARK_MODE] = settings.themeChoice.isDark(systemDark = true)
             prefs[CATEGORIES] = custom.joinToString("|") { "${it.name}:${it.color}" }
             prefs[DEFAULT_WEIGHT_UNIT] = settings.defaultWeightUnit.storageValue
         }
