@@ -7,7 +7,9 @@ import com.example.gymtrack.core.data.transition.CanonicalExerciseCatalog
 import com.example.gymtrack.core.data.transition.LegacyWorkoutProjector
 import com.example.gymtrack.core.timer.NoteTimerState
 import com.example.gymtrack.core.util.WorkoutParser
-import com.example.gymtrack.feature.editor.shouldShowActiveWorkoutControls
+import com.example.gymtrack.feature.home.WorkoutStartDecision
+import com.example.gymtrack.feature.home.canMarkFinished
+import com.example.gymtrack.feature.home.decideWorkoutStart
 import com.example.gymtrack.feature.stats.buildTrainingInsights
 import java.io.File
 import java.util.TimeZone
@@ -96,18 +98,28 @@ class LongHorizonSimulationTest {
 
         for (day in 0..lastDay) {
             workoutsByDay[day].orEmpty().forEach { workout ->
-                // The + tap starts (or replaces) the persisted timer.
+                // Every Start goes through the start sheet (#293). The simulated user answers
+                // "Keep both"; the old workout must stay finishable (History "Mark finished").
                 val previous = sessions.lastOrNull()
-                val oldStillFinishable = previous == null ||
-                    shouldShowActiveWorkoutControls(noteId = previous.workout.startMillis, activeNoteTimestamp = workout.startMillis)
-                if (previous != null && timer.activeNoteTimestamp == previous.workout.startMillis && !previous.isFinished && !oldStillFinishable) {
-                    findings.report(
-                        "UNFINISHED-WORKOUT-ORPHANED", Severity.HIGH,
-                        "Starting a new workout makes the unfinished one un-finishable: no Finish button, its sets never reach the sets table / Stats charts",
-                        history, day, workout.index,
-                        "workout ${previous.workout.index} left with Back on ${previous.workout.date}; new workout ${workout.index} replaces the active timer; old editor shows Finish=$oldStillFinishable",
-                        issue = "#293",
-                    )
+                val activeNote = previous?.takeIf { timer.activeNoteTimestamp == it.workout.startMillis }
+                    ?.let { (it.draftAtBack ?: it.finalNote).toDomainModel() }
+                val decision = decideWorkoutStart(
+                    activeTimestamp = timer.activeNoteTimestamp,
+                    activeNote = activeNote,
+                    activeIsFinished = previous?.isFinished == true,
+                )
+                if (decision is WorkoutStartDecision.AskFirst) {
+                    // Keep both: the new workout takes the timer, the old one stays unfinished.
+                    val oldStillFinishable = canMarkFinished(decision.active, isFinished = false)
+                    if (!oldStillFinishable) {
+                        findings.report(
+                            "UNFINISHED-WORKOUT-ORPHANED", Severity.HIGH,
+                            "Starting a new workout makes the unfinished one un-finishable: no Finish button, its sets never reach the sets table / Stats charts",
+                            history, day, workout.index,
+                            "workout ${previous?.workout?.index} left with Back on ${previous?.workout?.date}; start sheet offered Keep both, but History cannot finish it",
+                            issue = "#293",
+                        )
+                    }
                 }
                 timer = NoteTimerState.started(workout.startMillis, workout.startMillis)
 
@@ -191,6 +203,7 @@ class LongHorizonSimulationTest {
             "PHANTOM-SET", // #320
             "LOST-SET",
             "CANONICAL-NEEDS-REVIEW", // #320: nameless exercise from the half-typed set
+            "UNFINISHED-WORKOUT-ORPHANED", // #293: start sheet + History "Mark finished"
         )
     }
 }
