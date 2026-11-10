@@ -129,6 +129,15 @@ fun StatsScreen(
                         StatBadge("Avg Sets", String.format("%.1f", state.avgSets), Modifier.weight(1f))
                         StatBadge("Favorite", state.categoryCounts.maxByOrNull { it.value }?.key ?: "-", Modifier.weight(1f))
                     }
+                    // Timed sets (#283) are counted in Avg Sets; this shows how many and their total time.
+                    if (state.timedSets.setCount > 0) {
+                        StatBadge(
+                            "Timed sets",
+                            "${state.timedSets.setCount}",
+                            Modifier.fillMaxWidth(),
+                            caption = "${formatHoldTime(state.timedSets.totalSeconds)} total hold",
+                        )
+                    }
                 }
             }
 
@@ -145,6 +154,7 @@ fun StatsScreen(
                     repository = workoutRepository,
                     timeRange = state.currentRange,
                     displayUnit = settings.defaultWeightUnit,
+                    timedProgress = state.timedProgress,
                 )
             }
 
@@ -159,7 +169,11 @@ fun StatsScreen(
             item {
                 AdaptiveCard(height = 300.dp) {
                     Column(Modifier.padding(16.dp)) {
-                        WorkoutDurationTrendChart(notes = state.filteredNotes, showRollingAvg = true)
+                        WorkoutDurationTrendChart(
+                            weekly = state.weeklyDurations,
+                            filteredOutliers = state.unreasonableDurationCount,
+                            showRollingAvg = true,
+                        )
                     }
                 }
             }
@@ -188,6 +202,18 @@ fun AdaptiveCard(
         shape = RoundedCornerShape(12.dp),
         modifier = mod
     ) { content() }
+}
+
+/** `95` -> `1:35`, `3725` -> `1:02:05`. */
+internal fun formatHoldTime(totalSeconds: Int): String {
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) {
+        String.format(java.util.Locale.ROOT, "%d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format(java.util.Locale.ROOT, "%d:%02d", minutes, seconds)
+    }
 }
 
 /** Tag on a badge's value text, e.g. `stats-badge-value-Workouts`. */

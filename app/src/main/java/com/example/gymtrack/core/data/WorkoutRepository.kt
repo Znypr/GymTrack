@@ -119,12 +119,15 @@ class WorkoutRepository(
                         labels = variant?.labels ?: fallbackIdentity.variantLabels(),
                         points = variantRows
                             .groupBy { it.originTimestamp }
-                            .map { (timestamp, timestampRows) ->
+                            // A workout with no reps for this variant (only timed sets, #283) has
+                            // no working weight: no point, never a 0 kg point.
+                            .mapNotNull { (timestamp, timestampRows) ->
                                 val totalVolume = timestampRows.sumOf { it.totalVolume.toDouble() }
                                 val totalReps = timestampRows.sumOf { it.totalReps }
+                                if (totalReps <= 0) return@mapNotNull null
                                 GraphPoint(
                                     originTimestamp = timestamp,
-                                    avgVal = if (totalReps > 0) (totalVolume / totalReps).toFloat() else 0f,
+                                    avgVal = (totalVolume / totalReps).toFloat(),
                                 )
                             }
                             .sortedBy { it.originTimestamp },
