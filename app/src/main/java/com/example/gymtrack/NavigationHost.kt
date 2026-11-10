@@ -78,6 +78,7 @@ fun NavigationHost(
             val notes by homeViewModel.notes.collectAsState()
             val importSummary by homeViewModel.legacyCsvImportSummary.collectAsState()
             val importProgress by homeViewModel.legacyCsvImportProgress.collectAsState()
+            val pendingDelete by homeViewModel.pendingDelete.collectAsState()
 
             LaunchedEffect(importSummary) {
                 val summary = importSummary ?: return@LaunchedEffect
@@ -104,6 +105,9 @@ fun NavigationHost(
                     homeViewModel.deleteNotes(selected)
                     selectedNotes = emptySet()
                 },
+                pendingDelete = pendingDelete,
+                onUndoDelete = { homeViewModel.undoDelete() },
+                onDeleteFinal = { homeViewModel.commitPendingDelete() },
                 onExport = { selected ->
                     if (selected.isNotEmpty()) {
                         scope.launch {

@@ -3,6 +3,7 @@ package com.example.gymtrack.feature.home
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -19,13 +20,18 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 data class LegacyCsvImportSummary(
     val selected: Int,
@@ -78,8 +84,31 @@ class HomeViewModel(
     private val workoutRepository: WorkoutRepository,
 ) : ViewModel() {
 
-    val notes = repository.getAllNotes()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /**
+     * Deletes outlive this ViewModel: a pending delete is committed in [onCleared], after
+     * viewModelScope is already cancelled.
+     */
+    private val deletionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private val pendingDeletion = PendingWorkoutDeletion(
+        scope = deletionScope,
+        delete = { notes ->
+            notes.forEach { note -> workoutRepository.deleteWorkout(note.toEntity()) }
+            // Keep the rows hidden until Room has emitted the list without them.
+            val timestamps = notes.mapTo(mutableSetOf()) { it.timestamp }
+            withTimeoutOrNull(2_000) {
+                repository.getAllNotes().first { list -> list.none { it.timestamp in timestamps } }
+            }
+        },
+        onDeleteError = { error -> Log.e("HomeViewModel", "Deleting workouts failed", error) },
+    )
+
+    /** Deleted workouts the Undo snackbar can still restore. */
+    val pendingDelete = pendingDeletion.pending
+
+    val notes = combine(repository.getAllNotes(), pendingDeletion.hiddenTimestamps) { notes, hidden ->
+        if (hidden.isEmpty()) notes else notes.filter { it.timestamp !in hidden }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _legacyCsvImportSummary = MutableStateFlow<LegacyCsvImportSummary?>(null)
     val legacyCsvImportSummary = _legacyCsvImportSummary.asStateFlow()
@@ -91,12 +120,22 @@ class HomeViewModel(
         _legacyCsvImportSummary.value = null
     }
 
+    /** Hides [notes] and offers Undo; the rows are only deleted by [commitPendingDelete]. */
     fun deleteNotes(notes: Set<NoteLine>) {
-        viewModelScope.launch(Dispatchers.IO) {
-            notes.forEach { note ->
-                workoutRepository.deleteWorkout(note.toEntity())
-            }
-        }
+        pendingDeletion.request(notes)
+    }
+
+    fun undoDelete() {
+        pendingDeletion.undo()
+    }
+
+    fun commitPendingDelete() {
+        pendingDeletion.commit()
+    }
+
+    override fun onCleared() {
+        pendingDeletion.commit()
+        super.onCleared()
     }
 
     suspend fun exportNotes(
@@ -123,7 +162,9 @@ class HomeViewModel(
                 processed = 0,
             )
 
-            val existingNotes = notes.value
+            // Finish any pending delete first so the duplicate checks see the real database.
+            pendingDeletion.commit().join()
+            val existingNotes = repository.getAllNotes().first()
             val usedTimestamps = existingNotes.mapTo(mutableSetOf()) { it.timestamp }
             val knownFullFingerprints = existingNotes.mapTo(mutableSetOf()) { note ->
                 legacyCsvFullFingerprint(note)

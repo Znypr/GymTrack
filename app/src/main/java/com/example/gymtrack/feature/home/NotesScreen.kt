@@ -39,6 +39,9 @@ fun NotesScreen(
     onSelect: (Set<NoteLine>) -> Unit,
     onEdit: (NoteLine) -> Unit,
     onDelete: (Set<NoteLine>) -> Unit,
+    pendingDelete: PendingWorkoutDelete? = null,
+    onUndoDelete: () -> Unit = {},
+    onDeleteFinal: () -> Unit = {},
     onExport: (Set<NoteLine>) -> Unit,
     onCreate: () -> Unit,
     onImport: (List<Uri>) -> Unit,
@@ -58,8 +61,47 @@ fun NotesScreen(
         },
     )
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    var confirmDeleteAll by remember { mutableStateOf<Set<NoteLine>?>(null) }
+
+    // #292: every delete can be undone until the snackbar goes away.
+    LaunchedEffect(pendingDelete?.id) {
+        val pending = pendingDelete ?: return@LaunchedEffect
+        snackbarHostState.currentSnackbarData?.dismiss()
+        val result = snackbarHostState.showSnackbar(
+            message = deletedWorkoutsMessage(pending.count),
+            actionLabel = "Undo",
+            withDismissAction = true,
+            duration = SnackbarDuration.Long,
+        )
+        when (result) {
+            SnackbarResult.ActionPerformed -> onUndoDelete()
+            SnackbarResult.Dismissed -> onDeleteFinal()
+        }
+    }
+
+    confirmDeleteAll?.let { toDelete ->
+        AlertDialog(
+            onDismissRequest = { confirmDeleteAll = null },
+            title = { Text(if (toDelete.size == 1) "Delete your only workout?" else "Delete all ${toDelete.size} workouts?") },
+            text = { Text("Every workout is selected. You can undo right after deleting.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDeleteAll = null
+                    onDelete(toDelete)
+                }) {
+                    Text("Delete all", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeleteAll = null }) { Text("Cancel") }
+            },
+        )
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             if (selectedNotes.isEmpty()) {
                 FloatingActionButton(
@@ -127,7 +169,13 @@ fun NotesScreen(
                         }
                     },
                     actions = {
-                        IconButton(onClick = { onDelete(selectedNotes) }) {
+                        IconButton(onClick = {
+                            if (deleteNeedsConfirmation(selectedNotes, notes)) {
+                                confirmDeleteAll = selectedNotes
+                            } else {
+                                onDelete(selectedNotes)
+                            }
+                        }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
                         }
                         IconButton(onClick = { onExport(selectedNotes) }) {
