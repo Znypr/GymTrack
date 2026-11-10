@@ -1,13 +1,21 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android Auto Backup rules for Android 8.0 to 11 (API 26 to 30), via android:fullBackupContent.
+    Android 12+ uses @xml/data_extraction_rules instead. Keep both files in sync.
+    Behaviour and the reasons for each exclusion are documented in docs/BACKUP_FORMAT.md
+    and in data_extraction_rules.xml.
+
+    Because <include> is used, ONLY the listed files are copied. The stats cache
+    (sharedpref/stats_cache.xml), the running-timer state
+    (file/datastore/note_timer.preferences_pb), old CSV export copies (file/csv/),
+    the SQLite -shm index and all caches stay on the device.
+
+    No requireFlags here on purpose: the flags must ALL be present, so requiring
+    clientSideEncryption could silently drop device-to-device transfer on API 28 to 30.
+    The encryption-only gate is applied on API 31+ in data_extraction_rules.xml.
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <include domain="database" path="note_database" />
+    <include domain="database" path="note_database-wal" />
+    <include domain="file" path="datastore/settings.preferences_pb" />
 </full-backup-content>

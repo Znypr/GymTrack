@@ -2,6 +2,60 @@
 
 GymTrack backups are lossless, local files for disaster recovery, upgrades, reinstalls, and device migration. They are separate from selected-workout export and from compact `TrainingSummary` export.
 
+## Two kinds of backup
+
+GymTrack has two independent backup paths. The privacy policy and the Play Data safety answers must describe both.
+
+| | In-app one-file backup (this format) | Android Auto Backup (system) |
+| --- | --- | --- |
+| Started by | The user, in Settings | Android, automatically (about once a day when idle, charging and on Wi-Fi), and during new-phone setup |
+| Destination | A file the user picks with the system document picker | The user's Google account backup (Google Drive), or the new phone during device-to-device transfer |
+| Encryption | None. The file is plain JSON in a ZIP | Cloud: end-to-end encrypted with the device screen lock. Transfer: handled by Android |
+| Content | Database records + settings (see below) | Database file + settings file (see rules below) |
+| Restore | User picks the file; replace-all restore with optional safety backup | Android restores automatically when GymTrack is installed on a phone signed in to the same Google account, or during device transfer |
+| Controlled by | GymTrack | Android and the user's Google backup settings. The user can turn it off in system settings |
+
+The developer never receives either backup. GymTrack has no INTERNET permission. Auto Backup is stored in the user's own Google account by Android, not by GymTrack.
+
+### Android Auto Backup rules (#339)
+
+Decision: Auto Backup stays ON (`android:allowBackup="true"`) with explicit include-only rules:
+
+- `app/src/main/res/xml/data_extraction_rules.xml` for Android 12+ (API 31+), used for both `<cloud-backup>` and `<device-transfer>`.
+- `app/src/main/res/xml/backup_rules.xml` (`android:fullBackupContent`) for Android 8 to 11 (API 26 to 30).
+
+Keep the two files in sync. Because the rules use `<include>`, only the listed files are copied:
+
+| File | Backed up | Why |
+| --- | --- | --- |
+| `databases/note_database` (Room) | Yes | All workouts, exercises, sets and notes |
+| `databases/note_database-wal` | Yes | SQLite write-ahead log. It can hold recent writes not yet checkpointed into the main file. Backed up together so the snapshot is complete |
+| `databases/note_database-shm` | No | SQLite shared-memory index. SQLite rebuilds it from the WAL on open |
+| `files/datastore/settings.preferences_pb` (`SettingsStore`) | Yes | 24-hour clock, rounding, dark mode, categories, default weight unit |
+| `files/datastore/note_timer.preferences_pb` (`NoteTimerStore`) | No | The running workout timer is stored as wall-clock start time. Restored days later or on another phone it would show a wrong, huge elapsed time |
+| `shared_prefs/stats_cache.xml` (`StatsPersistentCacheStore`) | No | Rebuildable statistics cache, versioned and recomputed from the database |
+| `files/csv/`, `files/export_failed.log` | No | Old CSV export copies, derived from the database. The user's copies are in Downloads |
+| Cache, `code_cache`, `no_backup` | No | Never backed up by Android |
+
+Behaviour details:
+
+- Cloud backup on Android 12+ uses `disableIfNoEncryptionCapabilities="true"`. Without a screen lock, there is no cloud backup, because workouts and notes may count as health data. Device-to-device transfer is not affected.
+- Android 8 to 11 has no such gate in the legacy rules. On Android 9 to 11 Google encrypts the backup end-to-end when a screen lock exists. On Android 8 it is encrypted by Google but not end-to-end.
+- Android stops Auto Backup if the app's backed-up data exceeds 25 MB. A text-only workout database is expected to stay far below this.
+- Restore runs before GymTrack's first launch after install. On launch, Room applies `ALL_DATABASE_MIGRATIONS`, so a backup from an older app version is migrated like a normal update. Android does not restore a backup made by a newer app version into an older one (no `android:restoreAnyVersion`).
+- Debug builds (`app.znypr.gymtrack.debug`) use the same rules. Their backup is a separate app in the Google account and never mixes with release data. They are kept on so the rules can be tested with `adb shell bmgr`.
+
+Manual test (needs a device or emulator with a Google account; not run in CI):
+
+```bash
+adb shell bmgr enable true
+adb shell bmgr backupnow app.znypr.gymtrack.debug
+adb uninstall app.znypr.gymtrack.debug
+adb install app/build/outputs/apk/debug/app-debug.apk
+```
+
+After reinstall, history and settings should be back, the stats screen should rebuild, and no timer should be running. If the restore does not start on install, run `adb shell bmgr restore app.znypr.gymtrack.debug` and relaunch. Device-to-device transfer can only be checked during a real new-phone setup.
+
 ## User-visible file
 
 A backup is created through the Android system document picker with a name like:
