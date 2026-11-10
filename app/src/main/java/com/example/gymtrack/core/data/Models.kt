@@ -30,10 +30,15 @@ enum class WeightUnit(val storageValue: String, val displayLabel: String) {
 data class Settings(
     val is24Hour: Boolean = true,
     val roundingSeconds: Int = 5,
-    val darkMode: Boolean = true,
+    val darkMode: Boolean = DEFAULT_DARK_MODE,
     val categories: List<Category> = DEFAULT_CATEGORIES,
     val defaultWeightUnit: WeightUnit = WeightUnit.KG,
-)
+) {
+    companion object {
+        /** Single source of truth for the theme default; [SettingsStore] falls back to it too. */
+        const val DEFAULT_DARK_MODE = true
+    }
+}
 
 data class NoteLine(
     val title: String,
