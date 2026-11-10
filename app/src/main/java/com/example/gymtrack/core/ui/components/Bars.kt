@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -121,7 +122,8 @@ private fun HintAction(label: String, color: Color, bold: Boolean, seed: Int, on
     val tokens = GymTrackTheme.tokens
     Box(
         modifier = Modifier
-            .heightIn(min = tokens.spacing.touchTarget)
+            // Short labels ("Fix") must still give a full touch target in both directions.
+            .sizeIn(minWidth = tokens.spacing.touchTarget, minHeight = tokens.spacing.touchTarget)
             .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = tokens.spacing.sm),
         contentAlignment = Alignment.Center,

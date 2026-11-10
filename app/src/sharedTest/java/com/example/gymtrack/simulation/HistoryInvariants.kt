@@ -204,7 +204,8 @@ class HistoryInvariants(
             findings.report(id, severity, title, history, day, null, example, issue)
 
         val unfinished = sessions.count { !it.isFinished }
-        val finished = sessions.count { it.isFinished }
+        // Notes not driven by the simulation (pre-existing workouts of a migrated database) are finished.
+        val finished = notes.size - unfinished
         val weekly = buildWeeklyWorkoutCounts(notes)
         if (weekly.sumOf { it.count } != notes.size) {
             report("WEEKLY-COUNT-SUM", Severity.HIGH, "Weekly workout counts do not add up to the workout count", "${weekly.sumOf { it.count }} vs ${notes.size}")
