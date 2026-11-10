@@ -7,13 +7,20 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
+import com.example.gymtrack.core.data.WeightUnit
 import com.example.gymtrack.core.data.WorkoutRepository
 import com.example.gymtrack.core.data.repository.NoteRepository
 import com.example.gymtrack.core.data.repository.toEntity
+import com.example.gymtrack.core.time.AppClock
+import com.example.gymtrack.core.util.WorkoutParser
 import com.example.gymtrack.core.util.exportNote
 import com.example.gymtrack.core.util.importNote
+import com.example.gymtrack.feature.history.TopSet
+import com.example.gymtrack.feature.history.topSet
+import com.example.gymtrack.feature.history.workoutCardMinutes
 import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
@@ -28,6 +35,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -106,13 +115,89 @@ class HomeViewModel(
     /** Deleted workouts the Undo snackbar can still restore. */
     val pendingDelete = pendingDeletion.pending
 
-    val notes = combine(repository.getAllNotes(), pendingDeletion.hiddenTimestamps) { notes, hidden ->
+    /** Visible workouts; null until the database answered once (no empty-state flash). */
+    val loadedNotes = combine(repository.getAllNotes(), pendingDeletion.hiddenTimestamps) { notes, hidden ->
         if (hidden.isEmpty()) notes else notes.filter { it.timestamp !in hidden }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /** Finish time per workout timestamp (completed workouts only), for the card durations. */
+    val notes = loadedNotes.map { it.orEmpty() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Finish time per workout timestamp (completed workouts only), for the row durations. */
     val finishTimes = workoutRepository.observeFinishTimes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /**
+     * Timestamps of finished workouts, by the same rule Stats uses (completed, or old workouts
+     * that already have derived set rows; docs/STATS_RULES.md). Everything else is "Unfinished".
+     */
+    val finishedTimestamps = repository.getStatsWorkoutFacts()
+        .map { facts -> facts.completedTimestamps + facts.storedSetUnits.keys }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    private val parser = WorkoutParser()
+    private val rowFactsCache = HashMap<Long, Pair<Int, WorkoutRowFacts>>()
+
+    /**
+     * Duration and top set per workout for the History and Recent rows. Parsed off the main
+     * thread and cached per workout text, so only changed workouts are parsed again.
+     */
+    val rowFacts = combine(repository.getAllNotes(), finishTimes) { notes, finishes ->
+        synchronized(rowFactsCache) {
+            val alive = notes.mapTo(HashSet()) { it.timestamp }
+            rowFactsCache.keys.retainAll(alive)
+            notes.associate { note ->
+                val finishedAt = finishes[note.timestamp]
+                val key = 31 * (31 * note.text.hashCode() + note.rowMetadata.hashCode()) + finishedAt.hashCode()
+                val cached = rowFactsCache[note.timestamp]?.takeIf { it.first == key }?.second
+                val facts = cached ?: WorkoutRowFacts(
+                    minutes = workoutCardMinutes(note, finishedAt),
+                    topSet = runCatching {
+                        topSet(parser.parseWorkout(note.text, rowMetadata = note.rowMetadata))
+                    }.getOrNull(),
+                ).also { rowFactsCache[note.timestamp] = key to it }
+                note.timestamp to facts
+            }
+        }
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /**
+     * Saves an empty workout of [category] that the editor then opens by id, so Start <Category>
+     * needs no editor change. Returns its timestamp (also the workout start).
+     */
+    suspend fun createWorkout(category: Category): Long = withContext(Dispatchers.IO) {
+        val taken = repository.getAllNotes().first().mapTo(HashSet()) { it.timestamp }
+        val timestamp = freeWorkoutTimestamp(AppClock.nowMillis(), taken)
+        repository.saveNote(
+            NoteLine(
+                title = "",
+                text = "",
+                timestamp = timestamp,
+                categoryName = category.name,
+                categoryColor = category.color,
+            ),
+        )
+        timestamp
+    }
+
+    /**
+     * Finishes workouts that were left unfinished (#293). [finishedAtMillis] null ends each one
+     * at its last logged row ("Discard timer", History "Mark finished"); a time ends it there,
+     * subject to the duration rule in docs/WORKOUT_DURATION.md.
+     */
+    suspend fun markFinished(notes: Collection<NoteLine>, defaultUnit: WeightUnit, finishedAtMillis: Long?) {
+        withContext(Dispatchers.IO) {
+            notes.forEach { note ->
+                workoutRepository.saveCompletedWorkout(note.toEntity(), defaultUnit, finishedAtMillis)
+            }
+        }
+    }
+
+    /** Removes a workout that has nothing in it (Start, then Back) without an Undo. */
+    suspend fun deleteEmptyWorkout(note: NoteLine) {
+        withContext(Dispatchers.IO) { workoutRepository.deleteWorkout(note.toEntity()) }
+    }
 
     private val _legacyCsvImportSummary = MutableStateFlow<LegacyCsvImportSummary?>(null)
     val legacyCsvImportSummary = _legacyCsvImportSummary.asStateFlow()
@@ -350,3 +435,6 @@ class HomeViewModel(
         val legacyFileNamePattern = Regex("note-(\\d{2})-(\\d{2})-(\\d{2})-(\\d{2})-(\\d{2})", RegexOption.IGNORE_CASE)
     }
 }
+
+/** What a History/Recent row shows besides the date: duration and top set. */
+data class WorkoutRowFacts(val minutes: Int, val topSet: TopSet?)
