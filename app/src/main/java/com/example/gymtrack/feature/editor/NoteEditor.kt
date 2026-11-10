@@ -61,6 +61,8 @@ fun NoteEditor(
     onSaveSuccess: () -> Unit,
     /** Category picked on Today for a NEW workout (null = the first category). Ignored when reopening. */
     chosenCategoryName: String? = null,
+    /** Explicit Finish of the active workout (not Back); receives the workout's timestamp. */
+    onWorkoutFinished: (Long) -> Unit = {},
 ) {
     val note by viewModel.uiState.collectAsState()
     val saveError by viewModel.saveError.collectAsState()
@@ -75,6 +77,7 @@ fun NoteEditor(
     }
 
     val state = rememberNoteEditorState(viewModel, settings, note, onSaveSuccess)
+    SideEffect { state.onWorkoutFinished = onWorkoutFinished }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 

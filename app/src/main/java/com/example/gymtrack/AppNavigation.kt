@@ -45,7 +45,7 @@ object AppRoutes {
     const val TODAY = "today"
     const val HISTORY = "history"
 
-    /** Placeholder: the existing StatsScreen plus a Settings row at its end (Progress redesign pending). */
+    /** Progress tab: the redesigned ProgressRoute (Settings row at its end). */
     const val PROGRESS = "progress"
     const val EDITOR = "editor?noteId={noteId}"
     const val SETTINGS = "settings"

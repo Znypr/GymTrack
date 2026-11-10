@@ -45,7 +45,7 @@ class BackupRepository(
 
         BackupWriteResult(
             manifest = manifest,
-            fileName = contentResolver.displayName(destination) ?: "GymTrack backup",
+            fileName = contentResolver.displayName(destination) ?: "ZnyprFit backup",
         )
     }
 

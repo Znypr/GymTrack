@@ -604,6 +604,9 @@ class NoteEditorState internal constructor(
         }
     }
 
+    /** Called with the workout's timestamp right before leaving after an explicit Finish. */
+    var onWorkoutFinished: ((Long) -> Unit)? = null
+
     private fun finishExit(isLastNote: Boolean, finishWorkout: Boolean) {
         if (!shouldStopTimerOnExit(isLastNote, finishWorkout)) {
             onSaveSuccess()
@@ -613,7 +616,10 @@ class NoteEditorState internal constructor(
             persistence.stopTimer(noteTimestamp)
             // Navigation must run on the main thread. The composition scope already is main in
             // the app; under the Compose test scheduler it can resume elsewhere after DataStore.
-            withContext(Dispatchers.Main) { onSaveSuccess() }
+            withContext(Dispatchers.Main) {
+                onWorkoutFinished?.invoke(noteTimestamp)
+                onSaveSuccess()
+            }
         }
     }
 

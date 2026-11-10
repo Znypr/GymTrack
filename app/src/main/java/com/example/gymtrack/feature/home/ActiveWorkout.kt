@@ -24,7 +24,7 @@ import java.util.Locale
 /** What the start sheet offers for the workout that still owns the timer. */
 enum class OrphanChoice(val label: String, val hint: String) {
     FINISH_IT("Finish it", "Counts it now, ends now"),
-    DISCARD_TIMER("Discard timer", "Counts it, ends at its last set"),
+    DISCARD_TIMER("End at last set", "Counts it, ends at its last set"),
     KEEP_BOTH("Keep both", "Stays unfinished; finish it later from History"),
 }
 

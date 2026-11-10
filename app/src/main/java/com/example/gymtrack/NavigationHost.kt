@@ -54,6 +54,10 @@ import com.example.gymtrack.feature.home.HomeViewModel
 import com.example.gymtrack.feature.home.OrphanChoice
 import com.example.gymtrack.feature.home.WorkoutStartDecision
 import com.example.gymtrack.feature.home.WorkoutStartSheet
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.example.gymtrack.feature.finish.FinishSummarySheet
+import com.example.gymtrack.feature.finish.buildFinishSummary
+import com.example.gymtrack.feature.stats.ProgressRoute
 import com.example.gymtrack.feature.home.activeWorkoutInfo
 import com.example.gymtrack.feature.home.decideWorkoutStart
 import com.example.gymtrack.feature.home.orphanPrompt
@@ -112,6 +116,8 @@ fun NavigationHost(
     val active = activeWorkoutInfo(timer, notes) { it in finished }
 
     var pendingStart by remember { mutableStateOf<PendingStart?>(null) }
+    // Workout whose Finish summary sheet is showing (survives rotation).
+    var finishSummaryFor by rememberSaveable { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(importSummary) {
         val summary = importSummary ?: return@LaunchedEffect
@@ -265,19 +271,15 @@ fun NavigationHost(
             }
 
             composable(AppRoutes.PROGRESS) {
-                val state by retainedStatsViewModel.uiState.collectAsState()
-                Column(Modifier.fillMaxSize()) {
-                    Box(Modifier.weight(1f).fillMaxWidth()) {
-                        StatsScreen(
-                            state = state,
-                            workoutRepository = workoutRepository,
-                            settings = settings,
-                            onTimeRangeSelected = { retainedStatsViewModel.setTimeRange(it) },
-                            onBack = { openTab(AppRoutes.TODAY) },
-                        )
-                    }
-                    SettingsEntryRow(onClick = { navController.navigate(AppRoutes.SETTINGS) })
-                }
+                ProgressRoute(
+                    viewModel = retainedStatsViewModel,
+                    workoutRepository = workoutRepository,
+                    settings = settings,
+                    onOpenSettings = { navController.navigate(AppRoutes.SETTINGS) },
+                    onStartCategory = { name ->
+                        requestStart(settings.categories.firstOrNull { it.name == name })
+                    },
+                )
             }
 
             composable(AppRoutes.EDITOR) { backStackEntry ->
@@ -304,6 +306,7 @@ fun NavigationHost(
                     isLastNote = isActiveWorkout,
                     onCancel = { navController.popBackStack() },
                     onSaveSuccess = { navController.popBackStack() },
+                    onWorkoutFinished = { timestamp -> finishSummaryFor = timestamp },
                 )
             }
 
@@ -519,6 +522,29 @@ fun NavigationHost(
             onChoice = { choice -> resolveStart(request, choice) },
             onDismiss = { pendingStart = null },
         )
+    }
+
+    // Finish summary (wave 2): shown once the finished workout is in the list.
+    finishSummaryFor?.let { timestamp ->
+        val workout = notes.firstOrNull { it.timestamp == timestamp }
+        if (workout != null) {
+            val summary = remember(workout, finished, settings.defaultWeightUnit) {
+                buildFinishSummary(
+                    workout = workout,
+                    defaultUnit = settings.defaultWeightUnit,
+                    finishedWorkoutStarts = finished + timestamp,
+                    nowMillis = AppClock.nowMillis(),
+                )
+            }
+            FinishSummarySheet(
+                summary = summary,
+                onDone = { finishSummaryFor = null },
+                onEdit = {
+                    finishSummaryFor = null
+                    openWorkout(timestamp)
+                },
+            )
+        }
     }
 }
 
