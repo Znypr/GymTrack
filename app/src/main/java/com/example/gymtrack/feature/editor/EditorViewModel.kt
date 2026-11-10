@@ -1,5 +1,6 @@
 package com.example.gymtrack.feature.editor
 
+import com.example.gymtrack.core.time.AppClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -112,7 +113,7 @@ class EditorViewModel(
     ): NoteLine {
         val timestamp = synchronized(idLock) {
             if (currentId == -1L) {
-                currentId = newNoteTimestamp ?: System.currentTimeMillis()
+                currentId = newNoteTimestamp ?: AppClock.nowMillis()
             }
             currentId
         }

@@ -68,6 +68,12 @@ import kotlinx.coroutines.launch
 internal const val EDITOR_FIRST_INPUT_TEST_TAG = "editor-first-input"
 internal const val EDITOR_INPUT_FRAME_TEST_TAG = "editor-input-frame"
 
+/** Row inputs after the first one. Row 0 keeps [EDITOR_FIRST_INPUT_TEST_TAG]. */
+internal fun editorRowInputTestTag(index: Int): String =
+    if (index == 0) EDITOR_FIRST_INPUT_TEST_TAG else "editor-row-input-$index"
+
+internal fun editorRowFlagTestTag(index: Int): String = "editor-row-flag-$index"
+
 internal fun isFastSetEntryCandidate(
     index: Int,
     currentText: String,
@@ -210,6 +216,7 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                                             flag = row.flag.value,
                                             relColor = textColor,
                                             onToggle = { state.toggleFlag(index) },
+                                            modifier = Modifier.testTag(editorRowFlagTestTag(index)),
                                         )
                                     } else {
                                         var p = index - 1
@@ -274,7 +281,7 @@ fun EditorListSection(state: NoteEditorState, modifier: Modifier = Modifier) {
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .then(if (index == 0) Modifier.testTag(EDITOR_FIRST_INPUT_TEST_TAG) else Modifier)
+                                        .testTag(editorRowInputTestTag(index))
                                         .focusRequester(fr)
                                         .onFocusChanged {
                                             isFocused = it.isFocused

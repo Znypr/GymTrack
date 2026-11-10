@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -22,6 +23,10 @@ import com.example.gymtrack.core.data.Settings
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+internal const val EDITOR_CATEGORY_SELECTOR_TEST_TAG = "editor-category-selector"
+
+internal fun editorCategoryOptionTestTag(name: String): String = "editor-category-option-$name"
 
 @Composable
 fun EditorHeroHeader(
@@ -76,7 +81,9 @@ fun EditorHeroHeader(
                 Surface(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
                     shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.clickable { menuExpanded = true }
+                    modifier = Modifier
+                        .testTag(EDITOR_CATEGORY_SELECTOR_TEST_TAG)
+                        .clickable { menuExpanded = true }
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -98,7 +105,8 @@ fun EditorHeroHeader(
                         DropdownMenuItem(
                             text = { Text(cat.name, color = MaterialTheme.colorScheme.onSurface) },
                             leadingIcon = { Box(Modifier.size(12.dp).clip(RoundedCornerShape(50)).background(Color(cat.color))) },
-                            onClick = { onCategorySelect(cat); menuExpanded = false }
+                            onClick = { onCategorySelect(cat); menuExpanded = false },
+                            modifier = Modifier.testTag(editorCategoryOptionTestTag(cat.name)),
                         )
                     }
                 }

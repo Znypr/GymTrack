@@ -1,5 +1,6 @@
 package com.example.gymtrack.feature.stats.components.charts
 
+import com.example.gymtrack.core.time.AppClock
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -154,7 +155,7 @@ fun ExerciseProgressCard(
         if (timeRange == TimeRange.ALL_TIME) {
             0L
         } else {
-            System.currentTimeMillis() - TimeUnit.DAYS.toMillis(timeRange.days.toLong())
+            AppClock.nowMillis() - TimeUnit.DAYS.toMillis(timeRange.days.toLong())
         }
     }
 
