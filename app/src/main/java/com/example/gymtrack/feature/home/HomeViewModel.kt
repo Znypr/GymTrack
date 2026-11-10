@@ -110,6 +110,10 @@ class HomeViewModel(
         if (hidden.isEmpty()) notes else notes.filter { it.timestamp !in hidden }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** Finish time per workout timestamp (completed workouts only), for the card durations. */
+    val finishTimes = workoutRepository.observeFinishTimes()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     private val _legacyCsvImportSummary = MutableStateFlow<LegacyCsvImportSummary?>(null)
     val legacyCsvImportSummary = _legacyCsvImportSummary.asStateFlow()
 
@@ -263,6 +267,8 @@ class HomeViewModel(
                             workoutRepository.saveCompletedWorkout(
                                 note = parsedNote.toEntity(),
                                 defaultWeightUnit = settings.defaultWeightUnit,
+                                // An import has no Finish moment; the duration ends at the last row.
+                                finishedAtMillis = null,
                             )
                             usedTimestamps += parsedNote.timestamp
                             knownFullFingerprints += legacyCsvFullFingerprint(parsedNote)

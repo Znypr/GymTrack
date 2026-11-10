@@ -76,6 +76,7 @@ fun NavigationHost(
                 factory = HomeViewModel.Factory(noteRepository, workoutRepository),
             )
             val notes by homeViewModel.notes.collectAsState()
+            val finishTimes by homeViewModel.finishTimes.collectAsState()
             val importSummary by homeViewModel.legacyCsvImportSummary.collectAsState()
             val importProgress by homeViewModel.legacyCsvImportProgress.collectAsState()
             val pendingDelete by homeViewModel.pendingDelete.collectAsState()
@@ -96,6 +97,7 @@ fun NavigationHost(
 
             NotesScreen(
                 notes = notes,
+                finishTimes = finishTimes,
                 selectedNotes = selectedNotes,
                 onSelect = { selectedNotes = it },
                 onEdit = { note ->

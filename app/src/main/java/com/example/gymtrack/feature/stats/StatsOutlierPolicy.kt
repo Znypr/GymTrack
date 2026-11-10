@@ -2,8 +2,7 @@ package com.example.gymtrack.feature.stats
 
 import com.example.gymtrack.core.data.GraphPoint
 import com.example.gymtrack.core.data.NoteLine
-import com.example.gymtrack.core.util.parseDurationSeconds
-import com.example.gymtrack.core.util.parseNoteText
+import com.example.gymtrack.core.util.noteWorkoutDuration
 import java.util.Calendar
 
 const val MAX_REASONABLE_WORKOUT_DURATION_MINUTES = 300f
@@ -68,12 +67,10 @@ fun isoWeekStart(timestamp: Long): Long {
     return calendar.timeInMillis
 }
 
+/** Same duration rule as the Home card (docs/WORKOUT_DURATION.md): ends before a pause > 3 h. */
 private fun extractWorkoutDurationMinutes(note: NoteLine): Float? {
-    return parseNoteText(note.text, note.rowMetadata).second
-        .mapNotNull { rawDuration ->
-            if (rawDuration.isBlank()) null else parseDurationSeconds(rawDuration)
-        }
-        .maxOrNull()
+    return noteWorkoutDuration(note.text, note.rowMetadata, note.timestamp)
+        ?.seconds
         ?.div(60f)
 }
 

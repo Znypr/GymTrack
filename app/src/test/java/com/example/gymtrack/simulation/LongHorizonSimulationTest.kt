@@ -1,6 +1,7 @@
 package com.example.gymtrack.simulation
 
 import com.example.gymtrack.core.data.NoteLine
+import com.example.gymtrack.core.data.WorkoutRepository
 import com.example.gymtrack.core.data.repository.toDomainModel
 import com.example.gymtrack.core.data.transition.CanonicalExerciseCatalog
 import com.example.gymtrack.core.data.transition.LegacyWorkoutProjector
@@ -127,7 +128,11 @@ class LongHorizonSimulationTest {
                         session,
                         parsed,
                         CanonicalRows(
-                            projection.workout.copy(status = "COMPLETED"),
+                            // What WorkoutRepository.saveCompletedWorkout writes at Finish.
+                            projection.workout.copy(
+                                status = "COMPLETED",
+                                endedAt = WorkoutRepository.completedWorkoutEndedAt(note, session.finishedAtMillis),
+                            ),
                             projection.workoutExercises,
                             projection.workoutSets,
                         ),

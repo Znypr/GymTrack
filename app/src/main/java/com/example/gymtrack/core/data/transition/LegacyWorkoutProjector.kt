@@ -9,6 +9,7 @@ import com.example.gymtrack.core.data.NoteEntity
 import com.example.gymtrack.core.util.WorkoutParser
 import com.example.gymtrack.core.util.buildNoteRowMetadata
 import com.example.gymtrack.core.util.parseNoteText
+import com.example.gymtrack.core.util.workoutDuration
 
 internal const val CANONICAL_IMPORT_VERSION = "canonical-import-v1"
 
@@ -136,7 +137,8 @@ internal class LegacyWorkoutProjector(
                 id = workoutKey,
                 legacyTimestamp = note.timestamp,
                 startedAt = note.timestamp,
-                endedAt = elapsedOffsets.maxOrNull()?.let { note.timestamp + it * 1000L },
+                // Duration rule (docs/WORKOUT_DURATION.md): ends before a pause of more than 3 h.
+                endedAt = workoutDuration(elapsedOffsets)?.let { note.timestamp + it.seconds * 1000L },
                 categoryId = category?.id,
                 title = note.title,
                 learnings = note.learnings.orEmpty(),
