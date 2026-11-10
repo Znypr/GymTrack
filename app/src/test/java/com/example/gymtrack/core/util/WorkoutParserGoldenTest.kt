@@ -31,15 +31,15 @@ class WorkoutParserGoldenTest {
     private fun render(): String = buildString {
         appendLine("# names (each parsed with one set `10x 50`)")
         for (name in NAME_CORPUS) {
-            val sets = parser.parseWorkout("$name\n    10x 50")
-            appendLine("$name => " + sets.joinToString(" ; ") { it.nameLine() })
+            val result = parser.parse("$name\n    10x 50")
+            appendLine("$name => " + result.sets.joinToString(" ; ") { it.nameLine() } + result.diagText())
         }
         appendLine()
         appendLine("# set formats")
         for (header in SET_HEADERS) {
             for (set in SET_CORPUS) {
-                val sets = parser.parseWorkout("$header\n    $set")
-                appendLine("[$header] `$set` => " + sets.joinToString(" ; ") { it.setLine() })
+                val result = parser.parse("$header\n    $set")
+                appendLine("[$header] `$set` => " + result.sets.joinToString(" ; ") { it.setLine() } + result.diagText())
             }
         }
         appendLine()
@@ -47,12 +47,20 @@ class WorkoutParserGoldenTest {
         for ((label, text) in WORKOUT_CORPUS) {
             appendLine("## $label")
             for (unit in listOf("KG", "LB")) {
-                parser.parseWorkout(text, defaultWeightUnit = unit).forEach {
+                val result = parser.parse(text, defaultWeightUnit = unit)
+                result.sets.forEach {
                     appendLine("$unit ${it.nameLine()} | ${it.setLine()} | rel=${it.relativeTime} abs=${it.absoluteTime}")
                 }
+                result.diagnostics.forEach { appendLine("$unit !! ${it.render()}") }
             }
         }
     }
+
+    private fun WorkoutParseResult.diagText(): String =
+        if (diagnostics.isEmpty()) "" else "  !! " + diagnostics.joinToString(" ; ") { it.render() }
+
+    private fun ParseDiagnostic.render(): String =
+        "L$lineIndex ${reason.name}" + (original?.let { " $it->$replacement" } ?: "")
 
     private fun ParsedSetDTO.nameLine() =
         "name=$exerciseName mod=$modifier brand=$brand canonical=${exerciseIdentity.canonicalName}"

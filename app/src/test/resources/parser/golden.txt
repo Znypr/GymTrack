@@ -14,7 +14,7 @@ leg extension rl => name=Leg extension mod=null brand=null canonical=Leg Extensi
 plank => name=Plank mod=null brand=null canonical=Plank
 lateral raise db => name=Lateral raise mod=Dumbbell brand=null canonical=Lateral Raise
 lat raise => name=Lat raise mod=null brand=null canonical=Lateral Raise
-side raise => name=Raise mod=Wide brand=null canonical=Lateral Raise
+side raise => name=Side raise mod=null brand=null canonical=Lateral Raise
 rear delt prime => name=Rear delt mod=null brand=Prime canonical=Rear Delt Fly
 rear delt fly => name=Rear delt fly mod=null brand=null canonical=Rear Delt Fly
 reverse fly => name=Reverse fly mod=null brand=null canonical=Chest Fly
@@ -47,16 +47,16 @@ sumo deadlift => name=Sumo deadlift mod=null brand=null canonical=Sumo Deadlift
 deficit deadlift => name=Deficit deadlift mod=null brand=null canonical=Deficit Deadlift
 stiff leg deadlift => name=Stiff leg deadlift mod=null brand=null canonical=Stiff Leg Deadlift
 good morning => name=Good morning mod=null brand=null canonical=Good Morning
-hip thrust => name=Dip thrust mod=null brand=null canonical=Hip Thrust
-bb hip thrust => name=Dip thrust mod=null brand=BootyBuilder canonical=Hip Thrust
-Hip thrust machine => name=Dip thrust machine mod=null brand=null canonical=Hip Thrust
+hip thrust => name=Hip thrust mod=null brand=null canonical=Hip Thrust
+bb hip thrust => name=Hip thrust mod=null brand=BootyBuilder canonical=Hip Thrust
+Hip thrust machine => name=Hip thrust machine mod=null brand=null canonical=Hip Thrust
 glute bridge => name=Glute bridge mod=null brand=null canonical=Glute Bridge
 glute kickback => name=Glute kickback mod=null brand=null canonical=Glute Kickback
 kickback => name=Kickback mod=null brand=null canonical=Kickback
-rack pull => name=Back pull mod=null brand=null canonical=Back Pull
-rack pulls => name=Back pull mod=null brand=null canonical=Back Pull
-hip abduction => name=Dip abductor mod=null brand=null canonical=Hip Abduction
-hip adduction => name=Dip adductor mod=null brand=null canonical=Hip Adduction
+rack pull => name=Rack pull mod=null brand=null canonical=Rack Pull
+rack pulls => name=Rack pull mod=null brand=null canonical=Rack Pull
+hip abduction => name=Hip abduction mod=null brand=null canonical=Hip Abduction
+hip adduction => name=Hip adduction mod=null brand=null canonical=Hip Adduction
 adductor => name=Adductor mod=null brand=null canonical=Hip Adduction
 abductor => name=Abductor mod=null brand=null canonical=Hip Abduction
 ad abductor => name=Adductor mod=null brand=null canonical=Hip Adduction
@@ -65,7 +65,7 @@ step up => name=Step up mod=null brand=null canonical=Step Up
 nordic curl => name=Nordic curl mod=null brand=null canonical=Nordic Curl
 pullups => name=Pullup mod=null brand=null canonical=Pull-Up
 pull up => name=Pullup mod=null brand=null canonical=Pull-Up
-chin up => name=Chinup up mod=null brand=null canonical=Chinup Up
+chin up => name=Chin up mod=null brand=null canonical=Chin Up
 dips => name=Dip mod=null brand=null canonical=Dip
 dip => name=Dip mod=null brand=null canonical=Dip
 dips prime => name=Dip mod=null brand=Prime canonical=Dip
@@ -73,7 +73,7 @@ push ups => name=Push up mod=null brand=null canonical=Push Up
 crunches => name=Crunch mod=null brand=null canonical=Crunch
 hanging leg raise => name=Hanging leg raise mod=null brand=null canonical=Hanging Leg Raise
 leg raise => name=Leg raise mod=null brand=null canonical=Leg Raise
-legraise => name=Leg raise mod=null brand=null canonical=Leg Raise
+legraise => name=Leg raise mod=null brand=null canonical=Leg Raise  !! L0 NAME_AUTOCORRECTED legraise->leg raise
 back extension => name=Back extension mod=null brand=null canonical=Back Extension
 hyperextension => name=Hyperextension mod=null brand=null canonical=Hyperextension
 ab wheel => name=Ab wheel mod=null brand=null canonical=Ab Wheel
@@ -85,7 +85,7 @@ pec fly => name=Pec fly mod=null brand=null canonical=Chest Fly
 machine fly => name=Machine fly mod=null brand=null canonical=Chest Fly
 fly => name=Fly mod=null brand=null canonical=Chest Fly
 butterfly => name=Butterfly mod=null brand=null canonical=Pec Deck
-buttferfli => name=Butterfly mod=null brand=null canonical=Pec Deck
+buttferfli => name=Butterfly mod=null brand=null canonical=Pec Deck  !! L0 NAME_AUTOCORRECTED buttferfli->butterfly
 pec deck => name=Pec deck mod=null brand=null canonical=Pec Deck
 cable crossover => name=Crossover mod=Cable brand=null canonical=Crossover
 pullover => name=Pullover mod=null brand=null canonical=Pullover
@@ -132,12 +132,12 @@ elliptical => name=Elliptical mod=null brand=null canonical=Elliptical
 farmer walk => name=Farmer walk mod=null brand=null canonical=Farmer Walk
 sled push => name=Sled push mod=null brand=null canonical=Sled Push
 benchpress => name=Benchpress mod=null brand=null canonical=Benchpress
-squatt => name=Squat mod=null brand=null canonical=Squat
-deadlfit => name=Deadlift mod=null brand=null canonical=Deadlift
+squatt => name=Squat mod=null brand=null canonical=Squat  !! L0 NAME_AUTOCORRECTED squatt->squat
+deadlfit => name=Deadlift mod=null brand=null canonical=Deadlift  !! L0 NAME_AUTOCORRECTED deadlfit->deadlift
 latpulldwn => name=Latpulldwn mod=null brand=null canonical=Latpulldwn
-tricpe pushdown => name=Triceps pushdown mod=null brand=null canonical=Triceps Pushdown
+tricpe pushdown => name=Triceps pushdown mod=null brand=null canonical=Triceps Pushdown  !! L0 NAME_AUTOCORRECTED tricpe->tricep
 incline dumbell press => name=Press mod=Incline, Dumbbell brand=null canonical=Press
-lat pulldwon => name=Lat pulldown mod=null brand=null canonical=Lat Pulldown
+lat pulldwon => name=Lat pulldown mod=null brand=null canonical=Lat Pulldown  !! L0 NAME_AUTOCORRECTED pulldwon->pulldown
 curls => name=Curl mod=null brand=null canonical=Curl
 
 # set formats
@@ -152,8 +152,8 @@ curls => name=Curl mod=null brand=null canonical=Curl
 [Bench press] `8x 220lbs` => reps=8 w=220.0 LB dur=null uni=false
 [Bench press] `15x 12.5` => reps=15 w=12.5 KG dur=null uni=false
 [Bench press] `8+4+4x 50` => reps=16 w=50.0 KG dur=null uni=false
-[Bench press] `10+3+2x` => 
-[Bench press] `8x` => 
+[Bench press] `10+3+2x` =>   !! L1 MISSING_WEIGHT
+[Bench press] `8x` =>   !! L1 MISSING_WEIGHT
 [Bench press] `12x 30 (1'00'')` => reps=12 w=30.0 KG dur=null uni=false
 [Bench press] `60s` => reps=0 w=0.0 KG dur=60 uni=false
 [Bench press] `60 s` => reps=0 w=0.0 KG dur=60 uni=false
@@ -161,17 +161,17 @@ curls => name=Curl mod=null brand=null canonical=Curl
 [Bench press] `30s 20kg` => reps=0 w=20.0 KG dur=30 uni=false
 [Bench press] `30 S 20kg` => reps=0 w=20.0 KG dur=30 uni=false
 [Bench press] `30s 12.5 lb` => reps=0 w=12.5 LB dur=30 uni=false
-[Bench press] `10` => 
-[Bench press] `30` => 
-[Bench press] `x10 50` => 
-[Bench press] `x 10 50` => 
-[Bench press] `10 reps 50` => 
-[Bench press] `10 rep 50` => 
-[Bench press] `10reps` => 
-[Bench press] `100kg x5` => 
+[Bench press] `10` =>   !! L1 AMBIGUOUS_NUMBER
+[Bench press] `30` =>   !! L1 AMBIGUOUS_NUMBER
+[Bench press] `x10 50` => reps=10 w=50.0 KG dur=null uni=false
+[Bench press] `x 10 50` => reps=10 w=50.0 KG dur=null uni=false
+[Bench press] `10 reps 50` => reps=10 w=50.0 KG dur=null uni=false
+[Bench press] `10 rep 50` => reps=10 w=50.0 KG dur=null uni=false
+[Bench press] `10reps` =>   !! L1 MISSING_WEIGHT
+[Bench press] `100kg x5` => reps=5 w=100.0 KG dur=null uni=false
 [Bench press] `100 x5` => reps=100 w=5.0 KG dur=null uni=false
-[Bench press] `62,5` => 
-[Bench press] `10x 62,5` => reps=10 w=62.0 KG dur=null uni=false
+[Bench press] `62,5` =>   !! L1 AMBIGUOUS_NUMBER
+[Bench press] `10x 62,5` => reps=10 w=62.5 KG dur=null uni=false
 [Bench press] `10x 62.5` => reps=10 w=62.5 KG dur=null uni=false
 [Bench press] `5x 100 uni` => reps=5 w=100.0 KG dur=null uni=true
 [Bench press] `10x 60 (1'38'') 1'40''` => reps=10 w=60.0 KG dur=null uni=false
@@ -195,17 +195,17 @@ curls => name=Curl mod=null brand=null canonical=Curl
 [Pullups] `30s 20kg` => reps=0 w=20.0 KG dur=30 uni=false
 [Pullups] `30 S 20kg` => reps=0 w=20.0 KG dur=30 uni=false
 [Pullups] `30s 12.5 lb` => reps=0 w=12.5 LB dur=30 uni=false
-[Pullups] `10` => 
-[Pullups] `30` => 
-[Pullups] `x10 50` => 
-[Pullups] `x 10 50` => 
-[Pullups] `10 reps 50` => 
-[Pullups] `10 rep 50` => 
-[Pullups] `10reps` => 
-[Pullups] `100kg x5` => 
+[Pullups] `10` =>   !! L1 AMBIGUOUS_NUMBER
+[Pullups] `30` =>   !! L1 AMBIGUOUS_NUMBER
+[Pullups] `x10 50` => reps=10 w=50.0 KG dur=null uni=false
+[Pullups] `x 10 50` => reps=10 w=50.0 KG dur=null uni=false
+[Pullups] `10 reps 50` => reps=10 w=50.0 KG dur=null uni=false
+[Pullups] `10 rep 50` => reps=10 w=50.0 KG dur=null uni=false
+[Pullups] `10reps` => reps=10 w=0.0 KG dur=null uni=false
+[Pullups] `100kg x5` => reps=5 w=100.0 KG dur=null uni=false
 [Pullups] `100 x5` => reps=100 w=5.0 KG dur=null uni=false
-[Pullups] `62,5` => 
-[Pullups] `10x 62,5` => reps=10 w=62.0 KG dur=null uni=false
+[Pullups] `62,5` =>   !! L1 AMBIGUOUS_NUMBER
+[Pullups] `10x 62,5` => reps=10 w=62.5 KG dur=null uni=false
 [Pullups] `10x 62.5` => reps=10 w=62.5 KG dur=null uni=false
 [Pullups] `5x 100 uni` => reps=5 w=100.0 KG dur=null uni=true
 [Pullups] `10x 60 (1'38'') 1'40''` => reps=10 w=60.0 KG dur=null uni=false
@@ -229,17 +229,17 @@ curls => name=Curl mod=null brand=null canonical=Curl
 [Treadmill] `30s 20kg` => reps=0 w=20.0 KG dur=30 uni=false
 [Treadmill] `30 S 20kg` => reps=0 w=20.0 KG dur=30 uni=false
 [Treadmill] `30s 12.5 lb` => reps=0 w=12.5 LB dur=30 uni=false
-[Treadmill] `10` => 
-[Treadmill] `30` => 
-[Treadmill] `x10 50` => 
-[Treadmill] `x 10 50` => 
-[Treadmill] `10 reps 50` => 
-[Treadmill] `10 rep 50` => 
-[Treadmill] `10reps` => 
-[Treadmill] `100kg x5` => 
+[Treadmill] `10` => reps=10 w=0.0 KG dur=null uni=false
+[Treadmill] `30` => reps=30 w=0.0 KG dur=null uni=false
+[Treadmill] `x10 50` => reps=10 w=50.0 KG dur=null uni=false
+[Treadmill] `x 10 50` => reps=10 w=50.0 KG dur=null uni=false
+[Treadmill] `10 reps 50` => reps=10 w=50.0 KG dur=null uni=false
+[Treadmill] `10 rep 50` => reps=10 w=50.0 KG dur=null uni=false
+[Treadmill] `10reps` => reps=10 w=0.0 KG dur=null uni=false
+[Treadmill] `100kg x5` => reps=5 w=100.0 KG dur=null uni=false
 [Treadmill] `100 x5` => reps=100 w=5.0 KG dur=null uni=false
-[Treadmill] `62,5` => 
-[Treadmill] `10x 62,5` => reps=10 w=62.0 KG dur=null uni=false
+[Treadmill] `62,5` =>   !! L1 AMBIGUOUS_NUMBER
+[Treadmill] `10x 62,5` => reps=10 w=62.5 KG dur=null uni=false
 [Treadmill] `10x 62.5` => reps=10 w=62.5 KG dur=null uni=false
 [Treadmill] `5x 100 uni` => reps=5 w=100.0 KG dur=null uni=true
 [Treadmill] `10x 60 (1'38'') 1'40''` => reps=10 w=60.0 KG dur=null uni=false
@@ -254,8 +254,8 @@ curls => name=Curl mod=null brand=null canonical=Curl
 [Plank] `8x 220lbs` => reps=8 w=220.0 LB dur=null uni=false
 [Plank] `15x 12.5` => reps=15 w=12.5 KG dur=null uni=false
 [Plank] `8+4+4x 50` => reps=16 w=50.0 KG dur=null uni=false
-[Plank] `10+3+2x` => 
-[Plank] `8x` => 
+[Plank] `10+3+2x` =>   !! L1 MISSING_WEIGHT
+[Plank] `8x` =>   !! L1 MISSING_WEIGHT
 [Plank] `12x 30 (1'00'')` => reps=12 w=30.0 KG dur=null uni=false
 [Plank] `60s` => reps=0 w=0.0 KG dur=60 uni=false
 [Plank] `60 s` => reps=0 w=0.0 KG dur=60 uni=false
@@ -263,17 +263,17 @@ curls => name=Curl mod=null brand=null canonical=Curl
 [Plank] `30s 20kg` => reps=0 w=20.0 KG dur=30 uni=false
 [Plank] `30 S 20kg` => reps=0 w=20.0 KG dur=30 uni=false
 [Plank] `30s 12.5 lb` => reps=0 w=12.5 LB dur=30 uni=false
-[Plank] `10` => 
-[Plank] `30` => 
-[Plank] `x10 50` => 
-[Plank] `x 10 50` => 
-[Plank] `10 reps 50` => 
-[Plank] `10 rep 50` => 
-[Plank] `10reps` => 
-[Plank] `100kg x5` => 
+[Plank] `10` =>   !! L1 AMBIGUOUS_NUMBER
+[Plank] `30` =>   !! L1 AMBIGUOUS_NUMBER
+[Plank] `x10 50` => reps=10 w=50.0 KG dur=null uni=false
+[Plank] `x 10 50` => reps=10 w=50.0 KG dur=null uni=false
+[Plank] `10 reps 50` => reps=10 w=50.0 KG dur=null uni=false
+[Plank] `10 rep 50` => reps=10 w=50.0 KG dur=null uni=false
+[Plank] `10reps` =>   !! L1 MISSING_WEIGHT
+[Plank] `100kg x5` => reps=5 w=100.0 KG dur=null uni=false
 [Plank] `100 x5` => reps=100 w=5.0 KG dur=null uni=false
-[Plank] `62,5` => 
-[Plank] `10x 62,5` => reps=10 w=62.0 KG dur=null uni=false
+[Plank] `62,5` =>   !! L1 AMBIGUOUS_NUMBER
+[Plank] `10x 62,5` => reps=10 w=62.5 KG dur=null uni=false
 [Plank] `10x 62.5` => reps=10 w=62.5 KG dur=null uni=false
 [Plank] `5x 100 uni` => reps=5 w=100.0 KG dur=null uni=true
 [Plank] `10x 60 (1'38'') 1'40''` => reps=10 w=60.0 KG dur=null uni=false
@@ -313,8 +313,10 @@ LB name=Triceps pushdown mod=Straight Bar brand=null canonical=Triceps Pushdown 
 ## first set without weight
 KG name=Bench press mod=null brand=null canonical=Bench Press | reps=10 w=60.0 KG dur=null uni=false | rel=null abs=null
 KG name=Bench press mod=null brand=null canonical=Bench Press | reps=8 w=60.0 KG dur=null uni=false | rel=null abs=null
+KG !! L1 MISSING_WEIGHT
 LB name=Bench press mod=null brand=null canonical=Bench Press | reps=10 w=60.0 LB dur=null uni=false | rel=null abs=null
 LB name=Bench press mod=null brand=null canonical=Bench Press | reps=8 w=60.0 LB dur=null uni=false | rel=null abs=null
+LB !! L1 MISSING_WEIGHT
 ## units
 KG name=Bench press mod=null brand=null canonical=Bench Press | reps=5 w=100.0 KG dur=null uni=false | rel=null abs=null
 KG name=Bench press mod=null brand=null canonical=Bench Press | reps=8 w=220.0 LB dur=null uni=false | rel=null abs=null
