@@ -195,7 +195,7 @@ class WorkoutRepository(
             )
             saveParsedSets(parsedSets, note.timestamp)
 
-            val details = saveCanonicalCompletionAndBuildDetails(note, completedAt)
+            val details = saveCanonicalCompletionAndBuildDetails(note, completedAt, defaultWeightUnit)
             val summary = summaryBuilder.build(details, ZoneId.systemDefault())
             database.trainingSummaryOutboxDao().upsert(
                 TrainingSummaryOutboxEntry.pending(
@@ -241,12 +241,13 @@ class WorkoutRepository(
     private suspend fun saveCanonicalCompletionAndBuildDetails(
         note: NoteEntity,
         completedAt: Long,
+        defaultWeightUnit: WeightUnit,
     ): WorkoutDetails {
         val category = completedCategoryFor(note)
         category?.let { upsertCategory(it) }
 
         val catalog = CanonicalExerciseCatalog(exerciseDao.getAllForBackup())
-        val projection = canonicalProjector.project(note, category, catalog)
+        val projection = canonicalProjector.project(note, category, catalog, defaultWeightUnit)
         upsertExercises(catalog, completedAt)
 
         val workout = projection.workout.copy(

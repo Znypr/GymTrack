@@ -35,7 +35,7 @@ Every finalized weighted set stores the unit that was actually used for that set
 
 - Legacy compatibility rows store this in `sets.weightUnit`.
 - Canonical rows store this in `workout_sets.weight_unit` (`KILOGRAM` / `POUND`). The completion path
-  must pass the default unit in force at Finish to `LegacyWorkoutProjector.project(..., defaultWeightUnit)`,
+  passes the default unit in force at Finish to `LegacyWorkoutProjector.project(..., defaultWeightUnit)`,
   so keypad sets (no unit in the text) store that unit. Explicit text units still win.
 - The startup canonical import of old notes does not know which default was in force back then, so it
   passes no default and leaves such sets NULL (`UNKNOWN`). Migration 12 -> 13
