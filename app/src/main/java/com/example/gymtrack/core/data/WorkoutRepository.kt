@@ -226,6 +226,11 @@ class WorkoutRepository(
      * It never changes when the workout was completed: status, `ended_at` and `created_at` of an
      * existing canonical row are kept (a `COMPLETED` row stays `COMPLETED` with its Finish time).
      * It does not enqueue a training summary; that stays tied to the explicit Finish.
+     *
+     * Legacy `sets` rows are re-derived only for workouts Stats already counts: completed ones, or
+     * old ones that already have rows (repaired databases from before Finish existed). A workout
+     * that was never finished gets no rows here, so it stays "unfinished, not counted" (#322)
+     * instead of silently turning into a finished workout because it was edited.
      */
     suspend fun saveEditedWorkout(
         note: NoteEntity,
@@ -234,7 +239,9 @@ class WorkoutRepository(
         val editedAt = maxOf(AppClock.nowMillis(), note.timestamp)
         database.withTransaction {
             noteDao.insert(note)
-            replaceDerivedSets(note, defaultWeightUnit)
+            val countedByStats = isCompleted(note.timestamp) ||
+                database.setDao().countForWorkout(note.timestamp) > 0
+            if (countedByStats) replaceDerivedSets(note, defaultWeightUnit)
             saveCanonicalAndBuildDetails(note, editedAt, defaultWeightUnit) { projected, existing ->
                 CanonicalImportSource.merge(existing, projected.copy(updatedAt = editedAt))
             }
