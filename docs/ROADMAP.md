@@ -77,11 +77,27 @@ Exit condition:
 
 GymTrack can be distributed to testers without destructive upgrades, debug signing, or ambiguous application identity.
 
+## Phase 6 — Guided logging and planning
+
+Outcomes:
+
+- likely input mistakes flagged at entry with a one-tap fix, never changed silently;
+- one-tap start from the last workout of a rotation;
+- warm-up sets and rest times inferred from loads and timestamps, with user override;
+- history-based next-set suggestions accepted with one tap;
+- derived per-exercise and per-muscle indexes so guidance adds no logging latency;
+- an anatomically accurate muscle coverage map after each workout and per week;
+- opt-in training goals whose defaults are documented with citations.
+
+Exit condition:
+
+A repeated set takes one tap, likely mistakes are caught before they reach statistics, the user can see which muscles a workout or week trained, and the logging screen stays within its documented performance budget.
+
 ## Later ambitions
 
-- workout templates and previous-performance guidance;
+- full workout templates and week planning;
 - configurable rest timers;
-- optional RPE or RIR;
+- optional explicit RPE or RIR entry;
 - bodyweight and measurement tracking;
 - training-plan support;
 - coach-oriented reporting;
