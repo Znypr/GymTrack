@@ -1,47 +1,39 @@
 package com.example.gymtrack.feature.editor.components
 
-import android.annotation.SuppressLint
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.example.gymtrack.core.ui.components.AppBottomSheet
+import com.example.gymtrack.core.ui.theme.GymTrackTheme
 import com.example.gymtrack.core.util.rememberBulletListTransformation
 
-@SuppressLint("UnusedBoxWithConstraintsScope")
+internal const val EDITOR_NOTES_SHEET_TEST_TAG = "editor-notes-sheet"
+
+/**
+ * Notes & learnings for this workout, opened from the ⋯ menu (#297). A bottom sheet, so it sits in
+ * the thumb zone. Opening it only moves the cursor to the end: the text is never changed by
+ * opening or closing (only by typing).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LearningsPopup(
     showLearnings: Boolean,
@@ -49,90 +41,40 @@ fun LearningsPopup(
     onDismiss: () -> Unit,
     onValueChange: (TextFieldValue) -> Unit,
 ) {
+    if (!showLearnings) return
+    val tokens = GymTrackTheme.tokens
+    val c = tokens.colors
     val focusRequester = remember { FocusRequester() }
 
-    LaunchedEffect(showLearnings) {
-        if (showLearnings) {
-            var text = learningsValue.text
-            if (text.isNotEmpty() && !text.endsWith("\n")) {
-                text += "\n"
-            }
-            val selection = TextRange(text.length)
-            onValueChange(TextFieldValue(text, selection))
-            withFrameNanos { }
-            focusRequester.requestFocus()
-        }
+    LaunchedEffect(Unit) {
+        val end = TextRange(learningsValue.text.length)
+        if (learningsValue.selection != end) onValueChange(learningsValue.copy(selection = end))
+        withFrameNanos { }
+        runCatching { focusRequester.requestFocus() }
     }
 
-    AnimatedVisibility(
-        visible = showLearnings,
-        enter = scaleIn() + fadeIn(),
-        exit = scaleOut() + fadeOut()
-    ) {
-        Box(
-            modifier = Modifier
-                .padding(horizontal = 10.dp)
-                .fillMaxSize()
-                .clickable { onDismiss() },
-                    contentAlignment = Alignment.TopCenter
-        ) {
-            BoxWithConstraints {
-                val offset = maxHeight / 3
-                Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 0.dp,
-                    shape = MaterialTheme.shapes.medium,
-                    border = BorderStroke(2.dp, Color.LightGray.copy(alpha = 0.2F)),
-                    modifier = Modifier
-                        .padding(
-                            top = offset,
-                            start = 16.dp,
-                            end = 16.dp,
-                            bottom = 16.dp
-                        )
-                        .imePadding()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .padding(16.dp)
-                            .fillMaxWidth()
-                    ) {
-                        Text(
-                            "Notes",
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .verticalScroll(rememberScrollState())
-                        ) {
-                            OutlinedTextField(
-                                value = learningsValue,
-                                onValueChange = { onValueChange(it) },
-                                placeholder = { Text("Learnings") },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .focusRequester(focusRequester),
-                                textStyle = LocalTextStyle.current.copy(lineHeight = 22.sp),
-                                visualTransformation = rememberBulletListTransformation(),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = Color.Transparent,
-                                    unfocusedBorderColor = Color.Transparent,
-                                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                    cursorColor = MaterialTheme.colorScheme.onSurface,
-                                )
-                            )
-                        }
-                        Spacer(Modifier.height(8.dp))
+    AppBottomSheet(onDismissRequest = onDismiss, modifier = Modifier.testTag(EDITOR_NOTES_SHEET_TEST_TAG)) {
+        Text("Notes & learnings", style = tokens.type.title, color = c.ink)
+        Spacer(Modifier.height(tokens.spacing.xs))
+        BasicTextField(
+            value = learningsValue,
+            onValueChange = onValueChange,
+            textStyle = tokens.type.body.copy(color = c.ink),
+            cursorBrush = SolidColor(c.action),
+            visualTransformation = rememberBulletListTransformation(),
+            decorationBox = { inner ->
+                Box(Modifier.fillMaxWidth().padding(vertical = tokens.spacing.xs)) {
+                    if (learningsValue.text.isEmpty()) {
+                        Text("What to remember next time", style = tokens.type.body, color = c.inkMuted)
                     }
+                    inner()
                 }
-            }
-        }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 160.dp)
+                .focusRequester(focusRequester),
+        )
+        Spacer(Modifier.height(tokens.spacing.md).imePadding())
     }
 }

@@ -301,4 +301,44 @@ class NoteEditorKeypadFlowTest {
         assertEquals(listOf("Bench press bar", "      10x 60 (1'30'')", "      8x 70 (2'30'')", ""), d.texts)
         assertEquals(1, d.state.releaseFocusTick)
     }
+
+    // #362 root cause: a tap that lands before the keypad recomposes ---------------------------
+
+    private fun NoteEditorDriver.press(keys: String) = keys.forEach { c ->
+        val key = when (c) {
+            'x' -> com.example.gymtrack.feature.editor.components.KeypadKey.Times
+            else -> com.example.gymtrack.feature.editor.components.KeypadKey.Digit(c)
+        }
+        state.onKeypadKey(key)
+    }
+
+    @Test
+    fun `digits typed right after Next go to the new row and never touch the committed one`() {
+        val d = NoteEditorDriver()
+        d.typeAndEnter(0, "Leg press")
+        d.advance(60)
+        d.press("8x175")
+        d.next()
+        // No recomposition between Next and the taps: the keypad must already own row 2.
+        d.press("11x175")
+        assertEquals("      8x 175 (1'00'')", d.texts[1])
+        assertEquals("11x 175", d.texts[2])
+        d.advance(90)
+        d.next()
+        assertEquals("      11x 175 (1'30'')", d.texts[2])
+    }
+
+    @Test
+    fun `fifty rapid 11x 175 sets are all saved with both ones`() {
+        val d = NoteEditorDriver()
+        d.typeAndEnter(0, "Leg press")
+        repeat(50) {
+            d.advance(60)
+            d.press("11x175")
+            d.next()
+        }
+        val sets = d.texts.drop(1).filter { it.isNotBlank() }
+        assertEquals(50, sets.size)
+        assertTrue(sets.all { it.trim().startsWith("11x 175 (") })
+    }
 }
