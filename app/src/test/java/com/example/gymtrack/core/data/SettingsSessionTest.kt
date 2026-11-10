@@ -14,7 +14,7 @@ class SettingsSessionTest {
     private val stored = Settings(
         is24Hour = false,
         roundingSeconds = 15,
-        darkMode = false,
+        themeChoice = ThemeChoice.NORMAL_LIGHT,
         categories = listOf(Category("Arms", 0xFF123456)) + DEFAULT_CATEGORIES,
         defaultWeightUnit = WeightUnit.LB,
     )
@@ -52,7 +52,7 @@ class SettingsSessionTest {
         val session = SettingsSession(scope = this, load = { stored }, save = { saved += it })
 
         session.start().join()
-        val changed = stored.copy(darkMode = true)
+        val changed = stored.copy(themeChoice = ThemeChoice.NOTEBOOK)
         assertTrue(session.update(changed))
         repeat(5) { yield() }
 
@@ -80,7 +80,7 @@ class SettingsSessionTest {
     }
 
     @Test
-    fun `darkMode has one default`() {
-        assertEquals(Settings.DEFAULT_DARK_MODE, Settings().darkMode)
+    fun `theme has one default`() {
+        assertEquals(Settings.DEFAULT_THEME, Settings().themeChoice)
     }
 }

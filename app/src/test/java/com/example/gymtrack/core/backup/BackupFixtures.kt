@@ -11,10 +11,11 @@ import com.example.gymtrack.core.data.ExerciseEntity
 import com.example.gymtrack.core.data.NoteEntity
 import com.example.gymtrack.core.data.SetEntity
 import com.example.gymtrack.core.data.Settings
+import com.example.gymtrack.core.data.ThemeChoice
 
 internal object BackupFixtures {
     fun payload() = GymTrackBackupPayload(
-        settings = Settings(false, 10, true, listOf(Category("Push", 1L), Category("Custom", 2L))),
+        settings = Settings(false, 10, ThemeChoice.NOTEBOOK, listOf(Category("Push", 1L), Category("Custom", 2L))),
         legacyNotes = listOf(NoteEntity(100L, "Workout", "Bench 100x5", "Push", 1L, "Good")),
         legacyExercises = listOf(ExerciseEntity(1L, "Bench", null, "Chest", "bp")),
         legacySets = listOf(SetEntity(1L, 100L, 1L, 100f, 5, false)),

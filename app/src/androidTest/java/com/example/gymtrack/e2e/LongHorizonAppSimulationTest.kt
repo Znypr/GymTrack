@@ -18,7 +18,7 @@ import com.example.gymtrack.core.data.createLegacyDatabase
 import com.example.gymtrack.core.data.deleteMigrationTestDatabase
 import com.example.gymtrack.core.data.openMigratedDatabase
 import com.example.gymtrack.core.timer.NoteTimerStore
-import com.example.gymtrack.feature.editor.NOTE_EDITOR_FINISH_ACTION_TEST_TAG
+import com.example.gymtrack.feature.editor.components.NOTE_EDITOR_FINISH_ACTION_TEST_TAG
 import com.example.gymtrack.feature.home.HOME_OPEN_STATS_TEST_TAG
 import com.example.gymtrack.feature.stats.statsBadgeValueTestTag
 import com.example.gymtrack.simulation.EdgeTag

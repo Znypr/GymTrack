@@ -27,16 +27,57 @@ enum class WeightUnit(val storageValue: String, val displayLabel: String) {
     }
 }
 
+/**
+ * The app's look (design language v2, #333). Normal is crisp (dark OLED or light); Notebook is
+ * hand-drawn paper and pencil. SYSTEM = Normal following the system light/dark setting.
+ */
+enum class ThemeChoice(val storageValue: String, val label: String) {
+    NORMAL_DARK("NORMAL_DARK", "Normal · dark"),
+    NORMAL_LIGHT("NORMAL_LIGHT", "Normal · light"),
+    NOTEBOOK("NOTEBOOK", "Notebook"),
+    SYSTEM("SYSTEM", "Follow system");
+
+    /** True when this choice draws light text on a dark page, given the system setting. */
+    fun isDark(systemDark: Boolean): Boolean = when (this) {
+        NORMAL_DARK -> true
+        NORMAL_LIGHT, NOTEBOOK -> false
+        SYSTEM -> systemDark
+    }
+
+    companion object {
+        /**
+         * Reads a stored choice. When none is stored (installs and backups from before v2),
+         * the old dark-mode switch decides: on → NORMAL_DARK, off → NORMAL_LIGHT.
+         * Unknown values (a newer app's choice) fall back the same way.
+         */
+        fun fromStorage(value: String?, legacyDarkMode: Boolean?): ThemeChoice =
+            entries.firstOrNull { it.storageValue == value?.trim()?.uppercase() }
+                ?: when (legacyDarkMode) {
+                    true -> NORMAL_DARK
+                    false -> NORMAL_LIGHT
+                    null -> Settings.DEFAULT_THEME
+                }
+    }
+}
+
 data class Settings(
     val is24Hour: Boolean = true,
     val roundingSeconds: Int = 5,
-    val darkMode: Boolean = DEFAULT_DARK_MODE,
+    val themeChoice: ThemeChoice = DEFAULT_THEME,
     val categories: List<Category> = DEFAULT_CATEGORIES,
     val defaultWeightUnit: WeightUnit = WeightUnit.KG,
 ) {
+    /**
+     * Legacy flag kept for code that still reads it (the old editor's status-bar colour).
+     * SYSTEM counts as dark here because Settings cannot see the system setting; new code
+     * reads `GymTrackTheme.tokens.isDark` instead.
+     */
+    @Deprecated("Read GymTrackTheme.tokens.isDark", ReplaceWith("themeChoice.isDark(systemDark)"))
+    val darkMode: Boolean get() = themeChoice.isDark(systemDark = true)
+
     companion object {
         /** Single source of truth for the theme default; [SettingsStore] falls back to it too. */
-        const val DEFAULT_DARK_MODE = true
+        val DEFAULT_THEME = ThemeChoice.NORMAL_DARK
     }
 }
 

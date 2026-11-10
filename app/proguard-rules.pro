@@ -1,21 +1,20 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
+# GymTrack (ZnyprFit) R8 rules for release and releaseCheck builds (#337).
 #
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Most of the app needs no rules:
+# - Room 2.6 ships consumer rules that keep the generated *_Impl database/DAO classes
+#   it loads by name, and the DAO code is generated at compile time (no reflection).
+# - Compose, Navigation, Lifecycle and DataStore ship their own consumer rules.
+# - Backup and cache JSON use org.json (an Android framework class, never shrunk) with
+#   hand-written field names, so no data class needs to keep its member names.
+#
+# What does need a rule: enum constant NAMES that are written to storage and read back.
+# The app persists Enum.name into Room columns (WorkoutStatus, ExerciseMode, WeightUnit,
+# LegacyMigrationStatus, ExerciseFlag), backups and the stats cache (TimeRange,
+# MetricImpact), then restores them with valueOf()/enumValues().firstOrNull { it.name == x }.
+# A renamed or unboxed enum would silently fall back to defaults and corrupt user data.
+# Keeping every app enum costs a few hundred bytes and removes that whole class of bug.
+-keep enum com.example.gymtrack.** { *; }
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
-
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
-
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Readable stack traces in Play Console / Android Vitals after mapping.txt is applied.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile

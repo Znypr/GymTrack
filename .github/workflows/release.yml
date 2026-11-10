@@ -1,0 +1,141 @@
+name: Release bundle
+
+# Builds the Google Play release AAB plus mapping.txt (#337).
+# Manual run (Actions > Release bundle > Run workflow) or push a tag like v0.1.0.
+# Upload to Play stays manual. Signing secrets are optional: without them the job
+# still succeeds and produces an UNSIGNED AAB with a warning. Setup: docs/RELEASE.md.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-bundle-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bundle:
+    name: Build release AAB
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle (cached)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make wrapper executable
+        run: chmod +x gradlew
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          name=$(sed -n 's/^val releaseVersionName = "\(.*\)"$/\1/p' app/build.gradle.kts)
+          code=$(sed -n 's/^val releaseVersionCode = \([0-9]*\)$/\1/p' app/build.gradle.kts)
+          if [ -z "$name" ] || [ -z "$code" ]; then
+            echo "::error::Could not read releaseVersionName/releaseVersionCode from app/build.gradle.kts"
+            exit 1
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v$name" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match versionName $name (expected v$name)."
+            exit 1
+          fi
+
+      - name: Restore upload key from secrets
+        id: signing
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.UPLOAD_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.UPLOAD_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.UPLOAD_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.UPLOAD_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Upload-key secrets are not set. Building an UNSIGNED AAB that Google Play will reject. See docs/RELEASE.md > CI signing secrets."
+            exit 0
+          fi
+          keystore="$RUNNER_TEMP/upload-keystore.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          chmod 600 "$keystore"
+          # Hand values to Gradle through the job environment only; nothing is printed.
+          {
+            echo "GYMTRACK_UPLOAD_STORE_FILE=$keystore"
+            echo "GYMTRACK_UPLOAD_STORE_PASSWORD=$STORE_PASSWORD"
+            echo "GYMTRACK_UPLOAD_KEY_ALIAS=$KEY_ALIAS"
+            echo "GYMTRACK_UPLOAD_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build release bundle
+        shell: bash
+        env:
+          SIGNED: ${{ steps.signing.outputs.signed }}
+        run: |
+          extra=""
+          if [ "$SIGNED" != "true" ]; then
+            extra="-Pgymtrack.allowUnsignedRelease=true"
+          fi
+          set +e
+          ./gradlew validateReleaseConfig bundleRelease $extra --console=plain > gradle-output.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            tail -n 160 gradle-output.log
+          fi
+          exit "$status"
+
+      - name: Verify bundle signature
+        if: steps.signing.outputs.signed == 'true'
+        shell: bash
+        run: |
+          # jarsigner -verify exits 0 for unsigned jars too, so require the "jar verified." line.
+          out=$(jarsigner -verify app/build/outputs/bundle/release/app-release.aab 2>&1)
+          echo "$out" | tail -n 3
+          echo "$out" | grep -q "^jar verified\." || { echo "::error::AAB is not signed."; exit 1; }
+
+      - name: Remove restored keystore
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/upload-keystore.jks"
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZnyprFit-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}-${{ steps.signing.outputs.signed == 'true' && 'signed' || 'UNSIGNED' }}-aab
+          path: app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload R8 mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZnyprFit-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}-mapping
+          path: |
+            app/build/outputs/mapping/release/mapping.txt
+            app/build/outputs/mapping/release/configuration.txt
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload Gradle diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-gradle-diagnostics
+          path: gradle-output.log
+          retention-days: 3

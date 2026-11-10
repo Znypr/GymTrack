@@ -1,18 +1,22 @@
 package com.example.gymtrack.feature.stats
 
 import android.content.Context
-import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.WeightUnit
 import org.json.JSONArray
 import org.json.JSONObject
 
-class StatsPersistentCacheStore(context: Context) {
+/**
+ * Persisted Stats results (SharedPreferences, JSON). Note text is NOT stored: it is the input,
+ * and storing it made every entry as large as the whole history (#303). [StatsEngine] re-attaches
+ * the counted notes after a read.
+ */
+class StatsPersistentCacheStore(context: Context) : StatsStateStore {
     private val preferences = context.applicationContext.getSharedPreferences(
         PREFERENCES_NAME,
         Context.MODE_PRIVATE,
     )
 
-    fun read(storageKey: String): StatsState? {
+    override fun read(storageKey: String): StatsState? {
         val raw = preferences.getString(storageKey(storageKey), null) ?: return null
         return runCatching {
             val json = JSONObject(raw)
@@ -21,24 +25,19 @@ class StatsPersistentCacheStore(context: Context) {
         }.getOrNull()
     }
 
-    fun write(storageKey: String, state: StatsState) {
+    override fun write(storageKey: String, state: StatsState) {
         val json = state.toJson().apply {
             put("cacheVersion", CACHE_VERSION)
         }
-        preferences.edit()
-            .putString(storageKey(storageKey), json.toString())
-            .apply()
-        trimCache()
-    }
-
-    private fun trimCache() {
-        val cacheKeys = preferences.all.keys
-            .filter { it.startsWith(STORAGE_PREFIX) }
-            .sorted()
-        if (cacheKeys.size <= MAX_PERSISTED_ENTRIES) return
-
-        val editor = preferences.edit()
-        cacheKeys.take(cacheKeys.size - MAX_PERSISTED_ENTRIES).forEach(editor::remove)
+        val stored = storageKey(storageKey)
+        val slot = storageKey(StatsStateStore.slotOf(storageKey))
+        val editor = preferences.edit().putString(stored, json.toString())
+        // One entry per slot (range + unit): an older entry in the same slot is for an older
+        // history and can never be hit again. Entries of older cache versions go too.
+        preferences.all.keys
+            .filter { it.startsWith(LEGACY_STORAGE_PREFIX) && it != stored }
+            .filter { !it.startsWith(STORAGE_PREFIX) || it.startsWith(slot + StatsStateStore.SLOT_SEPARATOR) }
+            .forEach(editor::remove)
         editor.apply()
     }
 
@@ -55,7 +54,18 @@ class StatsPersistentCacheStore(context: Context) {
         put("weeklyWorkoutCounts", weeklyWorkoutCountsToJson(weeklyWorkoutCounts))
         put("trainingInsights", trainingInsightsToJson(trainingInsights))
         put("currentRange", currentRange.name)
-        put("filteredNotes", filteredNotes.toNotesJson())
+        put("weeklyDurations", JSONArray().also { array ->
+            weeklyDurations.forEach { (weekStart, minutes) ->
+                array.put(JSONObject().apply {
+                    put("weekStart", weekStart)
+                    putFloat("minutes", minutes)
+                })
+            }
+        })
+        put("unreasonableDurationCount", unreasonableDurationCount)
+        put("timedSetCount", timedSets.setCount)
+        put("timedSetSeconds", timedSets.totalSeconds)
+        put("timedProgress", timedProgressToJson(timedProgress))
         put("sourceNoteCount", sourceNoteCount)
         put("unfinishedCount", unfinishedCount)
         put("displayUnit", displayUnit.storageValue)
@@ -73,7 +83,11 @@ class StatsPersistentCacheStore(context: Context) {
             weeklyWorkoutCounts = optJSONArray("weeklyWorkoutCounts").toWeeklyWorkoutCounts(),
             trainingInsights = optJSONArray("trainingInsights").toTrainingInsights(),
             currentRange = runCatching { TimeRange.valueOf(optString("currentRange")) }.getOrDefault(TimeRange.ALL_TIME),
-            filteredNotes = optJSONArray("filteredNotes").toNotes(),
+            filteredNotes = emptyList(),
+            weeklyDurations = optJSONArray("weeklyDurations").toWeeklyDurations(),
+            unreasonableDurationCount = optInt("unreasonableDurationCount"),
+            timedSets = TimedSetSummary(optInt("timedSetCount"), optInt("timedSetSeconds")),
+            timedProgress = optJSONArray("timedProgress").toTimedProgress(),
             isLoading = false,
             loadingMessage = null,
             sourceNoteCount = optInt("sourceNoteCount"),
@@ -157,17 +171,78 @@ class StatsPersistentCacheStore(context: Context) {
         }
     }
 
-    private fun List<NoteLine>.toNotesJson(): JSONArray = JSONArray().also { array ->
-        forEach { note ->
+    private fun timedProgressToJson(groups: List<TimedProgressGroup>): JSONArray = JSONArray().also { array ->
+        groups.forEach { group ->
             array.put(JSONObject().apply {
-                put("title", note.title)
-                put("text", note.text)
-                put("timestamp", note.timestamp)
-                put("categoryName", note.categoryName)
-                put("categoryColor", note.categoryColor)
-                put("learnings", note.learnings)
-                put("rowMetadata", note.rowMetadata)
+                put("baseKey", group.baseKey)
+                put("name", group.name)
+                put("metric", group.metric.name)
+                put("unitLabel", group.unitLabel)
+                put("timedSetCount", group.timedSetCount)
+                put("series", JSONArray().also { seriesArray ->
+                    group.series.forEach { series ->
+                        seriesArray.put(JSONObject().apply {
+                            put("key", series.key)
+                            put("points", JSONArray().also { points ->
+                                series.points.forEach { point ->
+                                    points.put(JSONObject().apply {
+                                        put("timestamp", point.timestamp)
+                                        putFloat("value", point.value)
+                                    })
+                                }
+                            })
+                        })
+                    }
+                })
             })
+        }
+    }
+
+    private fun JSONArray?.toTimedProgress(): List<TimedProgressGroup> {
+        val source = this ?: return emptyList()
+        return buildList {
+            for (index in 0 until source.length()) {
+                val item = source.optJSONObject(index) ?: continue
+                val seriesArray = item.optJSONArray("series")
+                val series = buildList {
+                    for (s in 0 until (seriesArray?.length() ?: 0)) {
+                        val seriesItem = seriesArray?.optJSONObject(s) ?: continue
+                        val pointsArray = seriesItem.optJSONArray("points")
+                        add(
+                            TimedProgressSeries(
+                                key = seriesItem.optString("key"),
+                                points = buildList {
+                                    for (p in 0 until (pointsArray?.length() ?: 0)) {
+                                        val point = pointsArray?.optJSONObject(p) ?: continue
+                                        add(StatsPoint(point.optLong("timestamp"), point.optFloat("value")))
+                                    }
+                                },
+                            ),
+                        )
+                    }
+                }
+                add(
+                    TimedProgressGroup(
+                        baseKey = item.optString("baseKey"),
+                        name = item.optString("name"),
+                        metric = runCatching { TimedProgressMetric.valueOf(item.optString("metric")) }
+                            .getOrDefault(TimedProgressMetric.HOLD_SECONDS),
+                        unitLabel = item.optString("unitLabel", "s"),
+                        series = series,
+                        timedSetCount = item.optInt("timedSetCount"),
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun JSONArray?.toWeeklyDurations(): List<Pair<Long, Float>> {
+        val source = this ?: return emptyList()
+        return buildList {
+            for (index in 0 until source.length()) {
+                val item = source.optJSONObject(index) ?: continue
+                add(item.optLong("weekStart") to item.optFloat("minutes"))
+            }
         }
     }
 
@@ -265,43 +340,18 @@ class StatsPersistentCacheStore(context: Context) {
         }
     }
 
-    private fun JSONArray?.toNotes(): List<NoteLine> {
-        val source = this ?: return emptyList()
-        return buildList {
-            for (index in 0 until source.length()) {
-                val item = source.optJSONObject(index) ?: continue
-                add(
-                    NoteLine(
-                        title = item.optString("title"),
-                        text = item.optString("text"),
-                        timestamp = item.optLong("timestamp"),
-                        categoryName = item.optNullableString("categoryName"),
-                        categoryColor = item.optNullableLong("categoryColor"),
-                        learnings = item.optString("learnings"),
-                        rowMetadata = item.optString("rowMetadata"),
-                    ),
-                )
-            }
-        }
-    }
-
     private fun JSONObject.putFloat(name: String, value: Float) {
         put(name, if (value.isFinite()) value.toDouble() else 0.0)
     }
 
     private fun JSONObject.optFloat(name: String): Float = optDouble(name, 0.0).toFloat()
 
-    private fun JSONObject.optNullableString(name: String): String? =
-        if (has(name) && !isNull(name)) optString(name) else null
-
-    private fun JSONObject.optNullableLong(name: String): Long? =
-        if (has(name) && !isNull(name)) optLong(name) else null
-
     private companion object {
-        // 2: finished-only counts (#322) and display-unit conversion (#326); older entries are stale.
-        const val CACHE_VERSION = 2
-        const val MAX_PERSISTED_ENTRIES = 12
+        // 2: finished-only counts (#322) and display-unit conversion (#326).
+        // 3: timed sets (#283), duration chart data, no note text, stable key (#303).
+        const val CACHE_VERSION = 3
         const val PREFERENCES_NAME = "stats_cache"
-        const val STORAGE_PREFIX = "stats_state_"
+        const val LEGACY_STORAGE_PREFIX = "stats_state_"
+        const val STORAGE_PREFIX = "stats_state_v$CACHE_VERSION:"
     }
 }

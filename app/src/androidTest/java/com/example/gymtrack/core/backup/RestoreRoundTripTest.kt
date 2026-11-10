@@ -91,7 +91,7 @@ class RestoreRoundTripTest {
     private fun assertSettingsPersisted(expected: Settings, actual: Settings) {
         assertEquals(expected.is24Hour, actual.is24Hour)
         assertEquals(expected.roundingSeconds, actual.roundingSeconds)
-        assertEquals(expected.darkMode, actual.darkMode)
+        assertEquals(expected.themeChoice, actual.themeChoice)
         assertEquals(expected.defaultWeightUnit, actual.defaultWeightUnit)
         expected.categories.forEach { expectedCategory ->
             assertTrue(actual.categories.any { it.name == expectedCategory.name })

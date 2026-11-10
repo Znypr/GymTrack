@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>ZnyprFit · Fast offline gym logger for Android</title>
+<meta name="description" content="ZnyprFit: log your gym sets like a note. Fast, offline, one-handed. No account, no ads, no tracking.">
+<meta property="og:title" content="ZnyprFit · Log sets like a note">
+<meta property="og:description" content="Fast, offline gym logger for Android. No account, no ads, no tracking.">
+<meta property="og:type" content="website">
+<!-- TODO(owner): add <meta property="og:image" content="feature-graphic.png"> once the 1024x500 feature graphic exists. -->
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="bar">
+  <div class="wrap bar-inner">
+    <a class="brand" href="./">Znypr<span>Fit</span></a>
+    <a class="back" href="#beta">Join the beta</a>
+  </div>
+</header>
+
+<main id="main">
+  <div class="wrap">
+    <div class="hero">
+      <h1>Log sets<br>like a <span>note.</span></h1>
+      <p class="pitch">ZnyprFit is a fast gym logger for Android: one thumb, offline, no account, no ads.</p>
+      <p class="sub">Write the exercise, tap reps × weight on the keypad, move on.</p>
+      <div class="cta">
+        <a class="btn" href="#beta">Join the closed test</a>
+        <a class="btn ghost" href="#faq">FAQ</a>
+      </div>
+    </div>
+
+    <section aria-labelledby="why">
+      <h2 id="why">Why ZnyprFit</h2>
+      <ul class="points">
+        <li>
+          <h3>Fast</h3>
+          <p>Log like a note: an exercise line, then your sets. A custom keypad built for one hand, no forms per set.</p>
+        </li>
+        <li>
+          <h3>Yours</h3>
+          <p>Offline, no account, no ads, no tracking. Your workouts stay on your phone. One-file backup and CSV export.</p>
+        </li>
+        <li>
+          <h3>Clear</h3>
+          <p>History of every session and progression charts per exercise. Mistake hints and a muscle map <span class="soon">coming soon</span></p>
+        </li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="shots">
+      <h2 id="shots">Screenshots</h2>
+      <!-- TODO(owner): replace the placeholders with real screenshots from the release build (docs/launch/04-marketing.md §6). Give each <img> an alt text. -->
+      <ul class="shots">
+        <li class="shot">Editor with keypad<br>(screenshot coming)</li>
+        <li class="shot">Workout history<br>(screenshot coming)</li>
+        <li class="shot">Progress chart<br>(screenshot coming)</li>
+      </ul>
+    </section>
+
+    <section id="beta" aria-labelledby="beta-title">
+      <h2 id="beta-title">Join the closed test</h2>
+      <div class="signup">
+        <p>ZnyprFit needs testers before it can go public on Google Play. Help for 14 days and you get it first.</p>
+        <ol>
+          <li>Opt in with the link below (Android phone and a Google account needed).</li>
+          <li>Install ZnyprFit from Google Play and keep it installed for 14 days.</li>
+          <li>Log a few real workouts and tell me what bugs you.</li>
+        </ol>
+        <div class="cta">
+          <a class="btn" href="[TESTER_SIGNUP_URL]">Become a tester</a>
+          <a class="btn ghost" href="mailto:znyprfitness@gmail.com?subject=ZnyprFit%20closed%20test">Email me instead</a>
+        </div>
+        <p class="fine">The email option sends your address to me so I can add you to the test. I use it only for that. See the <a href="privacy.html">privacy policy</a>.</p>
+      </div>
+    </section>
+
+    <section id="faq" class="faq" aria-labelledby="faq-title">
+      <h2 id="faq-title">FAQ</h2>
+      <details>
+        <summary>How do I log a set?</summary>
+        <p>Open a workout, write the exercise name on a line, then type your sets underneath as reps × weight, for example <code>8x 80</code> for 8 reps at 80. The custom keypad keeps everything in thumb reach.</p>
+      </details>
+      <details>
+        <summary>I made a typo. How do I fix it?</summary>
+        <p>Tap the line and edit it, like in a notes app. Your history and charts update from the corrected workout. Automatic hints for likely typos are coming soon.</p>
+      </details>
+      <details>
+        <summary>Kilograms or pounds?</summary>
+        <p>Both. Pick your default unit in Settings. For a single set you can type the other unit, for example <code>8x 220 lb</code>, without changing the default.</p>
+      </details>
+      <details>
+        <summary>What are categories?</summary>
+        <p>Labels like Push, Pull and Legs, each with a colour, so you can see what kind of day a workout was. You can rename them, add your own and change the colours.</p>
+      </details>
+      <details>
+        <summary>Does the timer keep running if I switch apps?</summary>
+        <p>Yes. The workout timer remembers when it started, so it shows the right time when you come back, without draining your battery in the background.</p>
+      </details>
+      <details>
+        <summary>Can I bring my old logs?</summary>
+        <p>ZnyprFit imports CSV files in its own format (from its own export or the earlier GymTrack app). Importing exports from other apps is not supported yet.</p>
+      </details>
+      <details>
+        <summary>What happens when I change phones?</summary>
+        <p>Two ways. Android Auto Backup can restore your workouts automatically to a new phone signed in to the same Google account. Or create a one-file backup in Settings, move the file, and restore it on the new phone. Backup files are not encrypted, so keep them somewhere safe.</p>
+      </details>
+      <details>
+        <summary>Where is my data, and how do I delete it?</summary>
+        <p>Only on your phone (and in your own Google account backup if you have that on). ZnyprFit has no internet access and no account, so I never see your data. Delete single workouts in the app, or uninstall the app to remove everything. Details in the <a href="privacy.html">privacy policy</a>.</p>
+      </details>
+    </section>
+
+    <section aria-labelledby="contact">
+      <h2 id="contact">Contact</h2>
+      <p>ZnyprFit is built by one independent developer who lifts. Feedback, bugs, ideas: <a href="mailto:znyprfitness@gmail.com">znyprfitness@gmail.com</a></p>
+    </section>
+  </div>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-inner">
+    <nav aria-label="Legal">
+      <a href="privacy.html" hreflang="en">Privacy Policy</a>
+      <a href="datenschutz.html" hreflang="de">Datenschutz</a>
+      <a href="impressum.html" hreflang="de">Impressum</a>
+    </nav>
+    <p>ZnyprFit · no tracking, no cookies · Google Play is a trademark of Google LLC.</p>
+  </div>
+</footer>
+</body>
+</html>

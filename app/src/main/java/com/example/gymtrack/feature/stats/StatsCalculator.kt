@@ -3,8 +3,6 @@ package com.example.gymtrack.feature.stats
 import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.WeightUnit
 import com.example.gymtrack.core.util.WorkoutParser
-import com.example.gymtrack.core.util.parseDurationSeconds
-import com.example.gymtrack.core.util.parseNoteText
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
@@ -15,6 +13,8 @@ import java.util.concurrent.TimeUnit
  * Avg Sets, Favorite, insights, weekly consistency, duration trend and the time-of-day heat map
  * all use the same finished set. Unfinished workouts in the range are reported in
  * [StatsState.unfinishedCount] so they stay visible instead of silently vanishing.
+ *
+ * Each note is parsed at most once ([digests] memoizes it across loads, #303).
  */
 fun buildStatsState(
     allNotes: List<NoteLine>,
@@ -23,6 +23,7 @@ fun buildStatsState(
     displayUnit: WeightUnit,
     nowMillis: Long,
     parser: WorkoutParser = WorkoutParser(),
+    digests: StatsDigestCache = StatsDigestCache(),
 ): StatsState {
     val cutoff = if (range.days > 0) nowMillis - TimeUnit.DAYS.toMillis(range.days.toLong()) else 0L
     val inRange = allNotes.filter { it.timestamp >= cutoff }
@@ -37,16 +38,9 @@ fun buildStatsState(
         )
     }
 
-    val (mainCount, subCount) = notes.fold(0 to 0) { acc, note ->
-        val lines = parseNoteText(note.text, note.rowMetadata).first
-        var main = 0
-        var sub = 0
-        for (l in lines) {
-            if (l.isBlank()) continue
-            if (l.startsWith("    ")) sub++ else main++
-        }
-        (acc.first + main) to (acc.second + sub)
-    }
+    val noteDigests = digests.digestAll(notes, facts.storedSetUnits) { parser }
+    val mainCount = noteDigests.sumOf { it.mainLineCount }
+    val subCount = noteDigests.sumOf { it.subLineCount }
     val avgSets = if (mainCount > 0) subCount.toFloat() / mainCount else 0f
 
     val minTime = notes.minOf { it.timestamp }
@@ -61,13 +55,9 @@ fun buildStatsState(
 
     val counts = notes.groupingBy { it.categoryName ?: "Other" }.eachCount()
 
-    val durationAvgs = notes.groupBy { it.categoryName ?: "Other" }
-        .mapValues { entry ->
-            val durations = entry.value.mapNotNull { note ->
-                parseNoteText(note.text, note.rowMetadata).second.mapNotNull {
-                    if (it.isBlank()) null else parseDurationSeconds(it)
-                }.maxOrNull()
-            }
+    val durationAvgs = notes.indices.groupBy { notes[it].categoryName ?: "Other" }
+        .mapValues { (_, indexes) ->
+            val durations = indexes.mapNotNull { noteDigests[it].maxElapsedSeconds }
             if (durations.isEmpty()) 0f else durations.average().toFloat() / 60f
         }
 
@@ -79,9 +69,8 @@ fun buildStatsState(
         heatmap[day][hour]++
     }
 
-    val exerciseCounts = notes.flatMap { note ->
-        parser.parseWorkout(note.text, rowMetadata = note.rowMetadata).map { it.exerciseName }
-    }
+    val exerciseCounts = noteDigests.asSequence()
+        .flatMap { digest -> digest.sets.asSequence().map { it.set.exerciseName } }
         .groupingBy { it }
         .eachCount()
         .toList()
@@ -97,12 +86,14 @@ fun buildStatsState(
         heatmapData = heatmap,
         topExercises = exerciseCounts,
         weeklyWorkoutCounts = buildWeeklyWorkoutCounts(notes),
-        trainingInsights = buildTrainingInsights(
-            notes = notes,
-            parser = parser,
+        trainingInsights = buildTrainingInsightsFromDigests(
+            workouts = notes.zip(noteDigests),
             displayUnit = displayUnit,
-            storedSetUnits = facts.storedSetUnits,
         ),
+        weeklyDurations = buildWeeklyAverageWorkoutDurationsFromDigests(noteDigests),
+        unreasonableDurationCount = countUnreasonableWorkoutDurationsFromDigests(noteDigests),
+        timedSets = buildTimedSetSummary(noteDigests),
+        timedProgress = buildTimedProgress(noteDigests, displayUnit),
         currentRange = range,
         filteredNotes = notes,
         unfinishedCount = unfinished.size,
