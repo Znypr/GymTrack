@@ -67,6 +67,10 @@ fun NavigationHost(
     val retainedStatsViewModel: StatsViewModel = viewModel(
         factory = StatsViewModel.Factory(noteRepository, appContext),
     )
+    // Stats shows every weight in the user's current default unit (#326).
+    LaunchedEffect(settings.defaultWeightUnit) {
+        retainedStatsViewModel.setDisplayUnit(settings.defaultWeightUnit)
+    }
 
     NavHost(navController = navController, startDestination = "notes") {
         composable("notes") {
@@ -76,6 +80,7 @@ fun NavigationHost(
                 factory = HomeViewModel.Factory(noteRepository, workoutRepository),
             )
             val notes by homeViewModel.notes.collectAsState()
+            val finishTimes by homeViewModel.finishTimes.collectAsState()
             val importSummary by homeViewModel.legacyCsvImportSummary.collectAsState()
             val importProgress by homeViewModel.legacyCsvImportProgress.collectAsState()
             val pendingDelete by homeViewModel.pendingDelete.collectAsState()
@@ -96,6 +101,7 @@ fun NavigationHost(
 
             NotesScreen(
                 notes = notes,
+                finishTimes = finishTimes,
                 selectedNotes = selectedNotes,
                 onSelect = { selectedNotes = it },
                 onEdit = { note ->

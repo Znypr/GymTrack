@@ -6,11 +6,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.gymtrack.core.data.NoteLine
+import com.example.gymtrack.core.data.WeightUnit
 import com.example.gymtrack.core.data.repository.NoteRepository
-import com.example.gymtrack.core.util.WorkoutParser
-import com.example.gymtrack.core.util.parseDurationSeconds
-import com.example.gymtrack.core.util.parseNoteText
-import java.util.Calendar
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,6 +41,10 @@ data class StatsState(
     val isLoading: Boolean = false,
     val loadingMessage: String? = null,
     val sourceNoteCount: Int = 0,
+    /** Workouts in the range that were never finished; not counted anywhere else (#322). */
+    val unfinishedCount: Int = 0,
+    /** Unit every weight in this state is expressed in (the user's default unit, #326). */
+    val displayUnit: WeightUnit = WeightUnit.KG,
 )
 
 class StatsViewModel(
@@ -54,19 +55,33 @@ class StatsViewModel(
     private data class StatsCacheKey(
         val range: TimeRange,
         val notesSignature: Long,
+        val factsSignature: Long,
+        val displayUnit: WeightUnit,
         val dayBucket: Long?,
     ) {
         val storageKey: String = buildString {
             append(range.name)
             append('_')
+            append(displayUnit.name)
+            append('_')
             append(notesSignature)
+            append('_')
+            append(factsSignature)
             append('_')
             append(dayBucket ?: "all")
         }
     }
 
+    private data class StatsInputs(
+        val notes: List<NoteLine>,
+        val facts: StatsWorkoutFacts,
+        val range: TimeRange,
+        val displayUnit: WeightUnit,
+    )
+
     private val persistentCache = StatsPersistentCacheStore(context.applicationContext)
     private val _timeRange = MutableStateFlow(TimeRange.ALL_TIME)
+    private val _displayUnit = MutableStateFlow(WeightUnit.KG)
     private val _uiState = MutableStateFlow(StatsState(isLoading = true, loadingMessage = "Preparing statistics…"))
     val uiState = _uiState.asStateFlow()
 
@@ -74,11 +89,18 @@ class StatsViewModel(
 
     init {
         viewModelScope.launch {
-            combine(repository.getAllNotes(), _timeRange) { notes, range -> notes to range }
-                .collectLatest { (allNotes, range) ->
+            combine(
+                repository.getAllNotes(),
+                repository.getStatsWorkoutFacts(),
+                _timeRange,
+                _displayUnit,
+            ) { notes, facts, range, unit -> StatsInputs(notes, facts, range, unit) }
+                .collectLatest { (allNotes, facts, range, displayUnit) ->
                     val key = StatsCacheKey(
                         range = range,
                         notesSignature = allNotes.statsSignature(),
+                        factsSignature = facts.signature(),
+                        displayUnit = displayUnit,
                         dayBucket = range.currentDayBucket(),
                     )
                     val cached = statsCache[key]
@@ -122,7 +144,9 @@ class StatsViewModel(
                         },
                     )
 
-                    val calculated = calculateStats(allNotes, range).copy(
+                    val calculated = withContext(Dispatchers.Default) {
+                        buildStatsState(allNotes, range, facts, displayUnit, AppClock.nowMillis())
+                    }.copy(
                         sourceNoteCount = allNotes.size,
                         isLoading = false,
                         loadingMessage = null,
@@ -135,6 +159,13 @@ class StatsViewModel(
                         persistentCache.write(key.storageKey, calculated)
                     }
                 }
+        }
+    }
+
+    /** The unit Stats shows weights in; call with the user's current default unit. */
+    fun setDisplayUnit(unit: WeightUnit) {
+        if (_displayUnit.value != unit) {
+            _displayUnit.value = unit
         }
     }
 
@@ -168,86 +199,6 @@ class StatsViewModel(
         } else {
             AppClock.nowMillis() / TimeUnit.DAYS.toMillis(1)
         }
-    }
-
-    private suspend fun calculateStats(allNotes: List<NoteLine>, range: TimeRange): StatsState = withContext(Dispatchers.Default) {
-        val cutoff = if (range.days > 0) {
-            AppClock.nowMillis() - TimeUnit.DAYS.toMillis(range.days.toLong())
-        } else 0L
-
-        val notes = allNotes.filter { it.timestamp >= cutoff }
-
-        if (notes.isEmpty()) return@withContext StatsState(currentRange = range, filteredNotes = emptyList())
-
-        val parser = WorkoutParser()
-
-        val (mainCount, subCount) = notes.fold(0 to 0) { acc, note ->
-            val lines = parseNoteText(note.text, note.rowMetadata).first
-            var main = 0
-            var sub = 0
-            for (l in lines) {
-                if (l.isBlank()) continue
-                if (l.startsWith("    ")) sub++ else main++
-            }
-            (acc.first + main) to (acc.second + sub)
-        }
-        val avgSets = if (mainCount > 0) subCount.toFloat() / mainCount else 0f
-
-        val minTime = notes.minOf { it.timestamp }
-        val maxTime = notes.maxOf { it.timestamp }
-
-        val durationWeeks = if (range == TimeRange.ALL_TIME) {
-            val diff = (maxTime - minTime).coerceAtLeast(1L)
-            diff.toFloat() / TimeUnit.DAYS.toMillis(7)
-        } else {
-            range.days / 7f
-        }
-
-        val avgWeekly = if (durationWeeks > 0) notes.size / durationWeeks else 0f
-
-        val counts = notes.groupingBy { it.categoryName ?: "Other" }.eachCount()
-
-        val durationAvgs = notes.groupBy { it.categoryName ?: "Other" }
-            .mapValues { entry ->
-                val durations = entry.value.mapNotNull { note ->
-                    parseNoteText(note.text, note.rowMetadata).second.mapNotNull {
-                        if (it.isBlank()) null else parseDurationSeconds(it)
-                    }.maxOrNull()
-                }
-                if (durations.isEmpty()) 0f else durations.average().toFloat() / 60f
-            }
-
-        val heatmap = Array(7) { IntArray(24) }
-        notes.forEach { n ->
-            val c = Calendar.getInstance().apply { timeInMillis = n.timestamp }
-            val day = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7
-            val hour = c.get(Calendar.HOUR_OF_DAY)
-            heatmap[day][hour]++
-        }
-
-        val exerciseCounts = notes.flatMap { note ->
-            val sets = parser.parseWorkout(note.text, rowMetadata = note.rowMetadata)
-            sets.map { it.exerciseName }
-        }
-            .groupingBy { it }
-            .eachCount()
-            .toList()
-            .sortedByDescending { it.second }
-            .take(5)
-
-        StatsState(
-            totalNotes = notes.size,
-            avgWorkoutsPerWeek = avgWeekly,
-            avgSets = avgSets,
-            categoryCounts = counts,
-            averageDurations = durationAvgs,
-            heatmapData = heatmap,
-            topExercises = exerciseCounts,
-            weeklyWorkoutCounts = buildWeeklyWorkoutCounts(notes),
-            trainingInsights = buildTrainingInsights(notes, parser),
-            currentRange = range,
-            filteredNotes = notes,
-        )
     }
 
     class Factory(

@@ -22,15 +22,22 @@ import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.util.formatTime
 import com.example.gymtrack.core.util.formatWeekRelativeTime
-import com.example.gymtrack.core.util.parseDurationSeconds
-import com.example.gymtrack.core.util.parseNoteText
+import com.example.gymtrack.core.util.noteWorkoutDuration
 
 internal fun workoutCardTestTag(timestamp: Long): String = "workout-card-$timestamp"
+
+/**
+ * Minutes shown on the card: start to Finish when the workout was finished, else start to the
+ * last logged row, ending early at a pause of more than 3 h (docs/WORKOUT_DURATION.md).
+ */
+internal fun workoutCardMinutes(note: NoteLine, finishedAtMillis: Long?): Int =
+    (noteWorkoutDuration(note.text, note.rowMetadata, note.timestamp, finishedAtMillis)?.seconds ?: 0) / 60
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun WorkoutAlbumCard(
     note: NoteLine,
+    finishedAtMillis: Long? = null,
     isSelected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -53,11 +60,8 @@ fun WorkoutAlbumCard(
         )
     }
 
-    val totalMinutes = remember(note.text, note.rowMetadata) {
-        val seconds = parseNoteText(note.text, note.rowMetadata).second.mapNotNull {
-            if (it.isBlank()) null else parseDurationSeconds(it)
-        }.maxOrNull()
-        seconds?.div(60) ?: 0
+    val totalMinutes = remember(note.text, note.rowMetadata, note.timestamp, finishedAtMillis) {
+        workoutCardMinutes(note, finishedAtMillis)
     }
 
     val displayTitle = note.title.ifBlank {

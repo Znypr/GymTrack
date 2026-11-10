@@ -2,6 +2,7 @@ package com.example.gymtrack.feature.stats
 
 import android.content.Context
 import com.example.gymtrack.core.data.NoteLine
+import com.example.gymtrack.core.data.WeightUnit
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -56,6 +57,8 @@ class StatsPersistentCacheStore(context: Context) {
         put("currentRange", currentRange.name)
         put("filteredNotes", filteredNotes.toNotesJson())
         put("sourceNoteCount", sourceNoteCount)
+        put("unfinishedCount", unfinishedCount)
+        put("displayUnit", displayUnit.storageValue)
     }
 
     private fun JSONObject.toStatsState(): StatsState {
@@ -74,6 +77,8 @@ class StatsPersistentCacheStore(context: Context) {
             isLoading = false,
             loadingMessage = null,
             sourceNoteCount = optInt("sourceNoteCount"),
+            unfinishedCount = optInt("unfinishedCount"),
+            displayUnit = WeightUnit.fromStorage(optString("displayUnit")),
         )
     }
 
@@ -124,6 +129,7 @@ class StatsPersistentCacheStore(context: Context) {
                 put("reps", row.reps.toJson())
                 put("duration", row.duration.toJson())
                 put("trendPoints", trendPointsToJson(row.trendPoints))
+                put("unknownUnitSets", row.unknownUnitSets)
             })
         }
     }
@@ -220,6 +226,7 @@ class StatsPersistentCacheStore(context: Context) {
                         reps = item.optJSONObject("reps").toMetricShift(),
                         duration = item.optJSONObject("duration").toMetricShift(),
                         trendPoints = item.optJSONArray("trendPoints").toTrendPoints(),
+                        unknownUnitSets = item.optInt("unknownUnitSets"),
                     ),
                 )
             }
@@ -291,7 +298,8 @@ class StatsPersistentCacheStore(context: Context) {
         if (has(name) && !isNull(name)) optLong(name) else null
 
     private companion object {
-        const val CACHE_VERSION = 1
+        // 2: finished-only counts (#322) and display-unit conversion (#326); older entries are stale.
+        const val CACHE_VERSION = 2
         const val MAX_PERSISTED_ENTRIES = 12
         const val PREFERENCES_NAME = "stats_cache"
         const val STORAGE_PREFIX = "stats_state_"

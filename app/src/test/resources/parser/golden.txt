@@ -19,7 +19,7 @@ rear delt prime => name=Rear delt mod=null brand=Prime canonical=Rear Delt Fly
 rear delt fly => name=Rear delt fly mod=null brand=null canonical=Rear Delt Fly
 reverse fly => name=Reverse fly mod=null brand=null canonical=Chest Fly
 tricep pushdown bar => name=Triceps pushdown mod=Straight Bar brand=null canonical=Triceps Pushdown
-rope pushdown => name=Pushdown mod=Rope brand=null canonical=Pushdown
+rope pushdown => name=Pushdown mod=Rope brand=null canonical=Triceps Pushdown
 tricep extension => name=Triceps extension mod=null brand=null canonical=Triceps Extension
 tricep extension bar => name=Triceps extension mod=Straight Bar brand=null canonical=Triceps Extension
 overhead extension => name=Overhead extension mod=null brand=null canonical=Overhead Triceps Extension
@@ -105,10 +105,10 @@ biceps curl => name=Biceps curl mod=null brand=null canonical=Biceps Curl
 hammer curl => name=Hammer curl mod=null brand=null canonical=Hammer Curl
 preacher curl => name=Preacher curl mod=null brand=null canonical=Preacher Curl
 concentration curl => name=Concentration curl mod=null brand=null canonical=Concentration Curl
-dumbell curl => name=Curl mod=Dumbbell brand=null canonical=Curl
-db curl => name=Curl mod=Dumbbell brand=null canonical=Curl
+dumbell curl => name=Curl mod=Dumbbell brand=null canonical=Biceps Curl
+db curl => name=Curl mod=Dumbbell brand=null canonical=Biceps Curl
 wrist curl => name=Wrist curl mod=null brand=null canonical=Wrist Curl
-ezbar curl => name=Curl mod=EZ-Bar brand=null canonical=Curl
+ezbar curl => name=Curl mod=EZ-Bar brand=null canonical=Biceps Curl
 t bar row => name=T row mod=Straight Bar brand=null canonical=T-Bar Row
 tbar row => name=T bar row mod=null brand=null canonical=T-Bar Row
 diag rowing => name=Diagonal row mod=null brand=null canonical=Diagonal Row
@@ -131,14 +131,14 @@ rowing machine => name=Rowing machine mod=null brand=null canonical=Row
 elliptical => name=Elliptical mod=null brand=null canonical=Elliptical
 farmer walk => name=Farmer walk mod=null brand=null canonical=Farmer Walk
 sled push => name=Sled push mod=null brand=null canonical=Sled Push
-benchpress => name=Benchpress mod=null brand=null canonical=Benchpress
+benchpress => name=Benchpress mod=null brand=null canonical=Bench Press
 squatt => name=Squat mod=null brand=null canonical=Squat  !! L0 NAME_AUTOCORRECTED squatt->squat
 deadlfit => name=Deadlift mod=null brand=null canonical=Deadlift  !! L0 NAME_AUTOCORRECTED deadlfit->deadlift
 latpulldwn => name=Latpulldwn mod=null brand=null canonical=Latpulldwn
 tricpe pushdown => name=Triceps pushdown mod=null brand=null canonical=Triceps Pushdown  !! L0 NAME_AUTOCORRECTED tricpe->tricep
 incline dumbell press => name=Press mod=Incline, Dumbbell brand=null canonical=Press
 lat pulldwon => name=Lat pulldown mod=null brand=null canonical=Lat Pulldown  !! L0 NAME_AUTOCORRECTED pulldwon->pulldown
-curls => name=Curl mod=null brand=null canonical=Curl
+curls => name=Curl mod=null brand=null canonical=Biceps Curl
 
 # set formats
 [Bench press] `10x 60` => reps=10 w=60.0 KG dur=null uni=false

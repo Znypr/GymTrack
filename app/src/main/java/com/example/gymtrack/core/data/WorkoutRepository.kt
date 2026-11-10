@@ -4,12 +4,14 @@ import com.example.gymtrack.core.time.AppClock
 import androidx.room.withTransaction
 import com.example.gymtrack.core.data.canonical.toDomain
 import com.example.gymtrack.core.data.transition.CanonicalExerciseCatalog
+import com.example.gymtrack.core.data.transition.CanonicalImportSource
 import com.example.gymtrack.core.data.transition.CanonicalKeys
 import com.example.gymtrack.core.data.transition.LegacyWorkoutProjector
 import com.example.gymtrack.core.util.ExerciseIdentity
 import com.example.gymtrack.core.util.ExerciseIdentityResolver
 import com.example.gymtrack.core.util.ParsedSetDTO
 import com.example.gymtrack.core.util.WorkoutParser
+import com.example.gymtrack.core.util.noteWorkoutDuration
 import com.example.gymtrack.core.util.variantLabels
 import com.example.gymtrack.domain.model.WorkoutDetails
 import com.example.gymtrack.domain.model.WorkoutRecord
@@ -180,22 +182,31 @@ class WorkoutRepository(
      * and local training-summary outbox record as one local persistence boundary. Draft autosave
      * intentionally does not call this method, so summary generation is tied only to explicit
      * workout completion.
+     *
+     * [finishedAtMillis] is the moment the user tapped Finish (default: now). The canonical
+     * `ended_at` follows the duration rule in docs/WORKOUT_DURATION.md: it is the Finish time,
+     * unless Finish (or a row) comes after a pause longer than [com.example.gymtrack.core.util.WORKOUT_SESSION_GAP_SECONDS].
+     * Pass null when there is no real Finish moment (CSV import); `ended_at` then ends at the
+     * last logged row.
      */
     suspend fun saveCompletedWorkout(
         note: NoteEntity,
         defaultWeightUnit: WeightUnit = WeightUnit.KG,
+        finishedAtMillis: Long? = AppClock.nowMillis(),
     ) {
         val completedAt = maxOf(AppClock.nowMillis(), note.timestamp)
+        val endedAt = completedWorkoutEndedAt(note, finishedAtMillis?.let { maxOf(it, note.timestamp) })
         database.withTransaction {
             noteDao.insert(note)
-            val parsedSets = parser.parseWorkout(
-                rawText = note.text,
-                defaultWeightUnit = defaultWeightUnit.storageValue,
-                rowMetadata = note.rowMetadata,
-            )
-            saveParsedSets(parsedSets, note.timestamp)
+            replaceDerivedSets(note, defaultWeightUnit)
 
-            val details = saveCanonicalCompletionAndBuildDetails(note, completedAt)
+            val details = saveCanonicalAndBuildDetails(note, completedAt, defaultWeightUnit) { projected, _ ->
+                projected.copy(
+                    status = WorkoutStatus.COMPLETED.name,
+                    endedAt = endedAt,
+                    updatedAt = completedAt,
+                )
+            }
             val summary = summaryBuilder.build(details, ZoneId.systemDefault())
             database.trainingSummaryOutboxDao().upsert(
                 TrainingSummaryOutboxEntry.pending(
@@ -205,6 +216,50 @@ class WorkoutRepository(
                 ).toEntity(),
             )
         }
+    }
+
+    /**
+     * Saves an edit to a workout that is not the running one (a finished workout, or one left
+     * with Back and replaced by a newer workout) and re-derives everything Stats reads from it:
+     * the legacy `sets` rows and the canonical workout, exercises and sets, in one transaction.
+     *
+     * It never changes when the workout was completed: status, `ended_at` and `created_at` of an
+     * existing canonical row are kept (a `COMPLETED` row stays `COMPLETED` with its Finish time).
+     * It does not enqueue a training summary; that stays tied to the explicit Finish.
+     */
+    suspend fun saveEditedWorkout(
+        note: NoteEntity,
+        defaultWeightUnit: WeightUnit = WeightUnit.KG,
+    ) {
+        val editedAt = maxOf(AppClock.nowMillis(), note.timestamp)
+        database.withTransaction {
+            noteDao.insert(note)
+            replaceDerivedSets(note, defaultWeightUnit)
+            saveCanonicalAndBuildDetails(note, editedAt, defaultWeightUnit) { projected, existing ->
+                CanonicalImportSource.merge(existing, projected.copy(updatedAt = editedAt))
+            }
+        }
+    }
+
+    /**
+     * Finish time per workout start timestamp, for completed workouts only. The Home card uses it
+     * so its duration matches the timer at Finish instead of stopping at the last set (#323).
+     */
+    fun observeFinishTimes(): Flow<Map<Long, Long>> =
+        database.canonicalWorkoutDao().observeCompletedEndTimes()
+            .map { rows -> rows.associate { it.legacyTimestamp to it.endedAt } }
+
+    /** True when the workout started at [timestamp] was finished (canonical status COMPLETED). */
+    suspend fun isCompleted(timestamp: Long): Boolean =
+        database.canonicalWorkoutDao().getByLegacyTimestamp(timestamp)?.status == WorkoutStatus.COMPLETED.name
+
+    private suspend fun replaceDerivedSets(note: NoteEntity, defaultWeightUnit: WeightUnit) {
+        val parsedSets = parser.parseWorkout(
+            rawText = note.text,
+            defaultWeightUnit = defaultWeightUnit.storageValue,
+            rowMetadata = note.rowMetadata,
+        )
+        saveParsedSets(parsedSets, note.timestamp)
     }
 
     suspend fun syncNoteToWorkout(note: NoteEntity) {
@@ -238,21 +293,22 @@ class WorkoutRepository(
         }
     }
 
-    private suspend fun saveCanonicalCompletionAndBuildDetails(
+    private suspend fun saveCanonicalAndBuildDetails(
         note: NoteEntity,
-        completedAt: Long,
+        writtenAt: Long,
+        // Shared by Finish and the history-edit save, so the projector unit (#326) reaches both.
+        defaultWeightUnit: WeightUnit,
+        finalizeRow: (projected: CanonicalWorkoutEntity, existing: CanonicalWorkoutEntity?) -> CanonicalWorkoutEntity,
     ): WorkoutDetails {
         val category = completedCategoryFor(note)
         category?.let { upsertCategory(it) }
 
         val catalog = CanonicalExerciseCatalog(exerciseDao.getAllForBackup())
-        val projection = canonicalProjector.project(note, category, catalog)
-        upsertExercises(catalog, completedAt)
+        val projection = canonicalProjector.project(note, category, catalog, defaultWeightUnit)
+        upsertExercises(catalog, writtenAt)
 
-        val workout = projection.workout.copy(
-            status = WorkoutStatus.COMPLETED.name,
-            updatedAt = completedAt,
-        )
+        val existing = database.canonicalWorkoutDao().getById(projection.workout.id)
+        val workout = finalizeRow(projection.workout, existing)
         upsertWorkout(workout)
 
         database.canonicalWorkoutExerciseDao().deleteForWorkout(workout.id)
@@ -399,4 +455,14 @@ class WorkoutRepository(
         .takeIf { it.isNotEmpty() }
         ?.joinToString(" · ")
         ?: "Default"
+
+    companion object {
+        /**
+         * Canonical `ended_at` of a workout finished at [finishedAtMillis] (null: no real Finish),
+         * per the duration rule in docs/WORKOUT_DURATION.md. Null when nothing gives a duration.
+         */
+        fun completedWorkoutEndedAt(note: NoteEntity, finishedAtMillis: Long?): Long? =
+            noteWorkoutDuration(note.text, note.rowMetadata, note.timestamp, finishedAtMillis)
+                ?.let { note.timestamp + it.seconds * 1_000L }
+    }
 }

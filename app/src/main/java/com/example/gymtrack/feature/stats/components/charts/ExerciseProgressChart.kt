@@ -26,6 +26,8 @@ import com.example.gymtrack.core.data.WorkoutRepository
 import com.example.gymtrack.feature.stats.AdaptiveCard
 import com.example.gymtrack.feature.stats.TimeRange
 import com.example.gymtrack.feature.stats.calculateExerciseOutliers
+import com.example.gymtrack.feature.stats.kilogramsToDisplay
+import com.example.gymtrack.core.data.WeightUnit
 import kotlinx.coroutines.flow.flowOf
 import java.text.SimpleDateFormat
 import java.util.*
@@ -148,9 +150,10 @@ private fun ExerciseProgressChartGraph(
 fun ExerciseProgressCard(
     repository: WorkoutRepository?,
     timeRange: TimeRange,
-    weightUnitLabel: String,
+    displayUnit: WeightUnit,
     modifier: Modifier = Modifier,
 ) {
+    val weightUnitLabel = displayUnit.displayLabel
     val cutoffTimestamp = remember(timeRange) {
         if (timeRange == TimeRange.ALL_TIME) {
             0L
@@ -209,13 +212,14 @@ fun ExerciseProgressCard(
         }
     }
 
-    val filteredSeries = remember(fullSeries, cutoffTimestamp) {
+    // The progress query returns kilograms (lb rows converted per set); show the display unit.
+    val filteredSeries = remember(fullSeries, cutoffTimestamp, displayUnit) {
         fullSeries.mapNotNull { currentSeries ->
             val points = if (cutoffTimestamp == 0L) {
                 currentSeries.points
             } else {
                 currentSeries.points.filter { it.originTimestamp >= cutoffTimestamp }
-            }
+            }.map { it.copy(avgVal = kilogramsToDisplay(it.avgVal, displayUnit)) }
             currentSeries.copy(points = points).takeIf { it.points.isNotEmpty() }
         }
     }

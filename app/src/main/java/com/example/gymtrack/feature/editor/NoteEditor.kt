@@ -60,6 +60,8 @@ fun NoteEditor(
         viewModel.currentDefaultWeightUnit = settings.defaultWeightUnit
     }
 
+    LaunchedEffect(isLastNote) { viewModel.isActiveWorkout = isLastNote }
+
     LaunchedEffect(saveError) {
         saveError?.let { message ->
             snackbarHostState.showSnackbar(message)

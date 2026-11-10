@@ -1,6 +1,7 @@
 package com.example.gymtrack.simulation
 
 import com.example.gymtrack.core.data.NoteLine
+import com.example.gymtrack.core.data.WorkoutRepository
 import com.example.gymtrack.core.data.repository.toDomainModel
 import com.example.gymtrack.core.data.transition.CanonicalExerciseCatalog
 import com.example.gymtrack.core.data.transition.LegacyWorkoutProjector
@@ -76,6 +77,11 @@ class LongHorizonSimulationTest {
         out.writeText(report)
         println(report)
         assertTrue("simulation produced no output", report.isNotBlank())
+
+        // Editor-state findings fixed in #316 #317 #319 #320 are hard invariants now: the
+        // transcript plays the real NoteEditorState, so a regression fails the build.
+        val regressed = all.all.filter { it.id in FIXED_EDITOR_FINDINGS }
+        assertTrue("fixed editor findings came back: ${regressed.map { "${it.id}: ${it.example}" }}", regressed.isEmpty())
     }
 
     private fun simulate(history: SimHistory, findings: SimulationFindings) {
@@ -122,12 +128,17 @@ class LongHorizonSimulationTest {
                     timer = NoteTimerState()
                     val note = session.finalNote
                     val parsed = parser.parseWorkout(note.text, workout.unit.storageValue, note.rowMetadata)
-                    val projection = projector.project(note, null, CanonicalExerciseCatalog(emptyList()))
+                    // The completion path passes the default unit in force at Finish (#326).
+                    val projection = projector.project(note, null, CanonicalExerciseCatalog(emptyList()), workout.unit)
                     invariants.checkFinishedWorkout(
                         session,
                         parsed,
                         CanonicalRows(
-                            projection.workout.copy(status = "COMPLETED"),
+                            // What WorkoutRepository.saveCompletedWorkout writes at Finish.
+                            projection.workout.copy(
+                                status = "COMPLETED",
+                                endedAt = WorkoutRepository.completedWorkoutEndedAt(note, session.finishedAtMillis),
+                            ),
                             projection.workoutExercises,
                             projection.workoutSets,
                         ),
@@ -173,5 +184,13 @@ class LongHorizonSimulationTest {
     private companion object {
         val SEEDS = listOf(11L, 23L, 47L)
         val PERF_DAYS = setOf(91, 182, 364) // months 3, 6, 12
+        val FIXED_EDITOR_FINDINGS = setOf(
+            "UNILATERAL-LOST", // #316
+            "UNILATERAL-INHERITED", // #317
+            "SET-TIME-SHIFTED", // #319
+            "PHANTOM-SET", // #320
+            "LOST-SET",
+            "CANONICAL-NEEDS-REVIEW", // #320: nameless exercise from the half-typed set
+        )
     }
 }

@@ -6,9 +6,11 @@ import com.example.gymtrack.core.data.CanonicalWorkoutExerciseEntity
 import com.example.gymtrack.core.data.CanonicalWorkoutSetEntity
 import com.example.gymtrack.core.data.ExerciseFlag
 import com.example.gymtrack.core.data.NoteEntity
+import com.example.gymtrack.core.data.WeightUnit
 import com.example.gymtrack.core.util.WorkoutParser
 import com.example.gymtrack.core.util.buildNoteRowMetadata
 import com.example.gymtrack.core.util.parseNoteText
+import com.example.gymtrack.core.util.workoutDuration
 
 internal const val CANONICAL_IMPORT_VERSION = "canonical-import-v1"
 
@@ -21,10 +23,17 @@ internal data class CanonicalWorkoutProjection(
 internal class LegacyWorkoutProjector(
     private val parser: WorkoutParser = WorkoutParser(),
 ) {
+    /**
+     * @param defaultWeightUnit the default unit in force when the workout was finished. When given,
+     * a weighted set without a unit in its text stores this unit (docs/WEIGHT_UNITS.md). When
+     * `null` (startup import of old notes, where the unit used back then is unknown), only units
+     * written in the text are stored and the rest stay NULL for [CanonicalSetUnitBackfill].
+     */
     fun project(
         note: NoteEntity,
         category: CanonicalCategoryEntity?,
         exercises: CanonicalExerciseCatalog,
+        defaultWeightUnit: WeightUnit? = null,
     ): CanonicalWorkoutProjection {
         val parsedNote = parseNoteText(note.text, note.rowMetadata)
         val sourceLines = parsedNote.first.mapIndexed { index, text ->
@@ -112,7 +121,8 @@ internal class LegacyWorkoutProjector(
                     position = setPosition,
                     repetitions = parsedSet.reps.takeIf { it > 0 },
                     weight = parsedSet.weight.toDouble().takeIf { it > 0.0 },
-                    weightUnit = source?.text?.let(::explicitWeightUnit),
+                    weightUnit = source?.text?.let(::explicitWeightUnit)
+                        ?: defaultWeightUnit?.takeIf { parsedSet.weight > 0f }?.toCanonicalUnit(),
                     durationSeconds = parsedSet.durationSeconds,
                     distanceMeters = null,
                     performedAtOffsetSeconds = performedOffset,
@@ -136,7 +146,8 @@ internal class LegacyWorkoutProjector(
                 id = workoutKey,
                 legacyTimestamp = note.timestamp,
                 startedAt = note.timestamp,
-                endedAt = elapsedOffsets.maxOrNull()?.let { note.timestamp + it * 1000L },
+                // Duration rule (docs/WORKOUT_DURATION.md): ends before a pause of more than 3 h.
+                endedAt = workoutDuration(elapsedOffsets)?.let { note.timestamp + it.seconds * 1000L },
                 categoryId = category?.id,
                 title = note.title,
                 learnings = note.learnings.orEmpty(),
@@ -179,6 +190,11 @@ internal class LegacyWorkoutProjector(
         val seconds = match.groupValues[2].toIntOrNull() ?: return null
         if (seconds !in 0..59) return null
         return minutes * 60 + seconds
+    }
+
+    private fun WeightUnit.toCanonicalUnit(): String = when (this) {
+        WeightUnit.KG -> "KILOGRAM"
+        WeightUnit.LB -> "POUND"
     }
 
     private fun explicitWeightUnit(raw: String): String? = when {

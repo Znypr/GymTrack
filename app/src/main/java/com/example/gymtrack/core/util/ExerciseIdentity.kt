@@ -1,5 +1,7 @@
 package com.example.gymtrack.core.util
 
+import kotlin.math.abs
+
 enum class ExerciseIdentityConfidence {
     HIGH,
     MEDIUM,
@@ -122,6 +124,48 @@ fun ExerciseIdentity.variantLabelSpecs(): List<ExerciseVariantLabel> = buildList
     }
 }.distinctBy { it.text to it.kind }
 
+/**
+ * [ExerciseIdentity.canonicalName] without the words already shown as one of [chips] (#331):
+ * "Chest Press Prime" with a [Prime] chip shows as "Chest Press". Display only.
+ */
+fun ExerciseIdentity.titleWithout(chips: List<ExerciseVariantLabel>): String {
+    val phrases = chips.flatMap(::chipWords).map { it.split(" ") }.sortedByDescending { it.size }
+    val words = canonicalName.split(" ").filter(String::isNotBlank)
+    val kept = mutableListOf<String>()
+    var i = 0
+    while (i < words.size) {
+        val match = phrases.firstOrNull { phrase ->
+            i + phrase.size <= words.size && phrase.indices.all { words[i + it].lowercase() == phrase[it] }
+        }
+        if (match == null) kept += words[i]
+        i += match?.size ?: 1
+    }
+    return kept.joinToString(" ").ifBlank { canonicalName }
+}
+
+private fun chipWords(label: ExerciseVariantLabel): Set<String> = when (label.kind) {
+    ExerciseVariantLabelKind.BRAND -> ExerciseIdentityResolver.brandWords(label.text)
+    ExerciseVariantLabelKind.ATTACHMENT,
+    ExerciseVariantLabelKind.EQUIPMENT -> equipmentChipWords[label.text].orEmpty()
+    ExerciseVariantLabelKind.SIDE,
+    ExerciseVariantLabelKind.WARNING -> emptySet()
+}
+
+/** Typed words behind each equipment/attachment chip of [variantLabelSpecs]. */
+private val equipmentChipWords = mapOf(
+    "Cable" to setOf("cable"),
+    "Dumbbell" to setOf("dumbbell", "db"),
+    "Barbell" to setOf("barbell", "bar"),
+    "Smith" to setOf("smith"),
+    "Machine" to setOf("machine"),
+    "Bodyweight" to setOf("bodyweight"),
+    "Straight bar" to setOf("straight bar", "straightbar", "bar"),
+    "Rope" to setOf("rope"),
+    "V-bar" to setOf("v bar", "vbar", "v-bar"),
+    "EZ-bar" to setOf("ez bar", "ezbar", "ez-bar"),
+    "Handle" to setOf("handle"),
+)
+
 private fun ExerciseAttachment.displayLabel(): String = when (this) {
     ExerciseAttachment.ROPE -> "Rope"
     ExerciseAttachment.STRAIGHT_BAR -> "Straight bar"
@@ -161,6 +205,56 @@ object ExerciseIdentityResolver {
         "rl" to "Realleader",
         "realleader" to "Realleader",
     )
+    private val spacedBrandNames = mapOf(
+        "hammer strength" to "Hammer Strength",
+        "life fitness" to "Life Fitness",
+        "real leader" to "Realleader",
+        "booty builder" to "BootyBuilder",
+    )
+    private const val MIN_TYPO_LENGTH = 5
+    private val pullDownRegex = Regex("""\bpull down\b""")
+    private val latPullRegex = Regex("""\blat pull\b""")
+    private val abbreviations = mapOf(
+        "bp" to "bench press",
+        "ohp" to "overhead press",
+        "rdl" to "romanian deadlift",
+        "dl" to "deadlift",
+        "bss" to "bulgarian split squat",
+        "flye" to "fly",
+        "flyes" to "fly",
+        "dumbell" to "dumbbell",
+        "dbs" to "dumbbell",
+        "kgs" to "kg",
+        "lbs" to "lb",
+        "hacksquat" to "hack squat",
+    )
+
+    /** Equipment and attachment words: they become chips, not part of the exercise. */
+    private val equipmentWords = setOf(
+        "dumbbell", "db", "barbell", "bar", "cable", "machine", "smith", "rope", "straight", "straightbar",
+        "ez", "ezbar", "v", "vbar", "handle", "bodyweight",
+    )
+
+    /**
+     * Exercise words that typos and joined words resolve to. A minimal copy of the parser's
+     * vocabulary, which this layer does not share.
+     */
+    private val exerciseWords = setOf(
+        "press", "push", "pull", "row", "rowing", "raise", "curl", "extension", "dip", "squat", "leg", "arm",
+        "chest", "back", "shoulder", "delt", "biceps", "triceps", "kettlebell", "bench", "incline", "decline",
+        "fly", "butterfly", "crunch", "adductor", "abductor", "calf", "calve", "glute", "hamstring", "quad",
+        "deadlift", "romanian", "stiff", "lunge", "step", "lat", "hack", "seated", "lying", "standing",
+        "assisted", "hanging", "hyperextension", "pushdown", "pulldown", "pullup", "pushup", "chinup", "situp",
+        "diagonal", "diag", "overhead", "hip", "thrust", "lateral", "side", "rear", "front", "face", "split",
+        "bulgarian", "dead", "hang", "plank", "preacher", "hammer", "brachial", "shrug", "pec", "deck",
+        "reverse", "bent", "over", "pullover", "kickback", "crossover", "upright", "goblet", "sumo",
+        "military", "flat", "wide", "close", "narrow", "neutral", "grip", "single", "alternating",
+        "alternate", "unilateral", "bilateral", "skull", "crusher", "wrist", "trap",
+    ) + equipmentWords - setOf("v", "ez", "db")
+
+    /** Words that are never spell-corrected: exercise words, brands and row markers. */
+    private val knownWords = exerciseWords + brandAliases.keys +
+        setOf("hammer", "strength", "real", "leader", "booty", "builder", "life", "fitness", "uni", "ss", "l6", "kg", "lb")
 
     fun resolve(
         rawName: String,
@@ -169,9 +263,9 @@ object ExerciseIdentityResolver {
         brand: String? = null,
         isUnilateral: Boolean = false,
     ): ExerciseIdentity {
-        val rawNormalized = normalize(rawName)
-        val parsedNormalized = normalize(parsedName)
-        val modifierNormalized = normalize(modifier.orEmpty())
+        val rawNormalized = identityText(rawName)
+        val parsedNormalized = identityText(parsedName)
+        val modifierNormalized = identityText(modifier.orEmpty())
         val combined = listOf(rawNormalized, parsedNormalized, modifierNormalized)
             .filter(String::isNotBlank)
             .joinToString(" ")
@@ -212,6 +306,10 @@ object ExerciseIdentityResolver {
         )
     }
 
+    /** Everything a user may type for [brand]: `hs`, `hammerstrength`, `hammer strength`. */
+    internal fun brandWords(brand: String): Set<String> =
+        (brandAliases + spacedBrandNames).filterValues { it == brand }.keys + normalize(brand)
+
     fun comparisonToken(raw: String): String = normalize(raw)
         .replace(" ", "_")
         .ifBlank { "unknown_exercise" }
@@ -225,6 +323,10 @@ object ExerciseIdentityResolver {
         val cleanedRaw = stripContextTokens(raw)
         val cleanedParsed = stripContextTokens(parsed)
         val cleanedCombined = stripContextTokens(combined)
+        // Words left once equipment and brand are removed: "cable curl", "curl db" -> {curl}.
+        val coreWords = cleanedCombined.split(" ")
+            .filterNot { it in equipmentWords || it in brandAliases }
+            .toSet()
 
         return when {
             cleanedCombined.contains("triceps extension bar") && !cleanedCombined.contains("pushdown") -> {
@@ -234,6 +336,7 @@ object ExerciseIdentityResolver {
             cleanedCombined.contains("triceps pushdown") -> "Triceps Pushdown"
             cleanedCombined.contains("bar triceps pushdown") -> "Triceps Pushdown"
             cleanedCombined.contains("pushdown") && cleanedCombined.contains("triceps") -> "Triceps Pushdown"
+            coreWords == setOf("pushdown") -> "Triceps Pushdown"
             cleanedCombined.contains("overhead extension") || cleanedCombined.contains("overhead triceps extension") -> {
                 "Overhead Triceps Extension"
             }
@@ -249,6 +352,7 @@ object ExerciseIdentityResolver {
             cleanedCombined.contains("t bar row") || cleanedCombined.contains("tbar row") || cleanedCombined.contains("tbar rowing") ||
                 cleanedCombined.contains("t bar machine") -> "T-Bar Row"
             cleanedCombined.contains("diag rowing") || cleanedCombined.contains("diagonal rowing") -> "Diagonal Row"
+            cleanedCombined.contains("rear delt row") -> "Rear Delt Row"
             cleanedCombined == "row" || cleanedCombined.contains(" row") -> "Row"
             cleanedCombined.contains("rear delt") || cleanedCombined.contains("rear fly") -> "Rear Delt Fly"
             cleanedCombined == "butterfly" || cleanedCombined.contains("butterfly") -> "Pec Deck"
@@ -266,7 +370,10 @@ object ExerciseIdentityResolver {
             cleanedCombined.contains("preacher curl") -> "Preacher Curl"
             cleanedCombined.contains("hammer curl") -> "Hammer Curl"
             cleanedCombined.contains("brachial curl") -> "Brachialis Curl"
-            cleanedCombined.contains("biceps curl") -> "Biceps Curl"
+            cleanedCombined.contains("biceps curl") || coreWords == setOf("curl") -> "Biceps Curl"
+            cleanedCombined.contains("split squat") -> "Bulgarian Split Squat"
+            coreWords == setOf("squat") || coreWords == setOf("back", "squat") -> "Squat"
+            cleanedCombined.contains("dead hang") || coreWords == setOf("hang") -> "Dead Hang"
             cleanedCombined.contains("shrug") -> "Shrug"
             cleanedCombined.contains("hanging leg raise") -> "Hanging Leg Raise"
             cleanedCombined.contains("sit up") -> "Sit-Up"
@@ -312,8 +419,7 @@ object ExerciseIdentityResolver {
     }
 
     private fun detectBrand(normalized: String): String? {
-        if (normalized.contains("real leader")) return "Realleader"
-        if (normalized.contains("booty builder")) return "BootyBuilder"
+        spacedBrandNames.entries.firstOrNull { normalized.contains(it.key) }?.let { return it.value }
         val tokens = normalized.split(" ").filter(String::isNotBlank)
         return tokens.firstNotNullOfOrNull(brandAliases::get)
     }
@@ -362,18 +468,73 @@ object ExerciseIdentityResolver {
             .replace(punctuationRegex, " ")
             .replace(whitespaceRegex, " ")
             .trim()
+        return value
+    }
 
-        value = value.split(" ").joinToString(" ") { token ->
-            when (token) {
-                "dumbell", "dbs" -> "dumbbell"
-                "kgs" -> "kg"
-                "lbs" -> "lb"
-                "hacksquat" -> "hack squat"
-                else -> token
+    /**
+     * [normalize] plus the grouping rules of #318, per word: abbreviations (`bp`, `rdl`, `ohp`),
+     * plural -> singular, joined words (`legpress`) and a conservative typo fix. Used for
+     * grouping and display only; the raw text is never rewritten.
+     */
+    internal fun identityText(raw: String): String = normalize(raw)
+        .split(" ")
+        .filter(String::isNotBlank)
+        .joinToString(" ", transform = ::canonicalWord)
+        .replace(pullDownRegex, "pulldown")
+        .replace(latPullRegex, "lat pulldown")
+
+    private fun canonicalWord(word: String): String {
+        abbreviations[word]?.let { return it }
+        if (word.length < 3 || word.any(Char::isDigit) || word in knownWords) return word
+        val singular = singularize(word)
+        if (singular in knownWords) return singular
+        return correctTypo(word) ?: splitJoined(singular) ?: correctTypo(singular) ?: singular
+    }
+
+    private fun singularize(word: String): String = when {
+        word.length < 4 -> word
+        word.endsWith("sses") || word.endsWith("ches") || word.endsWith("shes") -> word.dropLast(2)
+        word.endsWith("ies") && word.length > 4 -> word.dropLast(3) + "y"
+        word.endsWith("ss") || word.endsWith("us") || word.endsWith("is") || word.endsWith("as") -> word
+        word.endsWith("s") -> word.dropLast(1)
+        else -> word
+    }
+
+    /** `legpress` -> `leg press`, only when exactly one split gives two exercise words. */
+    private fun splitJoined(word: String): String? = (3..word.length - 3)
+        .map { word.take(it) to word.drop(it) }
+        .filter { (head, tail) -> head in exerciseWords && tail in exerciseWords }
+        .singleOrNull()
+        ?.let { (head, tail) -> "$head $tail" }
+
+    /**
+     * Same rules as the parser's autocorrect (#300/#351), so a typo never becomes a different
+     * exercise: known words are kept, the word has at least [MIN_TYPO_LENGTH] letters, the first
+     * letter matches, and exactly one exercise word is one edit away. Swapping two neighbouring
+     * letters counts as one edit (`sqaut`, `rasie`). A missing doubled last letter (`pres`,
+     * `barbel`) is fixed from 4 letters.
+     */
+    private fun correctTypo(word: String): String? {
+        (word + word.last()).takeIf { word.length >= 4 && it in exerciseWords }?.let { return it }
+        if (word.length < MIN_TYPO_LENGTH) return null
+        return exerciseWords
+            .filter { it.first() == word.first() && abs(it.length - word.length) <= 1 && editDistance(word, it) == 1 }
+            .singleOrNull()
+    }
+
+    /** Optimal string alignment distance: Levenshtein plus swaps of neighbouring letters. */
+    private fun editDistance(a: String, b: String): Int {
+        val d = Array(a.length + 1) { i -> IntArray(b.length + 1) { j -> if (i == 0) j else if (j == 0) i else 0 } }
+        for (i in 1..a.length) {
+            for (j in 1..b.length) {
+                val cost = if (a[i - 1] == b[j - 1]) 0 else 1
+                d[i][j] = minOf(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost)
+                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) {
+                    d[i][j] = minOf(d[i][j], d[i - 2][j - 2] + 1)
+                }
             }
         }
-
-        return value.replace(whitespaceRegex, " ").trim()
+        return d[a.length][b.length]
     }
 
     private fun stripContextTokens(raw: String): String {

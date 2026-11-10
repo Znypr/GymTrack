@@ -184,7 +184,7 @@ class DeviceHistoryDriver(
         if (notes.map { it.timestamp }.toSet().size != notes.size) {
             report("WORKOUT-DUPLICATED", Severity.HIGH, "Duplicate workouts in DB", "${notes.size} notes")
         }
-        invariants.checkStats(day, notes, sessions)
+        invariants.checkStats(day, notes, sessions, noteRepository.getStatsWorkoutFacts().first())
 
         // Canonical vs legacy totals for workouts the user finished.
         val legacyBySession = database.setDao().getAllForBackup().groupBy { it.workoutId }
@@ -258,8 +258,9 @@ class DeviceHistoryDriver(
                 lines[i] = lines[i].replace(Regex("""x (\d+(?:\.\d+)?)""")) { m ->
                     "x " + WorkoutHistoryGenerator.fmt(m.groupValues[1].toDouble() + 5.0)
                 }
-                // Editor on a non-active workout: Back saves a draft (NoteEditor -> saveNote(exit = true)).
-                noteRepository.saveNote(note.copy(text = lines.joinToString("\n")).toDomainModel())
+                // Editor on a non-active workout: every save, Back included, re-derives its Stats
+                // data (EditorViewModel -> WorkoutRepository.saveEditedWorkout, #325).
+                workoutRepository.saveEditedWorkout(note.copy(text = lines.joinToString("\n")), settings.defaultWeightUnit)
             }
             SimEventType.RELAUNCH -> relaunchStartupPath(event)
             SimEventType.RECREATE -> Unit // UI-level; the UI driver handles it

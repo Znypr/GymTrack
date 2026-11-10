@@ -221,3 +221,85 @@ fun getRelativeTimeDiffString(prevTimeStr: String, currentTimeMillis: Long): Str
     // Format as (m'ss'')
     return String.format("(%d'%02d'')", minutes, seconds)
 }
+
+// --- WORKOUT DURATION RULE (docs/WORKOUT_DURATION.md) ---
+
+/**
+ * A pause longer than this between two consecutive logged rows ends the session for duration
+ * purposes. Rows logged after such a gap (a set remembered the next morning) are still saved and
+ * counted as sets; only the duration stops before the gap.
+ */
+const val WORKOUT_SESSION_GAP_SECONDS: Int = 3 * 60 * 60
+
+/**
+ * Duration of one workout.
+ *
+ * @property seconds elapsed training time from the workout start.
+ * @property endedByGap true when a gap longer than [WORKOUT_SESSION_GAP_SECONDS] cut the session
+ *   short, i.e. rows (or Finish) after the gap are not counted as training time.
+ */
+data class WorkoutDuration(
+    val seconds: Int,
+    val endedByGap: Boolean,
+)
+
+/**
+ * The duration rule, shared by the Home card, the canonical `ended_at` and Stats:
+ *
+ * 1. Duration runs from the workout start to Finish, or to the last logged row when the workout
+ *    was never finished.
+ * 2. A gap longer than [gapSeconds] between two consecutive logged rows ends the session at the
+ *    row before the gap. Finish after such a gap, or more than [gapSeconds] after the last row,
+ *    does not extend the duration either.
+ * 3. The gap between the start and the first logged row is never cut (there is nothing earlier
+ *    to end at). With no logged row at all, Finish counts only within [gapSeconds] of the start.
+ *
+ * @param rowOffsetsSeconds elapsed offsets of the logged rows (exercise headers and sets), in any
+ *   order; negative values are ignored.
+ * @param finishedOffsetSeconds elapsed offset of Finish, or null when the workout was not finished.
+ * @return null when there is neither a logged row nor a Finish time.
+ */
+fun workoutDuration(
+    rowOffsetsSeconds: List<Int>,
+    finishedOffsetSeconds: Int? = null,
+    gapSeconds: Int = WORKOUT_SESSION_GAP_SECONDS,
+): WorkoutDuration? {
+    val sorted = rowOffsetsSeconds.filter { it >= 0 }.sorted()
+    if (sorted.isEmpty()) {
+        // Nothing was logged: Finish alone only counts when it is within one session of the start.
+        return finishedOffsetSeconds
+            ?.takeIf { it in 0..gapSeconds }
+            ?.let { WorkoutDuration(it, endedByGap = false) }
+    }
+    var end = sorted.first()
+    for (next in sorted.drop(1)) {
+        if (next - end > gapSeconds) return WorkoutDuration(end, endedByGap = true)
+        end = next
+    }
+    if (finishedOffsetSeconds != null && finishedOffsetSeconds > end) {
+        return if (finishedOffsetSeconds - end > gapSeconds) {
+            WorkoutDuration(end, endedByGap = true)
+        } else {
+            WorkoutDuration(finishedOffsetSeconds, endedByGap = false)
+        }
+    }
+    return WorkoutDuration(end, endedByGap = false)
+}
+
+/**
+ * [workoutDuration] for a stored note: the offsets are read from its grey elapsed column, and
+ * [finishedAtMillis] (the canonical `ended_at` of a completed workout) is the Finish time.
+ */
+fun noteWorkoutDuration(
+    text: String,
+    rowMetadata: String?,
+    startMillis: Long,
+    finishedAtMillis: Long? = null,
+): WorkoutDuration? {
+    val offsets = parseNoteText(text, rowMetadata).second
+        .filter(String::isNotBlank)
+        .map(::parseDurationSeconds)
+    val finishedOffset = finishedAtMillis
+        ?.let { ((it - startMillis) / 1_000L).coerceIn(0L, Int.MAX_VALUE.toLong()).toInt() }
+    return workoutDuration(offsets, finishedOffset)
+}

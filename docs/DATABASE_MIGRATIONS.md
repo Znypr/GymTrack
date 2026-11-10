@@ -4,7 +4,7 @@ GymTrack stores workout history locally. Production database upgrades must never
 
 ## Current schema
 
-The current Room schema is version 10.
+The current Room schema is version 13.
 
 Legacy compatibility tables remain available:
 
@@ -38,11 +38,14 @@ Repository history provides complete schemas for these versions:
 | 8 | Adds legacy exercises, sets, timing columns, foreign key, and indices |
 | 9 | Adds empty canonical workout tables, relationships, and ordering constraints |
 | 10 | Adds explicit source-unit storage to legacy `sets.weightUnit` |
+| 11 | Adds `notes.rowMetadata` |
+| 12 | Adds the training-summary outbox |
+| 13 | No schema change: backfills NULL `workout_sets.weight_unit` from legacy `sets.weightUnit` |
 
 The supported upgrade chain is:
 
 ```text
-1 -> 2 -> 3 -> 4 -> 8 -> 9 -> 10
+1 -> 2 -> 3 -> 4 -> 8 -> 9 -> 10 -> 11 -> 12 -> 13
 ```
 
 Versions 5, 6, and 7 do not exist in committed schema history. GymTrack does not guess their structure. Opening one of those databases fails without deleting or replacing the database file.
@@ -67,6 +70,21 @@ ALTER TABLE sets ADD COLUMN weightUnit TEXT NOT NULL DEFAULT 'KG'
 ```
 
 This is a preservation migration. It does not convert numeric weights, parse note text, or reinterpret history. Rows that existed before source-unit storage become explicit `KG`, while new completed-workout parsing writes the selected default unit or an explicit typed `kg`/`lb` override.
+
+## Version 12 to 13 boundary
+
+The `12 -> 13` migration (`CanonicalSetUnitBackfill`) changes no schema. It fills
+`workout_sets.weight_unit` for weighted canonical sets that were stored without a unit (keypad
+sets before #326), using one rule:
+
+- the legacy `sets` rows of the same workout (`sets.workoutId = workouts.legacy_timestamp`) were
+  written at Finish with the default unit in force then;
+- if they all share one unit, NULL-unit weighted sets of that workout get it (`LB` -> `POUND`,
+  `KG` -> `KILOGRAM`);
+- otherwise (no legacy rows, or mixed units) the set stays NULL and reads as `UNKNOWN`.
+
+It is one SQL `UPDATE ... WHERE weight_unit IS NULL`: deterministic, idempotent, no reparsing and no
+rebuild. Explicit units and non-weighted sets are never touched.
 
 ## Migration policy
 
