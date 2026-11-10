@@ -19,8 +19,10 @@ import com.example.gymtrack.core.util.formatSecondsToMinutesSeconds
 import com.example.gymtrack.core.util.parseDurationSeconds
 import com.example.gymtrack.core.util.parseNoteText
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class NoteRow(
     val id: Long,
@@ -217,7 +219,9 @@ class NoteEditorState(
         }
         scope.launch {
             NoteTimerStore.stop(context, noteTimestamp)
-            onSaveSuccess()
+            // Navigation must run on the main thread. The composition scope already is main in
+            // the app; under the Compose test scheduler it can resume elsewhere after DataStore.
+            withContext(Dispatchers.Main) { onSaveSuccess() }
         }
     }
 
