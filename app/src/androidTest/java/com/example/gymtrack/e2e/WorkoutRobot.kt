@@ -270,7 +270,8 @@ class WorkoutRobot(
     }
 
     private fun elapsedSince(now: Long): Long {
-        val base = firstExerciseAtMillis ?: now
+        // #319: absolute times count from the workout start (the + tap), the same base as the timer.
+        val base = workoutTimestamp
         // The editor rounds the elapsed column half-up to the 5 s rounding setting.
         return (now - base + 2_500L) / 5_000L * 5L
     }
