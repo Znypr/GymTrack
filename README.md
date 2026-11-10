@@ -59,6 +59,26 @@ See [work-tracking rules](docs/TICKET_BOARD.md) and [CONTRIBUTING.md](CONTRIBUTI
 - [Repository settings](docs/REPOSITORY_SETTINGS.md)
 - [Work-item automation](docs/WORK_ITEM_AUTOMATION.md)
 - [Contribution workflow](CONTRIBUTING.md)
+- [Privacy policy (EN)](docs/legal/PRIVACY_POLICY.md), [Datenschutzerklärung (DE)](docs/legal/DATENSCHUTZ.md), [Impressum template](docs/legal/IMPRESSUM.md)
+
+## Website and privacy policy (GitHub Pages)
+
+The landing page, privacy policy and Impressum live in `site/` (plain HTML/CSS, no tracking, no external requests). The workflow `.github/workflows/pages.yml` deploys `site/` to GitHub Pages on every push to `master` that changes `site/**`.
+
+Publish once:
+
+1. Fill in the placeholders first: `[NAME …]` and `[ADDRESS …]` in `docs/legal/*.md`, and `[TESTER_SIGNUP_URL]` in `site/index.html`.
+2. Regenerate the legal pages from the markdown: `python docs/legal/build_pages.py`, then commit `site/`.
+3. Repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+4. Run the "Deploy site to GitHub Pages" workflow (Actions tab → Run workflow), or push a change to `site/`.
+
+Resulting URLs:
+
+- Landing page: `https://znypr.github.io/GymTrack/`
+- **Privacy policy URL for Play Console:** `https://znypr.github.io/GymTrack/privacy.html` (German: `datenschutz.html`)
+- Impressum: `https://znypr.github.io/GymTrack/impressum.html`
+
+Edit the markdown in `docs/legal/`, never the generated `site/privacy.html`, `site/datenschutz.html` or `site/impressum.html`.
 
 ## Technology
 
