@@ -25,6 +25,7 @@ import com.example.gymtrack.core.data.GraphPoint
 import com.example.gymtrack.core.data.WorkoutRepository
 import com.example.gymtrack.feature.stats.AdaptiveCard
 import com.example.gymtrack.feature.stats.TimeRange
+import com.example.gymtrack.feature.stats.TimedProgressGroup
 import com.example.gymtrack.feature.stats.calculateExerciseOutliers
 import com.example.gymtrack.feature.stats.kilogramsToDisplay
 import com.example.gymtrack.core.data.WeightUnit
@@ -152,6 +153,8 @@ fun ExerciseProgressCard(
     timeRange: TimeRange,
     displayUnit: WeightUnit,
     modifier: Modifier = Modifier,
+    /** Timed-set progress from the Stats state (#283); shown in seconds, never as kg × reps. */
+    timedProgress: List<TimedProgressGroup> = emptyList(),
 ) {
     val weightUnitLabel = displayUnit.displayLabel
     val cutoffTimestamp = remember(timeRange) {
@@ -233,6 +236,29 @@ fun ExerciseProgressCard(
     }
     val anomalies = remember(anomalyInput) { calculateExerciseOutliers(anomalyInput) }
 
+    // Timed sets of the selected exercise, matched by the same variant keys as the weight series.
+    val timedGroup = remember(selectedExercise, timedProgress) {
+        val exercise = selectedExercise ?: return@remember null
+        val variantKeys = exercise.variants.map { it.key }.toSet()
+        timedProgress.firstOrNull { group -> group.series.any { it.key in variantKeys } }
+            ?: timedProgress.firstOrNull { it.name.equals(exercise.name, ignoreCase = true) }
+    }
+    val timedSeries = remember(timedGroup, selectedExercise, cutoffTimestamp) {
+        val variantsByKey = selectedExercise?.variants.orEmpty().associateBy { it.key }
+        timedGroup?.series.orEmpty().mapNotNull { series ->
+            val variant = variantsByKey[series.key]
+            ExerciseProgressSeries(
+                key = series.key,
+                label = variant?.label ?: "Default",
+                labels = variant?.labels.orEmpty(),
+                points = series.points
+                    .filter { cutoffTimestamp == 0L || it.timestamp >= cutoffTimestamp }
+                    .map { GraphPoint(it.timestamp, it.value) },
+            ).takeIf { it.points.isNotEmpty() }
+        }
+    }
+    val showWeightChart = filteredSeries.isNotEmpty() || timedSeries.isEmpty()
+
     AdaptiveCard(modifier = modifier) {
         Column(Modifier.padding(16.dp)) {
             Text(
@@ -243,7 +269,7 @@ fun ExerciseProgressCard(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "Weighted avg working weight · $weightUnitLabel",
+                if (showWeightChart || timedGroup == null) "Weighted avg working weight · $weightUnitLabel" else timedGroup.axisTitle,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
             )
@@ -309,13 +335,33 @@ fun ExerciseProgressCard(
 
             Spacer(Modifier.height(16.dp))
 
-            ExerciseProgressChartGraph(
-                series = filteredSeries,
-                focusedVariantKey = focusedVariantKey,
-                anomalies = anomalies,
-                weightUnitLabel = weightUnitLabel,
-                modifier = Modifier.fillMaxWidth().height(200.dp),
-            )
+            if (showWeightChart) {
+                ExerciseProgressChartGraph(
+                    series = filteredSeries,
+                    focusedVariantKey = focusedVariantKey,
+                    anomalies = anomalies,
+                    weightUnitLabel = weightUnitLabel,
+                    modifier = Modifier.fillMaxWidth().height(200.dp),
+                )
+            }
+            if (timedGroup != null && timedSeries.isNotEmpty()) {
+                if (showWeightChart) {
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "Timed sets · ${timedGroup.axisTitle}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+                ExerciseProgressChartGraph(
+                    series = timedSeries,
+                    focusedVariantKey = focusedVariantKey,
+                    anomalies = emptyList(),
+                    weightUnitLabel = timedGroup.unitLabel,
+                    modifier = Modifier.fillMaxWidth().height(200.dp),
+                )
+            }
         }
     }
 }

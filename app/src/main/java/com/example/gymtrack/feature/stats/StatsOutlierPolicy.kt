@@ -52,6 +52,25 @@ fun buildWeeklyAverageWorkoutDurations(notes: List<NoteLine>): List<Pair<Long, F
         }
 }
 
+/** [countUnreasonableWorkoutDurations] for digested notes. */
+fun countUnreasonableWorkoutDurationsFromDigests(digests: List<StatsNoteDigest>): Int =
+    digests.count { digest ->
+        val minutes = digest.workoutDurationMinutes
+        minutes != null && !isReasonableWorkoutDuration(minutes)
+    }
+
+/** [buildWeeklyAverageWorkoutDurations] for digested notes (no re-parse on the UI thread, #303). */
+fun buildWeeklyAverageWorkoutDurationsFromDigests(digests: List<StatsNoteDigest>): List<Pair<Long, Float>> =
+    digests
+        .mapNotNull { digest ->
+            digest.workoutDurationMinutes
+                ?.takeIf(::isReasonableWorkoutDuration)
+                ?.let { WorkoutDurationSample(digest.timestamp, it) }
+        }
+        .groupBy { isoWeekStart(it.timestamp) }
+        .toSortedMap()
+        .map { (weekStart, samples) -> weekStart to samples.map { it.minutes }.average().toFloat() }
+
 fun isoWeekStart(timestamp: Long): Long {
     val calendar = Calendar.getInstance().apply {
         timeInMillis = timestamp

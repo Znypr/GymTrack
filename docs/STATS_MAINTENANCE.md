@@ -4,6 +4,9 @@
 
 Normal application startup must not reparse every saved workout.
 
+Stats itself does no work at startup: its ViewModel starts loading only when the Stats screen
+collects its state (docs/STATS_RULES.md, "Cache and speed").
+
 Startup may run a lightweight compatibility check through `WorkoutRepository.checkAndMigrate()`. That check reads counts only and runs the full legacy rebuild only for old or inconsistent databases where notes exist but no derived set rows exist.
 
 ## Explicit mutation boundaries
@@ -17,8 +20,8 @@ Derived statistics are maintained at the same boundaries that change workout dat
 
 ## What Stats counts
 
-Stats counts finished workouts only and converts weights to the display unit before aggregating.
-Rules: docs/STATS_RULES.md.
+Stats counts finished workouts only, converts weights to the display unit before aggregating,
+and counts timed sets in seconds. Rules: docs/STATS_RULES.md.
 
 ## Manual repair path
 

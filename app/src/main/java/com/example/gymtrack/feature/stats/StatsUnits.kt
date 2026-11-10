@@ -36,12 +36,18 @@ data class StatsWorkoutFacts(
     fun isFinished(timestamp: Long): Boolean =
         timestamp in completedTimestamps || timestamp in storedSetUnits
 
+    /**
+     * Content signature for the Stats cache key. It must be identical in every process: enum
+     * `hashCode()` is an identity hash that changes on each app start, so units are hashed by
+     * [WeightUnit.ordinal] (#303: the persisted cache missed after every restart).
+     */
     fun signature(): Long {
         var result = completedTimestamps.size.toLong()
         completedTimestamps.sorted().forEach { result = 31 * result + it }
         storedSetUnits.toSortedMap().forEach { (timestamp, units) ->
             result = 31 * result + timestamp
-            result = 31 * result + units.hashCode()
+            result = 31 * result + units.size
+            units.forEach { unit -> result = 31 * result + unit.ordinal + 1 }
         }
         return result
     }

@@ -3,8 +3,6 @@ package com.example.gymtrack.feature.stats
 import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.WeightUnit
 import com.example.gymtrack.core.util.WorkoutParser
-import com.example.gymtrack.core.util.parseDurationSeconds
-import com.example.gymtrack.core.util.parseNoteText
 
 data class WeeklyWorkoutCount(
     val weekStart: Long,
@@ -95,10 +93,6 @@ private data class MetricDirectionContext(
     val durationDown: Boolean,
 )
 
-private val setLineStartRegex = Regex("(?i)^[\\d+]+\\s*x.*")
-private val setLinePrefixRegex = Regex("(?i)^x\\s*[\\d+]+.*")
-private val repsRegex = Regex("(?i)(?:x\\s*([0-9+]+)|([0-9+]+)\\s*x|([0-9+]+)\\s*reps?)")
-
 fun buildWeeklyWorkoutCounts(notes: List<NoteLine>): List<WeeklyWorkoutCount> {
     return notes
         .groupBy { isoWeekStart(it.timestamp) }
@@ -121,11 +115,32 @@ fun buildTrainingInsights(
     storedSetUnits: Map<Long, List<WeightUnit>> = emptyMap(),
     maxCategories: Int = 5,
 ): List<TrainingInsightRow> {
-    val weightUnitLabel = displayUnit.displayLabel
-    val workouts = notes
-        .mapNotNull { note -> note.toWorkoutStrategyMetrics(parser, displayUnit, storedSetUnits[note.timestamp]) }
-        .sortedBy { it.timestamp }
+    val digests = StatsDigestCache()
+    return buildTrainingInsightsFromDigests(
+        workouts = notes.map { note -> note to digests.digest(note, storedSetUnits[note.timestamp], parser) },
+        displayUnit = displayUnit,
+        maxCategories = maxCategories,
+    )
+}
 
+/** [buildTrainingInsights] from notes already digested (each note parsed once, #303). */
+internal fun buildTrainingInsightsFromDigests(
+    workouts: List<Pair<NoteLine, StatsNoteDigest>>,
+    displayUnit: WeightUnit,
+    maxCategories: Int = 5,
+): List<TrainingInsightRow> {
+    val weightUnitLabel = displayUnit.displayLabel
+    val metrics = workouts
+        .mapNotNull { (note, digest) -> note.toWorkoutStrategyMetrics(digest, displayUnit) }
+        .sortedBy { it.timestamp }
+    return buildTrainingInsightRows(metrics, weightUnitLabel, maxCategories)
+}
+
+private fun buildTrainingInsightRows(
+    workouts: List<WorkoutStrategyMetrics>,
+    weightUnitLabel: String,
+    maxCategories: Int,
+): List<TrainingInsightRow> {
     if (workouts.size < 2) return emptyList()
 
     val allWorkouts = buildTrainingInsightRow(
@@ -151,28 +166,18 @@ fun buildTrainingInsights(
 }
 
 private fun NoteLine.toWorkoutStrategyMetrics(
-    parser: WorkoutParser,
+    digest: StatsNoteDigest,
     displayUnit: WeightUnit,
-    storedUnits: List<WeightUnit>?,
 ): WorkoutStrategyMetrics? {
-    val parsedText = parseNoteText(text, rowMetadata)
-    val visibleLines = parsedText.first
-    val absoluteTimes = parsedText.second
-    val durationMinutes = absoluteTimes
-        .mapNotNull { parseDurationSeconds(it) }
-        .maxOrNull()
-        ?.div(60f)
-        ?: 0f
-
-    val resolvedSets = resolveSetUnits(this, parser, storedUnits)
-    val exerciseCount = visibleLines.count { line ->
-        val clean = line.trim()
-        clean.isNotBlank() && !looksLikeSetLine(line)
-    }
+    val durationMinutes = (digest.maxElapsedSeconds ?: 0) / 60f
+    val resolvedSets = digest.sets
+    val exerciseCount = digest.insightExerciseCount
+    // Timed sets are sets (#283): they count here and in density/depth, but carry no reps.
     val setCount = resolvedSets.size
     if (setCount == 0 && exerciseCount == 0) return null
 
     val totalReps = resolvedSets.sumOf { it.set.reps }
+    // Strength is load per rep; a timed set has no reps, so it is never a 0-rep load here.
     val weightedSets = resolvedSets.filter { it.set.weight > 0f && it.set.reps > 0 }
     val loadedSets = weightedSets.filter { it.unit != null }
     val totalLoad = loadedSets.sumOf { resolved ->
@@ -191,15 +196,6 @@ private fun NoteLine.toWorkoutStrategyMetrics(
         totalLoad = totalLoad,
         unknownUnitSets = weightedSets.size - loadedSets.size,
     )
-}
-
-private fun looksLikeSetLine(line: String): Boolean {
-    val clean = line.trim()
-    return setLineStartRegex.matches(clean) ||
-        setLinePrefixRegex.matches(clean) ||
-        repsRegex.containsMatchIn(clean) ||
-        clean.matches(Regex("^\\d+$")) ||
-        line.startsWith("    ")
 }
 
 private fun buildTrainingInsightRow(

@@ -19,6 +19,7 @@ import com.example.gymtrack.core.timer.NoteTimerStore
 import com.example.gymtrack.core.util.WorkoutParser
 import com.example.gymtrack.feature.editor.EditorViewModel
 import com.example.gymtrack.feature.home.HomeViewModel
+import com.example.gymtrack.feature.stats.StatsEngine
 import com.example.gymtrack.feature.stats.StatsViewModel
 import com.example.gymtrack.simulation.CanonicalRows
 import com.example.gymtrack.simulation.EditorSession
@@ -345,6 +346,7 @@ class DeviceHistoryDriver(
             withViewModel(EditorViewModel(latest, noteRepository, workoutRepository)) { vm -> withTimeout(30_000L) { vm.uiState.first { it != null } } }
         }
         context.getSharedPreferences("stats_cache", Context.MODE_PRIVATE).edit().clear().commit()
+        StatsEngine.resetShared() // cold build: no in-memory results or digests either (#303)
         val statsFirstMs = measureTimeMillis {
             withStatsViewModel { vm -> withTimeout(60_000L) { vm.uiState.first { !it.isLoading && it.sourceNoteCount == n } } }
         }

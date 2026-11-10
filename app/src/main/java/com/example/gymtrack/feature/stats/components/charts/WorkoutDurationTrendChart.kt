@@ -14,20 +14,17 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.gymtrack.core.data.NoteLine
-import com.example.gymtrack.feature.stats.buildWeeklyAverageWorkoutDurations
-import com.example.gymtrack.feature.stats.countUnreasonableWorkoutDurations
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Composable
 fun WorkoutDurationTrendChart(
-    notes: List<NoteLine>,
+    /** Weekly average minutes, built off the main thread with the rest of Stats (#303). */
+    weekly: List<Pair<Long, Float>>,
+    filteredOutliers: Int,
     showRollingAvg: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    val weekly = buildWeeklyAverageWorkoutDurations(notes)
-    val filteredOutliers = countUnreasonableWorkoutDurations(notes)
 
     if (weekly.isEmpty()) {
         Box(modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
