@@ -67,6 +67,10 @@ fun NavigationHost(
     val retainedStatsViewModel: StatsViewModel = viewModel(
         factory = StatsViewModel.Factory(noteRepository, appContext),
     )
+    // Stats shows every weight in the user's current default unit (#326).
+    LaunchedEffect(settings.defaultWeightUnit) {
+        retainedStatsViewModel.setDisplayUnit(settings.defaultWeightUnit)
+    }
 
     NavHost(navController = navController, startDestination = "notes") {
         composable("notes") {

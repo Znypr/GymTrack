@@ -117,7 +117,12 @@ fun StatsScreen(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StatBadge("Workouts", "${state.totalNotes}", Modifier.weight(1f))
+                        StatBadge(
+                            "Workouts",
+                            "${state.totalNotes}",
+                            Modifier.weight(1f),
+                            caption = state.unfinishedCount.takeIf { it > 0 }?.let { "+$it unfinished, not counted" },
+                        )
                         StatBadge("Weekly Avg", String.format("%.1f", state.avgWorkoutsPerWeek), Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -139,7 +144,7 @@ fun StatsScreen(
                 ExerciseProgressCard(
                     repository = workoutRepository,
                     timeRange = state.currentRange,
-                    weightUnitLabel = settings.defaultWeightUnit.displayLabel
+                    displayUnit = settings.defaultWeightUnit,
                 )
             }
 
@@ -189,7 +194,7 @@ fun AdaptiveCard(
 internal fun statsBadgeValueTestTag(label: String): String = "stats-badge-value-$label"
 
 @Composable
-fun StatBadge(label: String, value: String, modifier: Modifier = Modifier) {
+fun StatBadge(label: String, value: String, modifier: Modifier = Modifier, caption: String? = null) {
     AdaptiveCard(modifier = modifier) {
         Column(
             modifier = Modifier
@@ -211,6 +216,15 @@ fun StatBadge(label: String, value: String, modifier: Modifier = Modifier) {
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 maxLines = 1
             )
+            if (caption != null) {
+                Text(
+                    caption,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                    maxLines = 2,
+                    modifier = Modifier.testTag(statsBadgeValueTestTag(label) + "-caption"),
+                )
+            }
         }
     }
 }

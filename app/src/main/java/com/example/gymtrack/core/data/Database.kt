@@ -62,6 +62,7 @@ data class ExerciseProgressHistoryRow(
     val modifier: String?,
     val brand: String?,
     val isUnilateral: Boolean,
+    /** Sum of weight × reps in kilograms; rows stored in lb are converted per set by the query. */
     val totalVolume: Float,
     val totalReps: Int,
 )
@@ -110,6 +111,9 @@ data class SetEntity(
 
 data class GraphPoint(val originTimestamp: Long, val avgVal: Float)
 
+/** One legacy `sets` row's unit, for Stats unit resolution (docs/STATS_RULES.md). */
+data class StoredSetUnitRow(val workoutId: Long, val weightUnit: String)
+
 @Dao
 interface NoteDao {
     @Query("SELECT * FROM notes ORDER BY timestamp ASC")
@@ -135,6 +139,14 @@ interface NoteDao {
 
     @Query("SELECT COUNT(*) FROM notes")
     suspend fun getCount(): Int
+
+    /** Legacy timestamps of workouts finished through the completion path (Stats rule #322). */
+    @Query("SELECT legacy_timestamp FROM workouts WHERE status = 'COMPLETED' AND legacy_timestamp IS NOT NULL")
+    fun observeCompletedWorkoutTimestamps(): Flow<List<Long>>
+
+    /** Unit of every derived set row, in insertion order per workout (Stats unit rule #326). */
+    @Query("SELECT workoutId, weightUnit FROM sets ORDER BY workoutId, setId")
+    fun observeStoredSetUnits(): Flow<List<StoredSetUnitRow>>
 }
 
 @Dao
@@ -245,11 +257,12 @@ interface SetDao {
     @Query("SELECT COUNT(*) FROM sets")
     suspend fun getCount(): Int
 
+    /** Rep-weighted average weight per workout, in KILOGRAMS (lb rows converted per set). */
     @Query(
         """
         SELECT
             workoutId AS originTimestamp,
-            CAST(SUM(weight * reps) AS REAL) / SUM(reps) AS avgVal
+            CAST(SUM(weight * reps * (CASE WHEN UPPER(weightUnit) IN ('LB', 'LBS') THEN 0.45359237 ELSE 1.0 END)) AS REAL) / SUM(reps) AS avgVal
         FROM sets
         WHERE exerciseId = :exerciseId
         GROUP BY workoutId
@@ -258,11 +271,12 @@ interface SetDao {
     )
     fun getAverageWeightHistory(exerciseId: Long): Flow<List<GraphPoint>>
 
+    /** Rep-weighted average weight per workout, in KILOGRAMS (lb rows converted per set). */
     @Query(
         """
         SELECT
             workoutId AS originTimestamp,
-            CAST(SUM(weight * reps) AS REAL) / SUM(reps) AS avgVal
+            CAST(SUM(weight * reps * (CASE WHEN UPPER(weightUnit) IN ('LB', 'LBS') THEN 0.45359237 ELSE 1.0 END)) AS REAL) / SUM(reps) AS avgVal
         FROM sets
         WHERE exerciseId IN (:exerciseIds)
         GROUP BY workoutId
@@ -271,6 +285,7 @@ interface SetDao {
     )
     fun getAverageWeightHistoryForExercises(exerciseIds: List<Long>): Flow<List<GraphPoint>>
 
+    /** Per-workout volume in KILOGRAM-reps: each lb row is converted before summing (#326). */
     @Query(
         """
         SELECT
@@ -279,7 +294,7 @@ interface SetDao {
             T1.modifier AS modifier,
             T1.brand AS brand,
             T1.isUnilateral AS isUnilateral,
-            CAST(SUM(T1.weight * T1.reps) AS REAL) AS totalVolume,
+            CAST(SUM(T1.weight * T1.reps * (CASE WHEN UPPER(T1.weightUnit) IN ('LB', 'LBS') THEN 0.45359237 ELSE 1.0 END)) AS REAL) AS totalVolume,
             SUM(T1.reps) AS totalReps
         FROM sets AS T1
         JOIN exercises AS T2 ON T1.exerciseId = T2.exerciseId
@@ -312,7 +327,7 @@ interface SetDao {
         CanonicalWorkoutSetEntity::class,
         TrainingSummaryOutboxEntity::class,
     ],
-    version = 12,
+    version = 13,
 )
 abstract class NoteDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao

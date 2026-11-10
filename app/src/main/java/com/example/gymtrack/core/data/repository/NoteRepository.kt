@@ -3,7 +3,9 @@ package com.example.gymtrack.core.data.repository
 import com.example.gymtrack.core.data.NoteDao
 import com.example.gymtrack.core.data.NoteEntity
 import com.example.gymtrack.core.data.NoteLine
+import com.example.gymtrack.feature.stats.StatsWorkoutFacts
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 
 // REMOVED: @Inject annotation
@@ -11,6 +13,14 @@ class NoteRepository(private val dao: NoteDao) {
 
     fun getAllNotes(): Flow<List<NoteLine>> = dao.getAll().map { entities ->
         entities.map { it.toDomainModel() }
+    }
+
+    /** Finished-workout and stored-unit facts for Stats (docs/STATS_RULES.md). */
+    fun getStatsWorkoutFacts(): Flow<StatsWorkoutFacts> = combine(
+        dao.observeCompletedWorkoutTimestamps(),
+        dao.observeStoredSetUnits(),
+    ) { completed, units ->
+        StatsWorkoutFacts.fromRows(completed, units.map { it.workoutId to it.weightUnit })
     }
 
     suspend fun saveNote(note: NoteLine) {

@@ -6,4 +6,5 @@ val ALL_DATABASE_MIGRATIONS = arrayOf(
     WeightUnitDatabaseMigration.MIGRATION_9_10,
     NoteRowMetadataDatabaseMigration.MIGRATION_10_11,
     TrainingSummaryOutboxDatabaseMigration.MIGRATION_11_12,
+    CanonicalSetUnitBackfill.MIGRATION_12_13,
 )

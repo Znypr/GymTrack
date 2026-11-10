@@ -184,7 +184,7 @@ class DeviceHistoryDriver(
         if (notes.map { it.timestamp }.toSet().size != notes.size) {
             report("WORKOUT-DUPLICATED", Severity.HIGH, "Duplicate workouts in DB", "${notes.size} notes")
         }
-        invariants.checkStats(day, notes, sessions)
+        invariants.checkStats(day, notes, sessions, noteRepository.getStatsWorkoutFacts().first())
 
         // Canonical vs legacy totals for workouts the user finished.
         val legacyBySession = database.setDao().getAllForBackup().groupBy { it.workoutId }

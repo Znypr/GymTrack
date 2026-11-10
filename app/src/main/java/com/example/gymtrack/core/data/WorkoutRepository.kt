@@ -297,14 +297,14 @@ class WorkoutRepository(
         note: NoteEntity,
         writtenAt: Long,
         // Shared by Finish and the history-edit save, so the projector unit (#326) reaches both.
-        @Suppress("UNUSED_PARAMETER") defaultWeightUnit: WeightUnit,
+        defaultWeightUnit: WeightUnit,
         finalizeRow: (projected: CanonicalWorkoutEntity, existing: CanonicalWorkoutEntity?) -> CanonicalWorkoutEntity,
     ): WorkoutDetails {
         val category = completedCategoryFor(note)
         category?.let { upsertCategory(it) }
 
         val catalog = CanonicalExerciseCatalog(exerciseDao.getAllForBackup())
-        val projection = canonicalProjector.project(note, category, catalog)
+        val projection = canonicalProjector.project(note, category, catalog, defaultWeightUnit)
         upsertExercises(catalog, writtenAt)
 
         val existing = database.canonicalWorkoutDao().getById(projection.workout.id)
