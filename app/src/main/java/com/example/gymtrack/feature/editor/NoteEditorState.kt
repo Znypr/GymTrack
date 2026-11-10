@@ -34,25 +34,74 @@ data class NoteRow(
 internal fun shouldStopTimerOnExit(isLastNote: Boolean, finishWorkout: Boolean): Boolean =
     isLastNote && finishWorkout
 
-class NoteEditorState(
+/** Where [NoteEditorState] sends its saves. Production wraps [EditorViewModel]; tests use a fake. */
+internal interface NoteEditorPersistence {
+    val currentId: Long
+    val currentTitle: String
+    val currentLearnings: String
+    fun saveDraft(text: String, rowMetadata: String, noteTimestamp: Long, onPersisted: () -> Unit, onFailure: (String) -> Unit)
+    fun finalizeWorkout(text: String, rowMetadata: String, noteTimestamp: Long, onPersisted: () -> Unit, onFailure: (String) -> Unit)
+    suspend fun stopTimer(noteTimestamp: Long)
+}
+
+private class EditorViewModelPersistence(
     private val viewModel: EditorViewModel,
-    private val settings: Settings,
     private val context: Context,
+) : NoteEditorPersistence {
+    override val currentId: Long get() = viewModel.currentId
+    override val currentTitle: String get() = viewModel.currentTitle
+    override val currentLearnings: String get() = viewModel.currentLearnings
+
+    override fun saveDraft(text: String, rowMetadata: String, noteTimestamp: Long, onPersisted: () -> Unit, onFailure: (String) -> Unit) =
+        viewModel.saveDraft(text, rowMetadata, noteTimestamp, onPersisted, onFailure)
+
+    override fun finalizeWorkout(text: String, rowMetadata: String, noteTimestamp: Long, onPersisted: () -> Unit, onFailure: (String) -> Unit) =
+        viewModel.finalizeWorkout(text, rowMetadata, noteTimestamp, onPersisted, onFailure)
+
+    override suspend fun stopTimer(noteTimestamp: Long) = NoteTimerStore.stop(context, noteTimestamp)
+}
+
+private val RELATIVE_TIME_SUFFIX = Regex(""".*\(\d+'\d{2}''\)$""")
+
+class NoteEditorState internal constructor(
+    private val persistence: NoteEditorPersistence,
+    private val settings: Settings,
     private val scope: CoroutineScope,
     val listState: LazyListState,
     initialNote: NoteLine?,
     private val onSaveSuccess: () -> Unit,
+    private val clock: () -> Long = AppClock::nowMillis,
 ) {
+    constructor(
+        viewModel: EditorViewModel,
+        settings: Settings,
+        context: Context,
+        scope: CoroutineScope,
+        listState: LazyListState,
+        initialNote: NoteLine?,
+        onSaveSuccess: () -> Unit,
+    ) : this(EditorViewModelPersistence(viewModel, context), settings, scope, listState, initialNote, onSaveSuccess)
+
     var nextId by mutableStateOf(0L)
     val lines = mutableStateListOf<NoteRow>()
     val timestamps = mutableStateListOf<String>()
     val flags = mutableStateListOf<ExerciseFlag>()
 
-    private var startTime: Long? = initialNote?.timestamp
-    private var lastEnter: Long = AppClock.nowMillis()
-    val noteTimestamp: Long = initialNote?.timestamp ?: AppClock.nowMillis()
+    /**
+     * Workout start: the note id, which is also when the timer started (the + tap). Every
+     * absolute time is measured from it, in a new session and after a reopen alike (#319).
+     */
+    val noteTimestamp: Long = initialNote?.timestamp ?: clock()
+    private var lastEnter: Long = noteTimestamp
     private var editRevision = 0L
     private var finishing = false
+
+    /**
+     * Rows whose times are history: committed by Enter in this session, or loaded with a time.
+     * A time stamped by a save on a row nobody pressed Enter on is provisional; that row's Enter
+     * still stamps it and starts the next rest.
+     */
+    private val committedRowIds = mutableSetOf<Long>()
 
     var pendingExerciseFocusRowId by mutableStateOf<Long?>(null)
         private set
@@ -83,11 +132,11 @@ class NoteEditorState(
             flags.addAll(parsed.third)
         }
         cleanLists()
+        lines.forEachIndexed { index, row -> if (timestamps[index].isNotBlank()) committedRowIds += row.id }
         if (initialNote != null) {
             val lastIndex = parsed.second.indexOfLast(String::isNotBlank)
             val lastSeconds = if (lastIndex >= 0) parseDurationSeconds(parsed.second[lastIndex]).toLong() else 0L
-            startTime = initialNote.timestamp
-            lastEnter = initialNote.timestamp + lastSeconds * 1_000L
+            lastEnter = noteTimestamp + lastSeconds * 1_000L
         }
     }
 
@@ -105,67 +154,114 @@ class NoteEditorState(
 
     fun onTextChange(index: Int, newValue: TextFieldValue) {
         if (finishing) return
+        val row = lines.getOrNull(index) ?: return
         markDirty()
+        val raw = newValue.text
+        if ('\n' !in raw && '\r' !in raw) {
+            row.text.value = newValue
+            return
+        }
+        // Enter. A row never keeps a line break: an IME Enter with the cursor mid-text (or a pasted
+        // line break) commits the row as a whole, like Enter at its end, so rows and rowMetadata
+        // stay one-to-one (#329).
+        commitRow(index, raw.replace("\r", "").replace("\n", ""))
+    }
+
+    private fun commitRow(index: Int, content: String) {
+        ensureListSize(index)
         val row = lines[index]
-        if (newValue.text.endsWith("\n")) {
-            val content = newValue.text.dropLast(1)
-            val hasTimestamp = content.trim().matches(Regex(".*\\(\\d+'\\d{2}''\\)$"))
-            val now = AppClock.nowMillis()
-            val differenceSeconds = (now - lastEnter) / 1_000L
-            if (content.isNotBlank()) lastEnter = now
-            val relative = formatSecondsToMinutesSeconds(differenceSeconds)
-            val isMain = index == 0 || lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
-            if (startTime == null && content.isNotBlank() && isMain) startTime = now
-            val absolute = formatElapsedMinutesSeconds(startTime ?: now, now, settings)
-            val formatted = when {
-                content.isBlank() -> ""
-                isMain || hasTimestamp -> content
-                else -> "      $content ($relative)"
-            }
-            row.text.value = TextFieldValue(formatted, TextRange(formatted.length))
-            ensureListSize(index)
-            if (content.isNotBlank()) timestamps[index] = absolute
+        val isMain = isMainRow(index)
+        // A committed row's times are history: re-Enter never restamps them or adds another
+        // relative time (#327).
+        val committed = row.id in committedRowIds
+        val now = clock()
+        val formatted = when {
+            content.isBlank() -> ""
+            committed || isMain || content.trim().matches(RELATIVE_TIME_SUFFIX) -> content
+            else -> "      $content (${formatSecondsToMinutesSeconds((now - lastEnter) / 1_000L)})"
+        }
+        if (content.isNotBlank() && !committed) {
+            lastEnter = now
+            timestamps[index] = formatElapsedMinutesSeconds(noteTimestamp, now, settings)
+            committedRowIds += row.id
+        }
+        row.text.value = TextFieldValue(formatted, TextRange(formatted.length))
 
-            val nextIndex = index + 1
-            val nextUsesSystemKeyboard = formatted.isBlank()
-            val newRow = NoteRow(
-                id = nextId++,
-                text = mutableStateOf(TextFieldValue("")),
-                flag = mutableStateOf(row.flag.value),
-            )
-            lines.add(nextIndex, newRow)
-            if (flags.size <= nextIndex) flags.add(row.flag.value) else flags.add(nextIndex, row.flag.value)
-            if (timestamps.size <= nextIndex) timestamps.add("") else timestamps.add(nextIndex, "")
+        val nextIndex = index + 1
+        val next = lines.getOrNull(nextIndex)
+        val startsNextExercise = formatted.isBlank()
+        if (!startsNextExercise && next != null && next.text.value.text.isBlank()) {
+            // The next row already waits for input: move on to it, do not add another (#327).
+            saveNote(isLastNote = false, exit = false)
+            return
+        }
+        // A new exercise starts bilateral; a new set row takes its exercise's flag (#317).
+        val newFlag = if (startsNextExercise) ExerciseFlag.BILATERAL else lines[exerciseIndexOf(index)].flag.value
+        val newRow = NoteRow(
+            id = nextId++,
+            text = mutableStateOf(TextFieldValue("")),
+            flag = mutableStateOf(newFlag),
+        )
+        lines.add(nextIndex, newRow)
+        if (flags.size <= nextIndex) flags.add(newFlag) else flags.add(nextIndex, newFlag)
+        if (timestamps.size <= nextIndex) timestamps.add("") else timestamps.add(nextIndex, "")
 
-            if (nextUsesSystemKeyboard) {
-                // A second Enter on an empty set row explicitly hands ownership to the newly
-                // inserted exercise row. The UI consumes this stable row ID after focus succeeds.
-                pendingExerciseFocusRowId = newRow.id
-                scope.launch {
-                    delay(50L)
-                    if (lines.any { it.id == newRow.id }) {
-                        // Make sure the row is composed. EditorListSection performs the actual
-                        // focus request from the row's attached FocusRequester.
-                        listState.scrollToItem(nextIndex)
-                    }
+        if (startsNextExercise) {
+            // A second Enter on an empty set row explicitly hands ownership to the newly
+            // inserted exercise row. The UI consumes this stable row ID after focus succeeds.
+            pendingExerciseFocusRowId = newRow.id
+            scope.launch {
+                delay(50L)
+                if (lines.any { it.id == newRow.id }) {
+                    // Make sure the row is composed. EditorListSection performs the actual
+                    // focus request from the row's attached FocusRequester.
+                    listState.scrollToItem(nextIndex)
                 }
             }
-            saveNote(isLastNote = false, exit = false)
-        } else {
-            row.text.value = newValue
         }
-    }
-
-    fun toggleFlag(index: Int) {
-        if (finishing) return
-        markDirty()
-        val row = lines[index]
-        val newFlag = row.flag.value.next()
-        row.flag.value = newFlag
-        ensureListSize(index)
-        flags[index] = newFlag
         saveNote(isLastNote = false, exit = false)
     }
+
+    /**
+     * Cycles the flag of the exercise that owns [index]. The exercise row is the single source:
+     * the new flag goes to the exercise and every one of its set rows, so what the tags show and
+     * what the parser counts (it reads the set rows' flags) always agree (#316).
+     */
+    fun toggleFlag(index: Int) {
+        if (finishing || index !in lines.indices) return
+        markDirty()
+        val exerciseIndex = exerciseIndexOf(index)
+        val newFlag = lines[exerciseIndex].flag.value.next()
+        var i = exerciseIndex
+        while (i < lines.size) {
+            lines[i].flag.value = newFlag
+            ensureListSize(i)
+            flags[i] = newFlag
+            if (i + 1 < lines.size && isMainRow(i + 1)) break
+            i++
+        }
+        saveNote(isLastNote = false, exit = false)
+    }
+
+    private fun isMainRow(index: Int): Boolean =
+        index == 0 || lines.getOrNull(index - 1)?.text?.value?.text?.isBlank() != false
+
+    private fun exerciseIndexOf(index: Int): Int {
+        var i = index
+        while (i > 0 && !isMainRow(i)) i--
+        return i
+    }
+
+    /**
+     * The set being typed: the last row, a set row, with text but no Enter yet. It stays a draft
+     * until Enter: saves never stamp it (so after a kill it reopens with the keypad), and Finish
+     * leaves it out of the finished workout instead of counting it as a set (#320).
+     */
+    private fun isActiveSetDraft(index: Int): Boolean =
+        index == lines.lastIndex &&
+            !isMainRow(index) &&
+            lines[index].text.value.text.isNotBlank() &&
+            timestamps.getOrElse(index) { "" }.isBlank()
 
     fun saveNote(
         isLastNote: Boolean,
@@ -175,22 +271,23 @@ class NoteEditorState(
         if (finishing || (saved && !exit)) return
         if (exit) finishing = true
         val range = lines.indices
-        val finalStartTime = startTime ?: noteTimestamp
         range.forEach { index ->
             val row = lines[index]
-            if (row.text.value.text.isNotBlank() && timestamps.getOrElse(index) { "" }.isBlank()) {
+            if (row.text.value.text.isNotBlank() && timestamps.getOrElse(index) { "" }.isBlank() && !isActiveSetDraft(index)) {
                 ensureListSize(index)
-                timestamps[index] = formatElapsedMinutesSeconds(finalStartTime, AppClock.nowMillis(), settings)
+                timestamps[index] = formatElapsedMinutesSeconds(noteTimestamp, clock(), settings)
             }
             ensureListSize(index)
             flags[index] = row.flag.value
         }
-        val plainContent = range.joinToString("\n") { lines[it].text.value.text }
+        val plainContent = range.joinToString("\n") { index ->
+            if (finishWorkout && isActiveSetDraft(index)) "" else lines[index].text.value.text
+        }
         val validTimestamps = range.map { timestamps.getOrElse(it) { "" } }
         val validFlags = range.map { flags.getOrElse(it) { ExerciseFlag.BILATERAL } }
         val rowMetadata = buildNoteRowMetadata(validTimestamps, validFlags)
-        val isNew = viewModel.currentId == -1L
-        val isEmpty = plainContent.isBlank() && viewModel.currentTitle.isBlank() && viewModel.currentLearnings.isBlank()
+        val isNew = persistence.currentId == -1L
+        val isEmpty = plainContent.isBlank() && persistence.currentTitle.isBlank() && persistence.currentLearnings.isBlank()
         if (isNew && isEmpty) {
             if (exit) finishExit(isLastNote, finishWorkout = true)
             return
@@ -206,9 +303,9 @@ class NoteEditorState(
             if (exit) finishing = false
         }
         if (finishWorkout) {
-            viewModel.finalizeWorkout(plainContent, rowMetadata, noteTimestamp, onPersisted, onFailure)
+            persistence.finalizeWorkout(plainContent, rowMetadata, noteTimestamp, onPersisted, onFailure)
         } else {
-            viewModel.saveDraft(plainContent, rowMetadata, noteTimestamp, onPersisted, onFailure)
+            persistence.saveDraft(plainContent, rowMetadata, noteTimestamp, onPersisted, onFailure)
         }
     }
 
@@ -218,7 +315,7 @@ class NoteEditorState(
             return
         }
         scope.launch {
-            NoteTimerStore.stop(context, noteTimestamp)
+            persistence.stopTimer(noteTimestamp)
             // Navigation must run on the main thread. The composition scope already is main in
             // the app; under the Compose test scheduler it can resume elsewhere after DataStore.
             withContext(Dispatchers.Main) { onSaveSuccess() }
