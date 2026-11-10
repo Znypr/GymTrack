@@ -4,7 +4,6 @@ import com.example.gymtrack.core.time.AppClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.WeightUnit
 import com.example.gymtrack.core.data.WorkoutRepository
@@ -72,7 +71,8 @@ class EditorViewModel(
         private set
 
     var currentTitle = ""
-    var currentCategory: Category? = null
+    /** The workout's category: stored values kept verbatim, changed only by a tap (#296). */
+    val category = EditorCategory()
     var currentLearnings = ""
 
     init {
@@ -89,15 +89,12 @@ class EditorViewModel(
     fun initialize(note: NoteLine?) {
         if (note != null) {
             currentTitle = note.title
-            currentCategory = Category(
-                note.categoryName ?: "Uncategorized",
-                note.categoryColor ?: 0xFF808080,
-            )
+            category.loadStored(note.categoryName, note.categoryColor)
             currentLearnings = note.learnings
             _uiState.value = note
-        } else {
-            currentCategory = Category("Push", 0xFFFF3B30)
         }
+        // A new workout gets its category from NoteEditor (category.startNew), which knows the
+        // settings and the category chosen on Today. No hard-coded fallback (#296).
     }
 
     fun saveDraft(
@@ -150,8 +147,8 @@ class EditorViewModel(
             title = currentTitle,
             text = finalText,
             timestamp = timestamp,
-            categoryName = currentCategory?.name,
-            categoryColor = currentCategory?.color,
+            categoryName = category.name,
+            categoryColor = category.color,
             learnings = currentLearnings,
             rowMetadata = rowMetadata,
         )

@@ -90,4 +90,44 @@ class SetEntryKeypadInputTest {
         assertEquals("set-entry-key-enter", setEntryKeyTestTag(NEXT_KEY_LABEL))
         assertEquals("set-entry-key-enter", setEntryKeyTestTag("Enter"))
     }
+
+    // #362: N taps always insert N characters ----------------------------------------------
+
+    private fun keysFor(entry: String): List<KeypadKey> = entry.map { c ->
+        when (c) {
+            'x' -> KeypadKey.Times
+            's' -> KeypadKey.Seconds
+            '+' -> KeypadKey.Plus
+            '.' -> KeypadKey.Decimal
+            else -> KeypadKey.Digit(c)
+        }
+    }
+
+    private fun typeKeys(entry: String): TextFieldValue =
+        keysFor(entry).fold(TextFieldValue("")) { value, key -> applyKeypadKey(value, key) ?: value }
+
+    @Test
+    fun `repeated digits are each inserted`() {
+        assertEquals("11x 175", typeKeys("11x175").text)
+        assertEquals("100x 22.5", typeKeys("100x22.5").text)
+        assertEquals("1111", typeKeys("1111").text)
+    }
+
+    @Test
+    fun `every digit tap adds exactly one character`() {
+        var value = TextFieldValue("")
+        repeat(50) { n ->
+            value = applyKeypadKey(value, KeypadKey.Digit('1'))!!
+            assertEquals(n + 1, value.text.length)
+            assertEquals(value.text.length, value.selection.start)
+        }
+    }
+
+    @Test
+    fun `guarded keys return null instead of changing the text`() {
+        assertEquals(null, applyKeypadKey(TextFieldValue(""), KeypadKey.Times))
+        assertEquals(null, applyKeypadKey(TextFieldValue(""), KeypadKey.Backspace))
+        assertEquals(null, applyKeypadKey(TextFieldValue("8", TextRange(1)), KeypadKey.Decimal))
+        assertEquals(null, applyKeypadKey(TextFieldValue("8x ", TextRange(3)), KeypadKey.Seconds))
+    }
 }
