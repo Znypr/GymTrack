@@ -1,62 +1,97 @@
 package com.example.gymtrack.core.data.transition
 
-import androidx.room.withTransaction
 import com.example.gymtrack.core.data.CanonicalCategoryEntity
 import com.example.gymtrack.core.data.CanonicalWorkoutEntity
 import com.example.gymtrack.core.data.NoteDatabase
 import com.example.gymtrack.core.data.NoteEntity
-import kotlinx.coroutines.flow.first
 
 internal data class CanonicalImportReport(
     val totalNotes: Int,
+    /** Workouts whose exercise and set rows were (re)written. */
     val migrated: Int,
+    /** Notes that needed no write at all. */
     val skipped: Int,
     val needsReview: Int,
+    /** Workouts where only the workout row changed (for example a source stamp on a pre-stamp row). */
+    val restamped: Int = 0,
 )
 
+/**
+ * Projects legacy notes into the canonical tables at startup.
+ *
+ * Idempotence rule: a note whose source hash matches the stamp on its canonical row is skipped
+ * before projection (see [CanonicalImportSource]). Rows that do need work are merged with
+ * [CanonicalImportSource.merge], so the import never lowers a row written by the completion path
+ * from `COMPLETED` to `PARTIAL` and never moves `updatedAt` back.
+ */
 internal class CanonicalImportRunner(
-    private val database: NoteDatabase,
+    private val store: CanonicalImportStore,
     private val projector: LegacyWorkoutProjector = LegacyWorkoutProjector(),
 ) {
-    suspend fun run(): CanonicalImportReport {
-        val notes = database.noteDao().getAll().first()
-        val legacyExercises = database.exerciseDao().getAllExercises().first()
-        val exerciseCatalog = CanonicalExerciseCatalog(legacyExercises)
-        val categories = buildCategories(notes)
+    constructor(
+        database: NoteDatabase,
+        projector: LegacyWorkoutProjector = LegacyWorkoutProjector(),
+    ) : this(RoomCanonicalImportStore(database), projector)
 
-        val projections = notes.map { note ->
+    suspend fun run(): CanonicalImportReport {
+        val notes = store.notes()
+        val existingByTimestamp = store.legacyBackedWorkouts()
+            .mapNotNull { workout -> workout.legacyTimestamp?.let { it to workout } }
+            .toMap()
+
+        val (unchanged, pending) = notes.partition { note ->
+            CanonicalImportSource.isCurrent(existingByTimestamp[note.timestamp], note)
+        }
+        val unchangedNeedingReview = unchanged.count { note ->
+            existingByTimestamp[note.timestamp]?.legacyMigrationStatus == NEEDS_REVIEW
+        }
+        if (pending.isEmpty()) {
+            return CanonicalImportReport(
+                totalNotes = notes.size,
+                migrated = 0,
+                skipped = notes.size,
+                needsReview = unchangedNeedingReview,
+            )
+        }
+
+        val exerciseCatalog = CanonicalExerciseCatalog(store.legacyExercises())
+        val categories = buildCategories(notes)
+        val projections = pending.map { note ->
             val category = categoryFor(note, categories)
             runCatching { projector.project(note, category, exerciseCatalog) }
                 .getOrElse { error -> failedProjection(note, category, error) }
         }
 
         var migrated = 0
-        var skipped = 0
-        var needsReview = 0
+        var restamped = 0
+        var skipped = unchanged.size
+        var needsReview = unchangedNeedingReview
 
-        database.withTransaction {
-            categories.values.forEach { category -> upsertCategory(category) }
-            upsertExercises(exerciseCatalog)
+        store.inTransaction {
+            categories.values.forEach { category -> store.upsertCategory(category) }
+            store.upsertExercises(exerciseCatalog)
 
             projections.forEach { projection ->
-                if (projection.workout.legacyMigrationStatus == "NEEDS_REVIEW") {
-                    needsReview++
-                }
+                if (projection.workout.legacyMigrationStatus == NEEDS_REVIEW) needsReview++
 
-                if (isCurrent(projection)) {
-                    skipped++
-                    return@forEach
+                // Re-read inside the transaction: the completion path may have written this row
+                // after the snapshot above (cold start racing a Finish).
+                val existing = projection.workout.legacyTimestamp?.let { store.workoutByLegacyTimestamp(it) }
+                val sourceHash = CanonicalImportSource.storedHash(projection.workout.legacyMigrationMessage)
+                val workout = CanonicalImportSource.merge(existing, projection.workout)
+                when {
+                    existing != null &&
+                        CanonicalImportSource.storedHash(existing.legacyMigrationMessage) == sourceHash -> skipped++
+                    existing == null || !childrenMatch(projection) -> {
+                        store.replaceWorkout(workout, projection.workoutExercises, projection.workoutSets)
+                        migrated++
+                    }
+                    workout != existing -> {
+                        store.updateWorkout(workout)
+                        restamped++
+                    }
+                    else -> skipped++
                 }
-
-                upsertWorkout(projection.workout)
-                database.canonicalWorkoutExerciseDao().deleteForWorkout(projection.workout.id)
-                if (projection.workoutExercises.isNotEmpty()) {
-                    database.canonicalWorkoutExerciseDao().insertAll(projection.workoutExercises)
-                }
-                if (projection.workoutSets.isNotEmpty()) {
-                    database.canonicalWorkoutSetDao().insertAll(projection.workoutSets)
-                }
-                migrated++
             }
         }
 
@@ -65,66 +100,15 @@ internal class CanonicalImportRunner(
             migrated = migrated,
             skipped = skipped,
             needsReview = needsReview,
+            restamped = restamped,
         )
     }
 
-    private suspend fun upsertCategory(category: CanonicalCategoryEntity) {
-        database.canonicalCategoryDao().insert(category)
-    }
-
-    private suspend fun upsertExercises(catalog: CanonicalExerciseCatalog) {
-        val dao = database.canonicalExerciseDao()
-        val exercises = catalog.exerciseEntities()
-
-        exercises.forEach { incoming ->
-            val existing = dao.getById(incoming.id)
-            if (existing == null) {
-                dao.insert(incoming.copy(parentExerciseId = null))
-            } else {
-                val merged = existing.copy(
-                    canonicalName = existing.canonicalName.ifBlank { incoming.canonicalName },
-                    normalizedName = existing.normalizedName.ifBlank { incoming.normalizedName },
-                    muscleGroup = existing.muscleGroup ?: incoming.muscleGroup,
-                )
-                if (merged != existing) dao.update(merged)
-            }
-        }
-
-        exercises.forEach { incoming ->
-            val existing = dao.getById(incoming.id) ?: return@forEach
-            val merged = existing.copy(
-                parentExerciseId = existing.parentExerciseId ?: incoming.parentExerciseId,
-                muscleGroup = existing.muscleGroup ?: incoming.muscleGroup,
-            )
-            if (merged != existing) dao.update(merged)
-        }
-
-        catalog.aliasEntities().forEach { alias ->
-            dao.insertAlias(alias)
-        }
-    }
-
-    private suspend fun upsertWorkout(workout: CanonicalWorkoutEntity) {
-        val inserted = database.canonicalWorkoutDao().insert(workout)
-        if (inserted == -1L) database.canonicalWorkoutDao().update(workout)
-    }
-
-    private suspend fun isCurrent(projection: CanonicalWorkoutProjection): Boolean {
-        val existingWorkout = database.canonicalWorkoutDao()
-            .getByLegacyTimestamp(projection.workout.legacyTimestamp ?: return false)
-            ?: return false
-        if (existingWorkout != projection.workout) return false
-
-        val existingExercises = database.canonicalWorkoutExerciseDao()
-            .getForWorkout(projection.workout.id)
+    private suspend fun childrenMatch(projection: CanonicalWorkoutProjection): Boolean {
+        val existingExercises = store.workoutExercises(projection.workout.id)
         if (existingExercises != projection.workoutExercises) return false
 
-        val exerciseKeys = existingExercises.map { it.id }
-        val existingSets = if (exerciseKeys.isEmpty()) {
-            emptyList()
-        } else {
-            database.canonicalWorkoutSetDao().getForWorkoutExercises(exerciseKeys)
-        }
+        val existingSets = store.workoutSets(existingExercises.map { it.id })
         val expectedSets = projection.workoutSets.sortedWith(
             compareBy({ it.workoutExerciseId }, { it.position }),
         )
@@ -188,8 +172,8 @@ internal class CanonicalImportRunner(
             learnings = note.learnings.orEmpty(),
             status = "PARTIAL",
             rawDraftText = note.text,
-            legacyMigrationStatus = "NEEDS_REVIEW",
-            legacyMigrationMessage = "$CANONICAL_IMPORT_VERSION: projection failed (${error::class.simpleName})".take(240),
+            legacyMigrationStatus = NEEDS_REVIEW,
+            legacyMigrationMessage = "${CanonicalImportSource.stamp(note)}: projection failed (${error::class.simpleName})".take(240),
             createdAt = note.timestamp,
             updatedAt = note.timestamp,
         )
@@ -200,4 +184,8 @@ internal class CanonicalImportRunner(
         val normalizedName: String,
         val colorArgb: Long,
     )
+
+    private companion object {
+        const val NEEDS_REVIEW = "NEEDS_REVIEW"
+    }
 }

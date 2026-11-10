@@ -124,10 +124,11 @@ internal class LegacyWorkoutProjector(
 
         val distinctReasons = reviewReasons.distinct()
         val migrationStatus = if (distinctReasons.isEmpty()) "MIGRATED" else "NEEDS_REVIEW"
+        val sourceStamp = CanonicalImportSource.stamp(note)
         val migrationMessage = if (distinctReasons.isEmpty()) {
-            CANONICAL_IMPORT_VERSION
+            sourceStamp
         } else {
-            "$CANONICAL_IMPORT_VERSION: ${distinctReasons.take(4).joinToString("; ")}".take(240)
+            "$sourceStamp: ${distinctReasons.take(4).joinToString("; ")}".take(240)
         }
 
         return CanonicalWorkoutProjection(
