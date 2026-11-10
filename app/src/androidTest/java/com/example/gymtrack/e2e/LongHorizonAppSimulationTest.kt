@@ -2,7 +2,9 @@ package com.example.gymtrack.e2e
 
 import android.util.Log
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.printToString
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -123,8 +125,7 @@ class LongHorizonAppSimulationTest {
             },
             uiDriver = { workout, session ->
                 val sampled = workout.index % uiEvery == 0 || workout.tags.any { it in uiTags }
-                if (sampled) driveInUi(driver, workout, session)
-                sampled
+                sampled && driveInUi(driver, workout, session)
             },
         )
         statsScreenShowsWorkoutCount(driver)
@@ -132,7 +133,8 @@ class LongHorizonAppSimulationTest {
     }
 
     /** Types one generated workout through the real editor, keypad and Home. */
-    private fun driveInUi(driver: DeviceHistoryDriver, workout: SimWorkout, session: EditorSession) {
+    /** Returns false when the UI could not finish the day; the driver then saves it the normal way. */
+    private fun driveInUi(driver: DeviceHistoryDriver, workout: SimWorkout, session: EditorSession): Boolean {
         val clock = appState.clock
         clock.setTo(workout.startMillis)
         var scenario = ActivityScenario.launch(MainActivity::class.java)
@@ -168,6 +170,15 @@ class LongHorizonAppSimulationTest {
                     robot.rest(workout.lateSet!!.restBeforeSeconds)
                     scenario = ActivityScenario.launch(MainActivity::class.java)
                     robot.openWorkoutFromHome()
+                    if (!robot.ensureKeypadForActiveRow()) {
+                        driver.findings.report(
+                            "KEYPAD-NOT-RESTORED-ON-REOPEN", Severity.MEDIUM,
+                            "Reopening a long active workout jumps to the top; the open set row is off screen and the keypad does not come back until the user scrolls down and taps it",
+                            driver.history, workout.day, workout.index,
+                            "workout ${workout.index} ${workout.date}: open set row ${robot.activeRow} below the fold after reopen",
+                            issue = "#293",
+                        )
+                    }
                     robot.set(workout.lateSet.keys)
                     robot.rest(workout.finishDelaySeconds)
                     robot.finish()
@@ -180,13 +191,22 @@ class LongHorizonAppSimulationTest {
             }
             if (session.isFinished) driver.markFinishedByUi(workout.startMillis)
             if (EdgeTag.NEXT_DAY_WHILE_OLD_ACTIVE in workout.tags) checkOldWorkoutStillFinishable(driver, workout, robot)
+            return true
         } catch (error: Throwable) {
             driver.findings.report(
                 "UI-STEP-FAILED-${workout.tags.sorted().joinToString("+").ifEmpty { "PLAIN" }}", Severity.HIGH,
                 "The scripted user could not complete a workout in the real UI",
                 driverHistory(driver), workout.day, workout.index, "${error.javaClass.simpleName}: ${error.message?.take(300)}",
             )
-            throw error
+            Log.w(WorkoutRobot.TAG, "UI step failed for workout ${workout.index} at row ${robot.activeRow}: ${error.message}")
+            runCatching {
+                composeRule.onAllNodes(isRoot()).fetchSemanticsNodes().forEachIndexed { i, _ ->
+                    composeRule.onAllNodes(isRoot())[i].printToString(maxDepth = 40)
+                        .lines().filter { it.contains("Tag") || it.contains("Text") || it.contains("Focused") }
+                        .forEach { Log.w(WorkoutRobot.TAG, "TREE $i $it") }
+                }
+            }
+            return false
         } finally {
             scenario.close()
         }

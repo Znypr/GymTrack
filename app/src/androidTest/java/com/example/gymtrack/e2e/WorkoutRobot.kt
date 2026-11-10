@@ -5,9 +5,11 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.junit4.ComposeTestRule
+import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
@@ -190,6 +192,21 @@ class WorkoutRobot(
         waitForTag(card)
         rule.onNodeWithTag(card).performClick()
         waitForTag(editorRowInputTestTag(0))
+    }
+
+    /**
+     * After reopening a workout the editor starts at the top. When the open set row is below the
+     * fold the keypad does not come back by itself; a user scrolls down and taps the row.
+     * Returns true when the keypad was already there.
+     */
+    fun ensureKeypadForActiveRow(): Boolean {
+        val shown = runCatching { waitForKeypad(3_000L) }.isSuccess
+        if (shown) return true
+        rule.onAllNodes(hasScrollToIndexAction())[0].performScrollToIndex(activeRow)
+        waitForTag(editorRowInputTestTag(activeRow))
+        rule.onNodeWithTag(editorRowInputTestTag(activeRow)).performClick()
+        waitForKeypad()
+        return false
     }
 
     fun openStats() {
