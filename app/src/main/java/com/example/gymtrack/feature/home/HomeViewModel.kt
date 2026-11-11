@@ -165,14 +165,19 @@ class HomeViewModel(
     /**
      * Saves an empty workout of [category] that the editor then opens by id, so Start <Category>
      * needs no editor change. Returns its timestamp (also the workout start).
+     *
+     * [text] is the prefill of "Start from last" (#305): exercise names only, never set values
+     * ([WorkoutPrefill]). With no set logged the start rule cleans it up like an empty workout.
      */
-    suspend fun createWorkout(category: Category): Long = withContext(Dispatchers.IO) {
-        val taken = repository.getAllNotes().first().mapTo(HashSet()) { it.timestamp }
+    suspend fun createWorkout(category: Category, text: String = ""): Long = withContext(Dispatchers.IO) {
+        // The list Today already shows is enough to avoid a taken timestamp; no extra query.
+        val known = loadedNotes.value ?: repository.getAllNotes().first()
+        val taken = known.mapTo(HashSet()) { it.timestamp }
         val timestamp = freeWorkoutTimestamp(AppClock.nowMillis(), taken)
         repository.saveNote(
             NoteLine(
                 title = "",
-                text = "",
+                text = text,
                 timestamp = timestamp,
                 categoryName = category.name,
                 categoryColor = category.color,

@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.NoteLine
@@ -46,7 +47,11 @@ import com.example.gymtrack.feature.history.WorkoutRow
 import com.example.gymtrack.feature.history.todayRecentRowTestTag
 import com.example.gymtrack.feature.home.CategoryChoiceRow
 import com.example.gymtrack.feature.home.TextAction
+import com.example.gymtrack.feature.home.WorkoutPrefill
 import com.example.gymtrack.feature.home.WorkoutRowFacts
+import com.example.gymtrack.feature.home.prefillFromLast
+import com.example.gymtrack.feature.home.prefillPreview
+import com.example.gymtrack.feature.home.prefillsFromLast
 import com.example.gymtrack.feature.home.screenBackground
 import java.time.Instant
 import java.time.LocalDate
@@ -57,6 +62,7 @@ import java.util.Locale
 
 const val TODAY_START_PRIMARY_TEST_TAG = "today-start-primary"
 const val TODAY_START_BLANK_TEST_TAG = "today-start-blank"
+const val TODAY_START_PREVIEW_TEST_TAG = "today-start-preview"
 const val TODAY_OTHER_WORKOUT_TEST_TAG = "today-other-workout"
 const val TODAY_SEE_ALL_TEST_TAG = "today-see-all"
 const val TODAY_RESTORE_BACKUP_TEST_TAG = "today-restore-backup"
@@ -67,7 +73,9 @@ const val TODAY_WEEK_STRIP_TEST_TAG = "today-week-strip"
  * Bottom, thumb zone: Recent (last 3 + See all), the Next up line, a big Start <Category>,
  * "Other workout ▾" and "Start blank". First launch shows the empty state instead (#294).
  *
- * [onStart] with null starts a blank workout. Every start goes through the shell's start sheet.
+ * [onStart] with null starts a blank workout. [onStartFromLast] starts a workout prefilled with
+ * the exercise names of the last workout of that category (#305); the primary button uses it when
+ * the guessed next category has one. Every start goes through the shell's start sheet.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,6 +88,7 @@ fun TodayScreen(
     today: LocalDate,
     hasActiveWorkout: Boolean,
     onStart: (Category?) -> Unit,
+    onStartFromLast: (WorkoutPrefill) -> Unit,
     onOpen: (NoteLine) -> Unit,
     onSeeAll: () -> Unit,
     onRestoreBackup: () -> Unit,
@@ -117,6 +126,13 @@ fun TodayScreen(
                 ?: notes.lastOrNull { it.categoryName.equals(n.category, ignoreCase = true) }
                     ?.let { Category(n.category, it.categoryColor ?: 0xFF808080) }
         }
+        // Prefills are computed ahead of the tap, so tap → editor does no parsing (#305: < 100 ms).
+        val prefills = remember(notes, settings.categories) { prefillsFromLast(notes, settings.categories) }
+        val nextPrefill = remember(notes, nextCategory, prefills) {
+            nextCategory?.let { c ->
+                prefills[c.name.trim().lowercase()] ?: prefillFromLast(notes, c.name, settings.categories)
+            }
+        }
         val recent = remember(notes) { recentWorkouts(notes) }
         val dayFormatter = remember { DateTimeFormatter.ofPattern("EEE d MMM", locale) }
 
@@ -148,9 +164,20 @@ fun TodayScreen(
                 )
             }
             if (nextCategory != null) {
+                if (nextPrefill != null) {
+                    // What the one tap brings: names only, so nothing is a surprise in the editor.
+                    Text(
+                        prefillPreview(nextPrefill.exercises),
+                        style = tokens.type.small,
+                        color = tokens.colors.inkMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(bottom = tokens.spacing.xs).testTag(TODAY_START_PREVIEW_TEST_TAG),
+                    )
+                }
                 PrimaryButton(
-                    text = "Start ${nextCategory.name}",
-                    onClick = { onStart(nextCategory) },
+                    text = if (nextPrefill != null) "Start from last ${nextPrefill.category.name}" else "Start ${nextCategory.name}",
+                    onClick = { if (nextPrefill != null) onStartFromLast(nextPrefill) else onStart(nextCategory) },
                     icon = AppIcon.RESUME,
                     modifier = Modifier.fillMaxWidth().testTag(TODAY_START_PRIMARY_TEST_TAG),
                 )
@@ -190,10 +217,16 @@ fun TodayScreen(
                     settings.categories
                         .filterNot { it.name.equals(nextCategory?.name, ignoreCase = true) }
                         .forEach { category ->
-                            CategoryChoiceRow(category, onClick = {
-                                showOther = false
-                                onStart(category)
-                            })
+                            val prefill = prefills[category.name.trim().lowercase()]
+                            CategoryChoiceRow(
+                                category,
+                                label = if (prefill != null) "Start from last ${category.name}" else "Start ${category.name}",
+                                detail = prefill?.let { prefillPreview(it.exercises) },
+                                onClick = {
+                                    showOther = false
+                                    if (prefill != null) onStartFromLast(prefill) else onStart(category)
+                                },
+                            )
                         }
                 }
             }
