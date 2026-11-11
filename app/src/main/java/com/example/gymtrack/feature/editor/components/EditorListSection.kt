@@ -12,8 +12,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,12 +28,12 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.ExerciseFlag
 import com.example.gymtrack.core.data.WeightUnit
+import com.example.gymtrack.core.ui.theme.GymTrackTheme
+import com.example.gymtrack.core.ui.theme.notebookPaper
 import com.example.gymtrack.core.util.CanonicalExerciseVisualTransformation
 import com.example.gymtrack.feature.editor.EditorRowInfo
 import com.example.gymtrack.feature.editor.EditorRowKind
@@ -123,9 +121,16 @@ fun EditorListSection(
         if (index >= 0) structure.getOrNull(index)?.exerciseIndex else null
     }
 
+    val tokens = GymTrackTheme.tokens
+    // Notebook: rows are written on ruled paper with a margin line (the bracket inset sits in it).
+    val paper = if (tokens.isNotebook) {
+        Modifier.notebookPaper(paper = tokens.colors.bg, rule = tokens.colors.paperRule, margin = tokens.colors.paperMargin, marginX = 26.dp)
+    } else {
+        Modifier
+    }
     LazyColumn(
         state = state.listState,
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize().then(paper),
         contentPadding = PaddingValues(start = 8.dp, end = 12.dp, top = 4.dp, bottom = 24.dp),
     ) {
         itemsIndexed(state.lines, key = { _, row -> row.id }) { index, row ->
@@ -193,25 +198,21 @@ private fun ExerciseItem(
         remember(isUnilateral) { CanonicalExerciseVisualTransformation(isUnilateral) }
     }
 
+    val nameStyle = exerciseNameStyle()
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             BasicTextField(
                 value = row.text.value,
                 onValueChange = { state.onTextChange(index, it) },
-                textStyle = LocalTextStyle.current.copy(
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Black,
-                ),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                textStyle = nameStyle,
+                cursorBrush = SolidColor(GymTrackTheme.tokens.colors.action),
                 visualTransformation = visualTransformation,
                 decorationBox = { inner ->
                     NotebookInputFrame {
                         if (text.isEmpty()) {
                             Text(
                                 text = if (index == 0) "First exercise" else "Next exercise",
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Black,
+                                style = nameStyle,
                                 color = mutedInk(),
                             )
                         }

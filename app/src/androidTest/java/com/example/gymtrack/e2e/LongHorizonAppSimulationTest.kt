@@ -19,7 +19,7 @@ import com.example.gymtrack.core.data.deleteMigrationTestDatabase
 import com.example.gymtrack.core.data.openMigratedDatabase
 import com.example.gymtrack.core.timer.NoteTimerStore
 import com.example.gymtrack.feature.editor.components.NOTE_EDITOR_FINISH_ACTION_TEST_TAG
-import com.example.gymtrack.feature.home.HOME_OPEN_STATS_TEST_TAG
+import com.example.gymtrack.APP_BOTTOM_NAV_TEST_TAG
 import com.example.gymtrack.feature.stats.statsBadgeValueTestTag
 import com.example.gymtrack.simulation.EdgeTag
 import com.example.gymtrack.simulation.EditorSession
@@ -214,24 +214,21 @@ class LongHorizonAppSimulationTest {
 
     /**
      * After the next day's workout: the workout left yesterday with Back is still unfinished.
-     * Can the user still finish it from Home?
+     * The start sheet answered "Keep both", so History must offer "Mark finished" for it (#293).
      */
     private fun checkOldWorkoutStillFinishable(driver: DeviceHistoryDriver, workout: SimWorkout, robot: WorkoutRobot) {
         val old = driver.sessions.dropLast(1).lastOrNull { !it.isFinished } ?: return
         val timer = runBlocking { NoteTimerStore.observe(appState.context).first() }
-        robot.openWorkoutCard(old.workout.startMillis)
-        composeRule.waitForIdle()
-        val finishShown = composeRule.onAllNodesWithTag(NOTE_EDITOR_FINISH_ACTION_TEST_TAG).fetchSemanticsNodes().isNotEmpty()
-        if (!finishShown) {
+        val finishable = robot.canMarkFinishedFromHistory(old.workout.startMillis)
+        if (!finishable) {
             driver.findings.report(
                 "UNFINISHED-WORKOUT-ORPHANED", Severity.HIGH,
                 "Starting a new workout makes the unfinished one un-finishable: no Finish button, its sets never reach the sets table / Stats charts",
                 driver.history, workout.day, old.workout.index,
-                "confirmed in the real UI: opened workout ${old.workout.index} from Home after workout ${workout.index}; active timer=${timer.activeNoteTimestamp}; no Finish",
+                "confirmed in the real UI: History offers no Mark finished for workout ${old.workout.index} after workout ${workout.index}; active timer=${timer.activeNoteTimestamp}",
                 issue = "#293",
             )
         }
-        robot.pressBack()
     }
 
     /** Issue #291: settings written before a launch must survive the launch. */
@@ -265,7 +262,7 @@ class LongHorizonAppSimulationTest {
         val expected = driver.sessions.count { it.isFinished }
         ActivityScenario.launch(MainActivity::class.java).use {
             val robot = WorkoutRobot(composeRule, appState.clock) { it }
-            robot.waitForTag(HOME_OPEN_STATS_TEST_TAG)
+            robot.waitForTag(APP_BOTTOM_NAV_TEST_TAG)
             val ms = measureTimeMillis {
                 robot.openStats()
                 composeRule.waitUntil(60_000L) {

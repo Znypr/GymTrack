@@ -45,4 +45,26 @@ class ActiveWorkoutControlsTest {
             ),
         )
     }
+
+    @Test
+    fun `stale timer on a finished workout does not offer a second Finish`() {
+        assertFalse(
+            shouldShowActiveWorkoutControls(
+                noteId = 123L,
+                activeNoteTimestamp = 123L,
+                isFinished = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `new workout shows controls even while an old timer is persisted`() {
+        // The start sheet resolves the old workout first; the new editor still owns Finish.
+        assertTrue(
+            shouldShowActiveWorkoutControls(
+                noteId = -1L,
+                activeNoteTimestamp = 456L,
+            ),
+        )
+    }
 }

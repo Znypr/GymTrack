@@ -1,4 +1,4 @@
-package com.example.gymtrack.feature.home.components
+package com.example.gymtrack.feature.history
 
 import com.example.gymtrack.core.data.ExerciseFlag
 import com.example.gymtrack.core.data.NoteLine
@@ -6,7 +6,7 @@ import com.example.gymtrack.core.util.buildNoteRowMetadata
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** #323: the Home card shows the time at Finish, not at the last set. */
+/** #323: the History row shows the time at Finish, not at the last set. */
 class WorkoutCardMinutesTest {
     private val start = 1_800_000_000_000L
 

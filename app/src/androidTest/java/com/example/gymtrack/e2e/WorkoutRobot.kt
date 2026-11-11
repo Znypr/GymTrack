@@ -5,11 +5,17 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.junit4.ComposeTestRule
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
@@ -29,9 +35,14 @@ import com.example.gymtrack.feature.editor.components.editorRowInputTestTag
 import com.example.gymtrack.feature.editor.components.formatTopLineElapsed
 import com.example.gymtrack.feature.editor.components.segmentLabel
 import com.example.gymtrack.feature.editor.components.setEntryKeyTestTag
-import com.example.gymtrack.feature.home.HOME_CREATE_WORKOUT_TEST_TAG
-import com.example.gymtrack.feature.home.HOME_OPEN_STATS_TEST_TAG
-import com.example.gymtrack.feature.home.components.workoutCardTestTag
+import com.example.gymtrack.APP_BOTTOM_NAV_TEST_TAG
+import com.example.gymtrack.feature.history.HISTORY_CLEAR_SELECTION_TEST_TAG
+import com.example.gymtrack.feature.history.HISTORY_LIST_TEST_TAG
+import com.example.gymtrack.feature.history.HISTORY_MARK_FINISHED_TEST_TAG
+import com.example.gymtrack.feature.history.historyRowTestTag
+import com.example.gymtrack.feature.home.OrphanChoice
+import com.example.gymtrack.feature.home.orphanChoiceTestTag
+import com.example.gymtrack.feature.today.TODAY_START_BLANK_TEST_TAG
 
 typealias GymTrackRule = AndroidComposeTestRule<ActivityScenarioRule<MainActivity>, MainActivity>
 
@@ -48,8 +59,9 @@ data class ExpectedRow(
 )
 
 /**
- * Drives the real app the way a user does: FAB, category menu, typing exercise lines, the set
- * keypad, Back, Finish, Stats. Every wait is on a UI or DB condition; rests only move the fake
+ * Drives the real app the way a user does: the bottom nav (Today, History, Progress), Start
+ * blank, the start sheet, category menu, typing exercise lines, the set keypad, Back, Finish,
+ * History rows and Progress (Stats). Every wait is on a UI or DB condition; rests only move the fake
  * clock, so a 40-minute workout runs in seconds.
  *
  * Set keys use the keypad's own order, reps first: "8x80" taps 8, X, 8, 0 and the editor shows
@@ -82,11 +94,29 @@ class WorkoutRobot(
 
     val nowMillis: Long get() = clock.nowMillis()
 
+    /** Opens a bottom-nav tab by its label ("Today", "History", "Progress"). */
+    fun openTab(label: String) {
+        waitForTag(APP_BOTTOM_NAV_TEST_TAG)
+        rule.onNode(hasText(label) and hasAnyAncestor(hasTestTag(APP_BOTTOM_NAV_TEST_TAG))).performClick()
+        rule.waitForIdle()
+    }
+
+    /**
+     * Today, then Start blank. When an unfinished workout still owns the timer the start sheet
+     * asks first; the robot answers "Keep both" (the old workout stays unfinished and can be
+     * finished from History), which is what the simulations model.
+     */
     fun startWorkout() {
-        waitForTag(HOME_CREATE_WORKOUT_TEST_TAG)
+        openTab("Today")
+        waitForTag(TODAY_START_BLANK_TEST_TAG)
         workoutTimestamp = clock.nowMillis()
         lastEnterMillis = workoutTimestamp
-        rule.onNodeWithTag(HOME_CREATE_WORKOUT_TEST_TAG).performClick()
+        rule.onNodeWithTag(TODAY_START_BLANK_TEST_TAG).performClick()
+        rule.waitForIdle()
+        val keepBoth = orphanChoiceTestTag(OrphanChoice.KEEP_BOTH)
+        if (exists(keepBoth)) {
+            rule.onNodeWithTag(keepBoth).performClick()
+        }
         waitForTag(editorRowInputTestTag(0))
         activeRow = 0
     }
@@ -187,29 +217,48 @@ class WorkoutRobot(
     fun finish() {
         waitForTag(NOTE_EDITOR_FINISH_ACTION_TEST_TAG)
         rule.onNodeWithTag(NOTE_EDITOR_FINISH_ACTION_TEST_TAG).performClick()
-        waitForTag(HOME_CREATE_WORKOUT_TEST_TAG)
+        waitForTag(APP_BOTTOM_NAV_TEST_TAG)
     }
 
     /** System Back from the editor, without Finish. */
     fun pressBack() {
         Espresso.closeSoftKeyboard()
         Espresso.pressBack()
-        waitForTag(HOME_CREATE_WORKOUT_TEST_TAG)
+        waitForTag(APP_BOTTOM_NAV_TEST_TAG)
     }
 
-    fun openWorkoutFromHome() {
-        val card = workoutCardTestTag(workoutTimestamp)
-        waitForTag(card)
-        rule.onNodeWithTag(card).performClick()
-        waitForTag(editorRowInputTestTag(0))
+    /** Opens the robot's workout from its History row. */
+    fun openWorkoutFromHome() = openWorkoutCard(workoutTimestamp)
+
+    /** History tab, scrolled to the workout's row. Returns the row's tag. */
+    fun showHistoryRow(timestamp: Long): String {
+        openTab("History")
+        val row = historyRowTestTag(timestamp)
+        waitForTag(HISTORY_LIST_TEST_TAG)
+        rule.onNodeWithTag(HISTORY_LIST_TEST_TAG).performScrollToNode(hasTestTag(row))
+        waitForTag(row)
+        return row
     }
 
-    /** Opens any workout card on Home (it must be on screen). */
+    /** Opens any workout from its History row. */
     fun openWorkoutCard(timestamp: Long) {
-        val card = workoutCardTestTag(timestamp)
-        waitForTag(card)
-        rule.onNodeWithTag(card).performClick()
+        val row = showHistoryRow(timestamp)
+        rule.onNodeWithTag(row).performClick()
         waitForTag(editorRowInputTestTag(0))
+    }
+
+    /**
+     * Long-presses the workout's History row and reports whether "Mark finished" is offered
+     * (#293: no workout may become un-finishable). Clears the selection again.
+     */
+    fun canMarkFinishedFromHistory(timestamp: Long): Boolean {
+        val row = showHistoryRow(timestamp)
+        rule.onNodeWithTag(row).performTouchInput { longClick() }
+        rule.waitForIdle()
+        val offered = exists(HISTORY_MARK_FINISHED_TEST_TAG)
+        if (exists(HISTORY_CLEAR_SELECTION_TEST_TAG)) rule.onNodeWithTag(HISTORY_CLEAR_SELECTION_TEST_TAG).performClick()
+        rule.waitForIdle()
+        return offered
     }
 
     /**
@@ -227,8 +276,9 @@ class WorkoutRobot(
         return false
     }
 
+    /** Stats live on the Progress tab. */
     fun openStats() {
-        rule.onNodeWithTag(HOME_OPEN_STATS_TEST_TAG).performClick()
+        openTab("Progress")
     }
 
     /** Home button + reopen from recents: ON_STOP then ON_START/ON_RESUME. */

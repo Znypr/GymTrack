@@ -258,6 +258,17 @@ class NoteEditorState internal constructor(
         openKeypad(lines[last].id)
     }
 
+    /**
+     * One keypad key, applied to [keypadValue] as it is right now (#362). The row the keypad owns
+     * is looked up through [keypadRowId] at tap time, so a tap that lands before the next frame
+     * (a second quick `1`, or a digit right after Next moved the keypad) never edits a stale copy.
+     */
+    internal fun onKeypadKey(key: com.example.gymtrack.feature.editor.components.KeypadKey) {
+        if (finishing || keypadRowId == null) return
+        val updated = com.example.gymtrack.feature.editor.components.applyKeypadKey(keypadValue, key) ?: return
+        onKeypadInput(updated)
+    }
+
     /** One keypad key (digit, X, S, +, ., ⌫) already applied to [keypadValue]. */
     fun onKeypadInput(newValue: TextFieldValue) {
         if (finishing) return
@@ -593,6 +604,9 @@ class NoteEditorState internal constructor(
         }
     }
 
+    /** Called with the workout's timestamp right before leaving after an explicit Finish. */
+    var onWorkoutFinished: ((Long) -> Unit)? = null
+
     private fun finishExit(isLastNote: Boolean, finishWorkout: Boolean) {
         if (!shouldStopTimerOnExit(isLastNote, finishWorkout)) {
             onSaveSuccess()
@@ -602,7 +616,10 @@ class NoteEditorState internal constructor(
             persistence.stopTimer(noteTimestamp)
             // Navigation must run on the main thread. The composition scope already is main in
             // the app; under the Compose test scheduler it can resume elsewhere after DataStore.
-            withContext(Dispatchers.Main) { onSaveSuccess() }
+            withContext(Dispatchers.Main) {
+                onWorkoutFinished?.invoke(noteTimestamp)
+                onSaveSuccess()
+            }
         }
     }
 

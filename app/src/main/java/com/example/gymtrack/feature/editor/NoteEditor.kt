@@ -1,6 +1,5 @@
 package com.example.gymtrack.feature.editor
 
-import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,13 +34,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.Settings
+import com.example.gymtrack.core.ui.theme.GymTrackTheme
 import com.example.gymtrack.feature.editor.components.EditorAccessoryBar
 import com.example.gymtrack.feature.editor.components.EditorListSection
 import com.example.gymtrack.feature.editor.components.EditorMenuPage
@@ -62,6 +59,10 @@ fun NoteEditor(
     isLastNote: Boolean,
     onCancel: () -> Unit,
     onSaveSuccess: () -> Unit,
+    /** Category picked on Today for a NEW workout (null = the first category). Ignored when reopening. */
+    chosenCategoryName: String? = null,
+    /** Explicit Finish of the active workout (not Back); receives the workout's timestamp. */
+    onWorkoutFinished: (Long) -> Unit = {},
 ) {
     val note by viewModel.uiState.collectAsState()
     val saveError by viewModel.saveError.collectAsState()
@@ -76,6 +77,7 @@ fun NoteEditor(
     }
 
     val state = rememberNoteEditorState(viewModel, settings, note, onSaveSuccess)
+    SideEffect { state.onWorkoutFinished = onWorkoutFinished }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -100,20 +102,23 @@ fun NoteEditor(
         if (state.keypadRowId == null && state.lines.isNotEmpty()) state.listState.scrollToItem(0)
     }
 
-    var selectedCategory by remember(note) {
-        mutableStateOf(
-            settings.categories.find { it.name == note?.categoryName }
-                ?: Category("Push", 0xFFFF3B30),
-        )
+    // #296: one category rule (EditorCategory). A new workout takes Today's choice or the first
+    // category; an existing one keeps exactly what is stored. Idempotent, so it never replaces a
+    // category the user picked.
+    // Applied after composition (no state writes during it); the first frame shows the same name.
+    SideEffect {
+        if (!isEditingExisting) viewModel.category.startNew(settings.categories, chosenCategoryName)
     }
-    var learningsValue by remember(note) { mutableStateOf(TextFieldValue(note?.learnings ?: "")) }
+    val shownCategoryName = viewModel.category.name
+        ?: if (!isEditingExisting) newWorkoutCategory(settings.categories, chosenCategoryName)?.name else null
+    val categoryDisplay = categoryDisplay(shownCategoryName, settings.categories)
+    var learningsValue by remember(viewModel) { mutableStateOf(TextFieldValue(note?.learnings ?: "")) }
     var showLearnings by remember { mutableStateOf(false) }
     var menuPage by remember { mutableStateOf(EditorMenuPage.CLOSED) }
     // Session-level toggle; a persisted setting waits for the shared SettingsStore (theme session).
     var hintsEnabled by rememberSaveable { mutableStateOf(true) }
     var editAsTextIndex by remember { mutableStateOf<Int?>(null) }
 
-    LaunchedEffect(selectedCategory) { viewModel.currentCategory = selectedCategory }
     LaunchedEffect(learningsValue.text) { viewModel.currentLearnings = learningsValue.text }
     LaunchedEffect(note) { note?.let { viewModel.currentTitle = it.title } }
 
@@ -129,12 +134,6 @@ fun NoteEditor(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    val view = LocalView.current
-    SideEffect {
-        val window = (view.context as Activity).window
-        WindowInsetsControllerCompat(window, view).isAppearanceLightStatusBars = !settings.darkMode
     }
 
     val timer = if (isLastNote) rememberWorkoutTimer(state.noteTimestamp, startTimerOnOpen) else null
@@ -170,7 +169,7 @@ fun NoteEditor(
     val onEditSetAsText: (Int) -> Unit = remember { { index -> editAsTextIndex = index } }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = GymTrackTheme.tokens.colors.bg,
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Box(
@@ -185,7 +184,7 @@ fun NoteEditor(
                     .imePadding(),
             ) {
                 EditorTopLine(
-                    category = selectedCategory,
+                    category = categoryDisplay,
                     timestamp = state.noteTimestamp,
                     timer = timer,
                     onLongPress = { menuPage = EditorMenuPage.CATEGORIES },
@@ -209,9 +208,9 @@ fun NoteEditor(
                     timer = timer,
                     onNotes = { showLearnings = true },
                     categories = settings.categories,
+                    currentCategoryName = viewModel.category.name,
                     onCategorySelected = {
-                        selectedCategory = it
-                        viewModel.currentCategory = it
+                        viewModel.category.choose(it)
                         state.markDirty()
                     },
                     hintsEnabled = hintsEnabled,
@@ -233,9 +232,13 @@ fun NoteEditor(
                 learningsValue = learningsValue,
                 onDismiss = { showLearnings = false },
                 onValueChange = {
+                    val textChanged = it.text != learningsValue.text
                     learningsValue = it
-                    viewModel.currentLearnings = it.text
-                    state.markDirty()
+                    // A cursor move is not an edit: only typed text marks the workout dirty.
+                    if (textChanged) {
+                        viewModel.currentLearnings = it.text
+                        state.markDirty()
+                    }
                 },
             )
         }

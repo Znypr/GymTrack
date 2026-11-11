@@ -1,207 +1,73 @@
 package com.example.gymtrack.feature.stats
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.data.WorkoutRepository
-import com.example.gymtrack.feature.stats.components.charts.*
+import com.example.gymtrack.core.ui.theme.GymTrackTheme
+import com.example.gymtrack.core.ui.theme.sketchBorder
+import com.example.gymtrack.feature.stats.components.charts.ExerciseProgressCard
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Old `stats` route entry point, kept so the current nav host compiles until the Progress tab is
+ * wired (wave 2). It shows the new [ProgressScreen] layout without the Plan and Settings rows
+ * (those need the new navigation). New code: use [ProgressScreen] / [ProgressRoute].
+ */
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun StatsScreen(
     state: StatsState,
     workoutRepository: WorkoutRepository,
     settings: Settings,
     onTimeRangeSelected: (TimeRange) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
 ) {
-    val backgroundColor = MaterialTheme.colorScheme.background
-    val textColor = MaterialTheme.colorScheme.onBackground
-    var rangeMenuExpanded by remember { mutableStateOf(false) }
-
-    Scaffold(
-        containerColor = backgroundColor,
-        topBar = {
-            TopAppBar(
-                title = { Text("Statistics", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = textColor)
-                    }
-                },
-                actions = {
-                    Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
-                        Surface(
-                            onClick = { rangeMenuExpanded = true },
-                            shape = RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.surface,
-                            contentColor = MaterialTheme.colorScheme.onSurface,
-                            tonalElevation = 1.dp,
-                            modifier = Modifier.padding(end = 12.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CalendarToday,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    text = state.currentRange.label,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Spacer(Modifier.width(2.dp))
-                                Icon(
-                                    imageVector = Icons.Default.ArrowDropDown,
-                                    contentDescription = null
-                                )
-                            }
-                        }
-
-                        DropdownMenu(
-                            expanded = rangeMenuExpanded,
-                            onDismissRequest = { rangeMenuExpanded = false }
-                        ) {
-                            TimeRange.values().forEach { range ->
-                                DropdownMenuItem(
-                                    text = { Text(range.label) },
-                                    onClick = {
-                                        onTimeRangeSelected(range)
-                                        rangeMenuExpanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = backgroundColor,
-                    titleContentColor = textColor
-                )
+    ProgressContent(
+        state = ProgressState(stats = state, categories = settings.categories),
+        onRangeSelected = onTimeRangeSelected,
+        onOpenSettings = null,
+        onStartCategory = null,
+        exerciseProgress = {
+            ExerciseProgressCard(
+                repository = workoutRepository,
+                timeRange = state.currentRange,
+                displayUnit = settings.defaultWeightUnit,
+                timedProgress = state.timedProgress,
             )
-        }
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            if (state.isLoading) {
-                item {
-                    StatsLoadingCard(
-                        message = state.loadingMessage ?: "Building statistics…",
-                        sourceNoteCount = state.sourceNoteCount,
-                    )
-                }
-            }
-
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StatBadge(
-                            "Workouts",
-                            "${state.totalNotes}",
-                            Modifier.weight(1f),
-                            caption = state.unfinishedCount.takeIf { it > 0 }?.let { "+$it unfinished, not counted" },
-                        )
-                        StatBadge("Weekly Avg", String.format("%.1f", state.avgWorkoutsPerWeek), Modifier.weight(1f))
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StatBadge("Avg Sets", String.format("%.1f", state.avgSets), Modifier.weight(1f))
-                        StatBadge("Favorite", state.categoryCounts.maxByOrNull { it.value }?.key ?: "-", Modifier.weight(1f))
-                    }
-                    // Timed sets (#283) are counted in Avg Sets; this shows how many and their total time.
-                    if (state.timedSets.setCount > 0) {
-                        StatBadge(
-                            "Timed sets",
-                            "${state.timedSets.setCount}",
-                            Modifier.fillMaxWidth(),
-                            caption = "${formatHoldTime(state.timedSets.totalSeconds)} total hold",
-                        )
-                    }
-                }
-            }
-
-            item {
-                AdaptiveCard {
-                    Column(Modifier.padding(16.dp)) {
-                        TrainingInsightsPanel(data = state.trainingInsights)
-                    }
-                }
-            }
-
-            item {
-                ExerciseProgressCard(
-                    repository = workoutRepository,
-                    timeRange = state.currentRange,
-                    displayUnit = settings.defaultWeightUnit,
-                    timedProgress = state.timedProgress,
-                )
-            }
-
-            item {
-                AdaptiveCard(height = 300.dp) {
-                    Column(Modifier.padding(16.dp)) {
-                        WeeklyConsistencyChart(data = state.weeklyWorkoutCounts)
-                    }
-                }
-            }
-
-            item {
-                AdaptiveCard(height = 300.dp) {
-                    Column(Modifier.padding(16.dp)) {
-                        WorkoutDurationTrendChart(
-                            weekly = state.weeklyDurations,
-                            filteredOutliers = state.unreasonableDurationCount,
-                            showRollingAvg = true,
-                        )
-                    }
-                }
-            }
-
-            item { Spacer(Modifier.height(32.dp)) }
-        }
-    }
+        },
+    )
 }
 
+/**
+ * Card for the Progress charts, in the app's skin: Normal = surface, radius 14, 1 dp hairline;
+ * Notebook = no fill (paper shows through) and a sketched pencil box. No inner padding.
+ */
 @Composable
 fun AdaptiveCard(
     modifier: Modifier = Modifier,
-    height: androidx.compose.ui.unit.Dp? = null,
-    content: @Composable () -> Unit
+    height: Dp? = null,
+    content: @Composable () -> Unit,
 ) {
+    val tokens = GymTrackTheme.tokens
+    val c = tokens.colors
     var mod = modifier.fillMaxWidth()
     if (height != null) mod = mod.height(height)
-
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface
-        ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        shape = RoundedCornerShape(12.dp),
-        modifier = mod
-    ) { content() }
+    val skin = if (tokens.isNotebook) {
+        Modifier.sketchBorder(c.ink, seed = (height?.value ?: 0f).toInt() + 3, strokeWidth = 1.5.dp, cornerRadius = tokens.radii.card)
+    } else {
+        val shape = RoundedCornerShape(tokens.radii.card)
+        Modifier.clip(shape).background(c.surface, shape).border(1.dp, c.hairline, shape)
+    }
+    Box(mod.then(skin)) { content() }
 }
 
 /** `95` -> `1:35`, `3725` -> `1:02:05`. */
@@ -216,71 +82,5 @@ internal fun formatHoldTime(totalSeconds: Int): String {
     }
 }
 
-/** Tag on a badge's value text, e.g. `stats-badge-value-Workouts`. */
-internal fun statsBadgeValueTestTag(label: String): String = "stats-badge-value-$label"
-
-@Composable
-fun StatBadge(label: String, value: String, modifier: Modifier = Modifier, caption: String? = null) {
-    AdaptiveCard(modifier = modifier) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                value,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 1,
-                modifier = Modifier.testTag(statsBadgeValueTestTag(label)),
-            )
-            Text(
-                label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                maxLines = 1
-            )
-            if (caption != null) {
-                Text(
-                    caption,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-                    maxLines = 2,
-                    modifier = Modifier.testTag(statsBadgeValueTestTag(label) + "-caption"),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun StatsLoadingCard(
-    message: String,
-    sourceNoteCount: Int,
-) {
-    AdaptiveCard {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = message,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = if (sourceNoteCount > 0) {
-                    "Large histories may take a moment the first time. Cached results will be reused while the app stays open."
-                } else {
-                    "Preparing your stats view."
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-        }
-    }
-}
+/** Tag on a Progress number's value text, e.g. `stats-badge-value-Workouts`. */
+fun statsBadgeValueTestTag(label: String): String = "stats-badge-value-$label"
