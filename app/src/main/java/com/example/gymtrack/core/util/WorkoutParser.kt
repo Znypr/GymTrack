@@ -18,6 +18,11 @@ data class ParsedSetDTO(
     val absoluteTime: String?,
     val workoutId: Long = 0L,
     val exerciseIdentity: ExerciseIdentity = ExerciseIdentity.unknown(exerciseName),
+    /**
+     * When this set row itself was logged, in seconds after the workout start (its own grey
+     * time, not the exercise header's); null when the row has none. Rest inference uses it (#306).
+     */
+    val rowOffsetSeconds: Int? = null,
 )
 
 class WorkoutParser {
@@ -36,6 +41,15 @@ class WorkoutParser {
         private val repsWordRegex = Pattern.compile("(?i)([0-9+]+)\\s*reps?\\b")
         private val bareNumberRegex = Regex("""\d+(?:\.\d+)?""")
         private val decimalCommaRegex = Regex("""(\d),(\d{1,2})(?![\dxX])""")
+
+        // Compiled once instead of per line or per header (#303).
+        private val setLineStartRegex = Regex("(?i)^[\\d+]+\\s*x.*")
+        private val setLinePrefixRegex = Regex("(?i)^x\\s*[\\d+]+.*")
+        private val digitsOnlyLineRegex = Regex("^\\d+$")
+        private val relativeTimeRegex = Regex("""\(\s*(\d+['’":]\d+)\s*["”]?\s*\)""")
+        private val absoluteTimeRegex = Regex("""(\d+['’":]\d+)""")
+        private val whitespaceRegex = Regex("\\s+")
+        private val nameSeparatorRegex = Regex("[-/.,]")
 
         /** `62,5` -> `62.5`. A comma followed by a reps marker (`60,8x`) is left alone. */
         fun normalizeDecimalComma(text: String): String = text.replace(decimalCommaRegex, "$1.$2")
@@ -270,7 +284,7 @@ class WorkoutParser {
             .replace(plusNumberRegex, "")
             .trim()
 
-        var tokens = cleanedLine.split("\\s+".toRegex()).toMutableList()
+        var tokens = cleanedLine.split(whitespaceRegex).toMutableList()
         val correctedTokens = tokens.map { token ->
             autocorrect(token).also {
                 if (it != token && !isPluralNormalisation(token, it)) onAutocorrect(token, it)
@@ -308,8 +322,8 @@ class WorkoutParser {
         tokens = remainingTokensStep3
 
         var coreName = tokens.joinToString(" ")
-            .replace(Regex("[-/.,]"), " ")
-            .replace(Regex("\\s+"), " ")
+            .replace(nameSeparatorRegex, " ")
+            .replace(whitespaceRegex, " ")
             .trim()
 
         coreName = singularize(coreName)
@@ -329,11 +343,11 @@ class WorkoutParser {
 
     private fun extractTimes(rawMetadata: String): Pair<String?, String?> {
         if (rawMetadata.isBlank()) return Pair(null, null)
-        val relMatch = Regex("""\(\s*(\d+['’":]\d+)\s*["”]?\s*\)""").find(rawMetadata)
+        val relMatch = relativeTimeRegex.find(rawMetadata)
         val relativeTime = relMatch?.groupValues?.get(1)
         var remaining = rawMetadata
         if (relMatch != null) remaining = remaining.replace(relMatch.value, "")
-        val absMatch = Regex("""(\d+['’":]\d+)""").find(remaining)
+        val absMatch = absoluteTimeRegex.find(remaining)
         val absoluteTime = absMatch?.groupValues?.get(1)
         return Pair(relativeTime, absoluteTime)
     }
@@ -395,11 +409,11 @@ class WorkoutParser {
             val cleanLine = rawNamePart.trim()
             val lineContent = normalizeDecimalComma(cleanLine)
 
-            val looksLikeSet = cleanLine.matches(Regex("(?i)^[\\d+]+\\s*x.*")) ||
-                cleanLine.matches(Regex("(?i)^x\\s*[\\d+]+.*")) ||
+            val looksLikeSet = setLineStartRegex.matches(cleanLine) ||
+                setLinePrefixRegex.matches(cleanLine) ||
                 repsRegex.matcher(cleanLine).find() ||
                 timedSetRegex.matcher(lineContent).matches() ||
-                cleanLine.matches(Regex("^\\d+$")) ||
+                digitsOnlyLineRegex.matches(cleanLine) ||
                 line.startsWith("    ")
 
             if (!looksLikeSet) {
@@ -510,6 +524,9 @@ class WorkoutParser {
                             relativeTime = currentRelTime,
                             absoluteTime = currentAbsTime,
                             exerciseIdentity = exerciseIdentity,
+                            rowOffsetSeconds = absoluteTimes.getOrNull(index)
+                                ?.takeIf(String::isNotBlank)
+                                ?.let(::parseDurationSeconds),
                         ),
                     )
                 }

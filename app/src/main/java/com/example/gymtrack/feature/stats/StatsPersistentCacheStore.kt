@@ -351,7 +351,8 @@ class StatsPersistentCacheStore(context: Context) : StatsStateStore {
         // 3: timed sets (#283), duration chart data, no note text, stable key (#303).
         // 4: weekly average spans at least one week (a single workout was "604800000 per week").
         // Bump this whenever a cached StatsState field's calculation changes.
-        const val CACHE_VERSION = 4
+        // 5: warm-up sets left out of insights and top exercises (#306).
+        const val CACHE_VERSION = 5
         const val PREFERENCES_NAME = "stats_cache"
         const val LEGACY_STORAGE_PREFIX = "stats_state_"
         const val STORAGE_PREFIX = "stats_state_v$CACHE_VERSION:"

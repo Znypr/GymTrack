@@ -170,7 +170,8 @@ private fun NoteLine.toWorkoutStrategyMetrics(
     displayUnit: WeightUnit,
 ): WorkoutStrategyMetrics? {
     val durationMinutes = (digest.maxElapsedSeconds ?: 0) / 60f
-    val resolvedSets = digest.sets
+    // Warm-ups are not work (#306): sets, reps and load count working sets only.
+    val resolvedSets = digest.workingSets
     val exerciseCount = digest.insightExerciseCount
     // Timed sets are sets (#283): they count here and in density/depth, but carry no reps.
     val setCount = resolvedSets.size

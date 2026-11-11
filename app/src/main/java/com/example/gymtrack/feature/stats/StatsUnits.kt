@@ -1,6 +1,11 @@
 package com.example.gymtrack.feature.stats
 
 import com.example.gymtrack.core.data.NoteLine
+import com.example.gymtrack.core.data.SetType
+import com.example.gymtrack.core.data.SetTypeInference
+import com.example.gymtrack.core.data.SetTypeInput
+import com.example.gymtrack.core.data.SetTypeSource
+import com.example.gymtrack.core.data.StoredSetUnitRow
 import com.example.gymtrack.core.data.WeightUnit
 import com.example.gymtrack.core.util.ParsedSetDTO
 import com.example.gymtrack.core.util.WorkoutParser
@@ -31,6 +36,11 @@ fun kilogramsToDisplay(kilograms: Float, display: WeightUnit): Float =
 data class StatsWorkoutFacts(
     val completedTimestamps: Set<Long> = emptySet(),
     val storedSetUnits: Map<Long, List<WeightUnit>> = emptyMap(),
+    /**
+     * Set types the user chose (#306), per workout, aligned with the stored rows (null = inferred).
+     * Only workouts with at least one user choice are present.
+     */
+    val userSetTypes: Map<Long, List<SetType?>> = emptyMap(),
 ) {
     /** A workout counts as finished when it was completed or has derived set rows. */
     fun isFinished(timestamp: Long): Boolean =
@@ -49,6 +59,10 @@ data class StatsWorkoutFacts(
             result = 31 * result + units.size
             units.forEach { unit -> result = 31 * result + unit.ordinal + 1 }
         }
+        userSetTypes.toSortedMap().forEach { (timestamp, types) ->
+            result = 31 * result + timestamp
+            types.forEach { type -> result = 31 * result + (type?.ordinal ?: -1) + 2 }
+        }
         return result
     }
 
@@ -61,11 +75,82 @@ data class StatsWorkoutFacts(
             storedSetUnits = storedUnits
                 .groupBy({ it.first }, { WeightUnit.fromStorage(it.second) }),
         )
+
+        /** Facts from the stored `sets` rows (unit, set type and its source per row). */
+        fun fromStoredRows(
+            completedTimestamps: List<Long>,
+            rows: List<StoredSetUnitRow>,
+        ): StatsWorkoutFacts {
+            val byWorkout = rows.groupBy { it.workoutId }
+            return StatsWorkoutFacts(
+                completedTimestamps = completedTimestamps.toSet(),
+                storedSetUnits = byWorkout.mapValues { (_, workoutRows) ->
+                    workoutRows.map { WeightUnit.fromStorage(it.weightUnit) }
+                },
+                userSetTypes = byWorkout
+                    .filterValues { workoutRows ->
+                        workoutRows.any { SetTypeSource.fromStorage(it.setTypeSource) == SetTypeSource.USER }
+                    }
+                    .mapValues { (_, workoutRows) ->
+                        workoutRows.map { row ->
+                            if (SetTypeSource.fromStorage(row.setTypeSource) == SetTypeSource.USER) {
+                                SetType.fromStorage(row.setType)
+                            } else {
+                                null
+                            }
+                        }
+                    },
+            )
+        }
     }
 }
 
-/** A parsed set with the unit it was really typed in, or `null` when that cannot be known. */
-data class UnitResolvedSet(val set: ParsedSetDTO, val unit: WeightUnit?)
+/**
+ * A parsed set with the unit it was really typed in (`null` when that cannot be known) and its
+ * [SetType] (#306). Stats, PRs and volume count [isWorking] sets only.
+ */
+data class UnitResolvedSet(
+    val set: ParsedSetDTO,
+    val unit: WeightUnit?,
+    val type: SetType = SetType.WORKING,
+) {
+    val isWorking: Boolean get() = type == SetType.WORKING
+}
+
+/**
+ * [sets] (one note, logged order) with their inferred [SetType] (#306), by the same rule as the
+ * stored rows ([SetTypeInference]). Loads are compared in kilograms; a set whose unit is unknown
+ * is compared as typed, which only matters when one exercise mixes units.
+ */
+fun classifySetTypes(sets: List<UnitResolvedSet>): List<UnitResolvedSet> {
+    if (sets.isEmpty()) return sets
+    val results = SetTypeInference.classify(
+        sets.map { resolved ->
+            val set = resolved.set
+            SetTypeInput(
+                blockKey = StatsBlockKey(set.exerciseName, set.modifier, set.brand, set.absoluteTime, set.relativeTime),
+                loadKg = convertWeight(set.weight.toDouble(), resolved.unit ?: WeightUnit.KG, WeightUnit.KG),
+                reps = set.reps,
+                isTimed = set.durationSeconds != null,
+            )
+        },
+    )
+    return sets.zip(results) { resolved, result -> resolved.copy(type = result.type) }
+}
+
+/** [sets] with the user's choices from [userTypes] (aligned by position; null = keep inferred). */
+fun applyUserSetTypes(sets: List<UnitResolvedSet>, userTypes: List<SetType?>?): List<UnitResolvedSet> {
+    if (userTypes == null || userTypes.size != sets.size) return sets
+    return sets.zip(userTypes) { resolved, type -> if (type == null) resolved else resolved.copy(type = type) }
+}
+
+private data class StatsBlockKey(
+    val exerciseName: String,
+    val modifier: String?,
+    val brand: String?,
+    val headerTime: String?,
+    val headerRelativeTime: String?,
+)
 
 /**
  * Parses [note] and gives every set the unit it was entered in:
