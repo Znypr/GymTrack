@@ -66,6 +66,8 @@ data class Settings(
     val themeChoice: ThemeChoice = DEFAULT_THEME,
     val categories: List<Category> = DEFAULT_CATEGORIES,
     val defaultWeightUnit: WeightUnit = WeightUnit.KG,
+    /** Opt-in coaching (#312): NONE (the default) = history suggestions only, no policy. */
+    val trainingGoal: com.example.gymtrack.feature.suggest.TrainingGoal = com.example.gymtrack.feature.suggest.TrainingGoal.NONE,
 ) {
     /**
      * Legacy flag kept for code that still reads it (the old editor's status-bar colour).

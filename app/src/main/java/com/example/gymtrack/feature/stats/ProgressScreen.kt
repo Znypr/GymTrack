@@ -46,6 +46,12 @@ import com.example.gymtrack.feature.settings.SegmentedChoice
 import com.example.gymtrack.feature.stats.components.charts.ExerciseProgressCard
 import com.example.gymtrack.feature.stats.components.charts.WeeklyConsistencyChart
 import com.example.gymtrack.feature.stats.components.charts.WorkoutDurationTrendChart
+import com.example.gymtrack.feature.suggest.GoalChip
+import com.example.gymtrack.feature.suggest.GoalSheet
+import com.example.gymtrack.feature.suggest.TrainingGoal
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import java.util.Locale
 
 /** What the Progress tab shows: the Stats result plus the categories for the Plan row. */
@@ -95,6 +101,8 @@ fun ProgressScreen(
     modifier: Modifier = Modifier,
     exerciseProgress: (@Composable () -> Unit)? = null,
     thisWeek: (@Composable () -> Unit)? = null,
+    goal: TrainingGoal = TrainingGoal.NONE,
+    onGoalSelected: ((TrainingGoal) -> Unit)? = null,
 ) {
     ProgressContent(
         state = state,
@@ -104,6 +112,8 @@ fun ProgressScreen(
         modifier = modifier,
         exerciseProgress = exerciseProgress,
         thisWeek = thisWeek,
+        goal = goal,
+        onGoalSelected = onGoalSelected,
     )
 }
 
@@ -121,6 +131,8 @@ fun ProgressRoute(
     onStartCategory: (String) -> Unit,
     modifier: Modifier = Modifier,
     muscleLoadSource: MuscleLoadSource = UnmappedMuscleLoadSource,
+    /** The header goal chip (#312); null hides it. */
+    onGoalSelected: ((TrainingGoal) -> Unit)? = null,
 ) {
     val stats by viewModel.uiState.collectAsState()
     LaunchedEffect(settings.defaultWeightUnit) { viewModel.setDisplayUnit(settings.defaultWeightUnit) }
@@ -130,6 +142,8 @@ fun ProgressRoute(
         onOpenSettings = onOpenSettings,
         onStartCategory = onStartCategory,
         modifier = modifier,
+        goal = settings.trainingGoal,
+        onGoalSelected = onGoalSelected,
         exerciseProgress = {
             ExerciseProgressCard(
                 repository = workoutRepository,
@@ -151,9 +165,12 @@ internal fun ProgressContent(
     modifier: Modifier = Modifier,
     exerciseProgress: (@Composable () -> Unit)? = null,
     thisWeek: (@Composable () -> Unit)? = null,
+    goal: TrainingGoal = TrainingGoal.NONE,
+    onGoalSelected: ((TrainingGoal) -> Unit)? = null,
 ) {
     val tokens = GymTrackTheme.tokens
     val stats = state.stats
+    var goalSheetOpen by rememberSaveable { mutableStateOf(false) }
     val rangeIndex = PROGRESS_RANGES.indexOfFirst { it.first == stats.currentRange }
     Column(modifier.fillMaxSize().background(tokens.colors.bg)) {
         LazyColumn(
@@ -161,10 +178,16 @@ internal fun ProgressContent(
             verticalArrangement = Arrangement.spacedBy(tokens.spacing.md),
         ) {
             item {
-                ScreenHeader(
-                    title = "Progress",
-                    subtitle = RANGE_SPOKEN.getOrNull(rangeIndex) ?: stats.currentRange.label,
-                )
+                Column {
+                    ScreenHeader(
+                        title = "Progress",
+                        subtitle = RANGE_SPOKEN.getOrNull(rangeIndex) ?: stats.currentRange.label,
+                    )
+                    // #312: opt-in coaching goal, one tap from the stats it is about.
+                    if (onGoalSelected != null) {
+                        GoalChip(goal = goal, onClick = { goalSheetOpen = true })
+                    }
+                }
             }
             if (stats.isLoading) {
                 item { LoadingCard(stats.loadingMessage ?: "Building statistics…", stats.sourceNoteCount) }
@@ -223,6 +246,9 @@ internal fun ProgressContent(
                 .background(tokens.colors.bg)
                 .padding(horizontal = tokens.spacing.md, vertical = tokens.spacing.xxs),
         )
+    }
+    if (goalSheetOpen && onGoalSelected != null) {
+        GoalSheet(selected = goal, onSelect = onGoalSelected, onDismiss = { goalSheetOpen = false })
     }
 }
 

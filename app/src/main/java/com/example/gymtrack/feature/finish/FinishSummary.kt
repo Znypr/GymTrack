@@ -6,7 +6,6 @@ import com.example.gymtrack.core.muscle.Muscle
 import com.example.gymtrack.core.muscle.MuscleLevel
 import com.example.gymtrack.core.muscle.MuscleLoadSource
 import com.example.gymtrack.core.muscle.MuscleWeek
-import com.example.gymtrack.core.muscle.UnmappedMuscleLoadSource
 import com.example.gymtrack.core.util.ParsedSetDTO
 import com.example.gymtrack.core.util.WorkoutParser
 import com.example.gymtrack.core.util.noteWorkoutDuration
@@ -72,7 +71,7 @@ data class TopSet(val exercise: String, val display: String)
  * - a weight shows its unit only when it differs from [defaultUnit] (README rule 3);
  * - "this week" counts [finishedWorkoutStarts] (start timestamps of finished workouts) plus this
  *   one, in the Monday-start week that holds [nowMillis];
- * - muscles come from [muscleSource] (unmapped until #309 is connected); "Next time" is the
+ * - [muscles] are loaded by the host from a [MuscleLoadSource] (unmapped when unknown); "Next time" is the
  *   least-trained mapped muscle of [weekMuscles] when the host has the week, else of this workout.
  */
 fun buildFinishSummary(
@@ -83,7 +82,7 @@ fun buildFinishSummary(
     finishedAtMillis: Long? = null,
     zone: ZoneId = ZoneId.systemDefault(),
     parser: WorkoutParser = WorkoutParser(),
-    muscleSource: MuscleLoadSource = UnmappedMuscleLoadSource,
+    muscles: MuscleWeek = MuscleWeek.unmapped,
     weekMuscles: MuscleWeek? = null,
 ): FinishSummary {
     val sets = parser.parseWorkout(workout.text, defaultUnit.storageValue, workout.rowMetadata)
@@ -95,7 +94,6 @@ fun buildFinishSummary(
     val topSets = byExercise.values.mapNotNull { group ->
         topSetOf(group, defaultUnit)?.let { TopSet(group.first().exerciseName.trim().ifEmpty { "Exercise" }, it) }
     }
-    val muscles = muscleSource.workoutLevels(workout)
     val minutes = noteWorkoutDuration(workout.text, workout.rowMetadata, workout.timestamp, finishedAtMillis)
         ?.seconds
         ?.let { (it + 30) / 60 }

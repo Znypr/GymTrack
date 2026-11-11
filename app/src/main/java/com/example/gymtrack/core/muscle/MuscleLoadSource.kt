@@ -40,11 +40,11 @@ interface MuscleLoadSource {
     suspend fun weekLevels(weekKey: String): MuscleWeek
 
     /** Levels, sets and exercises for one workout, from its note as saved. Pure and fast. */
-    fun workoutLevels(note: NoteLine): MuscleWeek
+    suspend fun workoutLevels(note: NoteLine): MuscleWeek
 }
 
 /** Temporary source: every region [MuscleLevel.UNMAPPED], no sets. Never pretends a muscle is untrained. */
 object UnmappedMuscleLoadSource : MuscleLoadSource {
     override suspend fun weekLevels(weekKey: String): MuscleWeek = MuscleWeek.unmapped
-    override fun workoutLevels(note: NoteLine): MuscleWeek = MuscleWeek.unmapped
+    override suspend fun workoutLevels(note: NoteLine): MuscleWeek = MuscleWeek.unmapped
 }

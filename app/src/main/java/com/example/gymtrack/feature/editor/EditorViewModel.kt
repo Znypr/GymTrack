@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import com.example.gymtrack.feature.editor.guardrail.SetHistory
+import com.example.gymtrack.feature.suggest.SuggestionHistory
+import com.example.gymtrack.feature.suggest.buildSuggestionHistory
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -152,6 +154,32 @@ class EditorViewModel(
                 SetHistory.EMPTY
             }
             _setHistory.value = history
+        }
+    }
+
+    private val _suggestionHistory = MutableStateFlow<SuggestionHistory?>(null)
+
+    /** Last sessions per exercise for the history pill (#308), from the derived `exercise_recent` index. */
+    val suggestionHistory = _suggestionHistory.asStateFlow()
+    private var suggestionsRequested = false
+
+    /**
+     * Loads the recent sessions of every exercise once per editor, off the main thread (#307
+     * budgets): Enter and the pill only read this snapshot. Only workouts that started before
+     * [beforeTimestamp] count. A failure leaves it empty: no pill, nothing else changes.
+     */
+    fun loadSuggestionHistory(beforeTimestamp: Long) {
+        if (suggestionsRequested) return
+        suggestionsRequested = true
+        viewModelScope.launch {
+            val history = runCatching {
+                val rows = workoutRepo.recentSessionsForAllExercises()
+                withContext(Dispatchers.Default) { buildSuggestionHistory(rows, beforeTimestamp) }
+            }.getOrElse { error ->
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                SuggestionHistory.EMPTY
+            }
+            _suggestionHistory.value = history
         }
     }
 

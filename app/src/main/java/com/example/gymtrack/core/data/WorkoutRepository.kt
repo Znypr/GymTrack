@@ -282,6 +282,26 @@ class WorkoutRepository(
     }
 
     /**
+     * [recentSessions] of every exercise with saved history, keyed by the exercise's stored name
+     * (#308). The editor loads this once when it opens, off the main thread, so an exercise typed
+     * mid-workout needs no query; Enter never queries.
+     */
+    suspend fun recentSessionsForAllExercises(
+        perExercise: Int = RECENT_SESSIONS,
+    ): Map<String, List<ExerciseRecentEntity>> = withContext(Dispatchers.IO) {
+        val exercises = exerciseDao.getAllForBackup()
+        if (exercises.isEmpty()) return@withContext emptyMap()
+        ensureDerivedIndexes()
+        val nameById = exercises.associate { it.exerciseId to it.name }
+        // SQLite caps bound parameters; chunk the id list.
+        exercises.map { it.exerciseId }.chunked(RECENT_ID_CHUNK).flatMap { ids ->
+            derivedDao.recentForExercises(ids, perExercise)
+        }.groupBy { it.exerciseId }
+            .mapNotNull { (id, rows) -> nameById[id]?.let { it to rows } }
+            .toMap()
+    }
+
+    /**
      * Effective working sets per muscle key in the ISO week [weekKey] (`2026-W45`), most first
      * (#307). Keys are [Muscle.id]s plus [WeeklyMuscleSummary.UNMAPPED_KEY]; prefer
      * [weeklyMuscleSummary], which also gives levels and the exercises behind each muscle.
@@ -303,6 +323,15 @@ class WorkoutRepository(
             }
             WeeklyMuscleSummary.from(weekKey, rows)
         }
+
+    /** [weeklyMuscleSummary] for the single workout [workoutId] (the Finish sheet, #311). */
+    suspend fun workoutMuscleSummary(workoutId: Long): WeeklyMuscleSummary = withContext(Dispatchers.IO) {
+        ensureDerivedIndexes()
+        val rows = derivedDao.muscleWeekByWorkout(workoutId).map {
+            MuscleWeekRow(it.muscle, it.exerciseId, it.name, it.effectiveSets)
+        }
+        WeeklyMuscleSummary.from(DerivedIndexWriter.weekKey(workoutId), rows)
+    }
 
     /** Level of each of the 26 regions in [weekKey]; [MuscleLevel.UNMAPPED] is never zero (#309). */
     suspend fun weeklyMuscleLevels(weekKey: String = DerivedIndexWriter.weekKey(AppClock.nowMillis())): Map<Muscle, MuscleLevel> =
@@ -764,6 +793,7 @@ class WorkoutRepository(
     companion object {
         const val RECENT_SESSIONS = 5
         const val REBUILD_CHUNK = 50
+        private const val RECENT_ID_CHUNK = 500
 
         /** One rebuild at a time per process, whichever repository instance asks. */
         private val rebuildMutex = Mutex()

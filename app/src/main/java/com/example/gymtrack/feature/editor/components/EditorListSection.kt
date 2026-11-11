@@ -49,6 +49,7 @@ import com.example.gymtrack.feature.editor.setRowDisplay
 import com.example.gymtrack.feature.editor.shortTimeLabel
 import com.example.gymtrack.feature.editor.splitSetRow
 import com.example.gymtrack.feature.editor.guardrail.GuardrailHint
+import com.example.gymtrack.feature.suggest.LoadUnit
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -343,6 +344,13 @@ private fun SetItem(
         when {
             isKeypadRow && mode != KeypadMode.INSERT -> {
                 val entry = if (mode == KeypadMode.EDIT) state.keypadBuffer.text else splitSetRow(text).entry
+                // #308: history pill on the empty open set row. Remembered per block content, so
+                // keypad presses never recompute it; nothing shows while a hint is open.
+                val showGhost = mode == KeypadMode.LIVE && entry.isBlank() && keypadGuard == null
+                val blockTexts = (info.exerciseIndex until index).map { state.lines[it].text.value.text }
+                val ghost = remember(showGhost, blockTexts, state.suggestionHistory, state.lines[index].id) {
+                    if (showGhost) state.ghostSuggestion(index) else null
+                }
                 ActiveSetRow(
                     entry = entry,
                     hint = when {
@@ -354,6 +362,17 @@ private fun SetItem(
                     testTag = inputTag,
                     onTap = {},
                     guard = keypadGuard,
+                    ghostSlot = {
+                        val next = ghost?.next
+                        if (ghost != null && next != null) {
+                            val unit = if (defaultUnit == WeightUnit.LB) LoadUnit.LB else LoadUnit.KG
+                            GhostPill(
+                                label = next.label(unit),
+                                why = ghost.whyLines(unit),
+                                onUse = { state.applySuggestion(row.id, next.entry(unit)) },
+                            )
+                        }
+                    },
                 )
             }
             text.isBlank() -> {

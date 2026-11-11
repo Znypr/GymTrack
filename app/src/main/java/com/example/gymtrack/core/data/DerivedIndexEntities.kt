@@ -172,6 +172,18 @@ interface DerivedIndexDao {
     )
     suspend fun muscleWeekByExercise(weekKey: String): List<MuscleWeekExerciseRow>
 
+    /** [muscleWeekByExercise] for one workout (the Finish sheet, #311). */
+    @Query(
+        """
+        SELECT m.muscle AS muscle, m.exercise_id AS exercise_id, e.name AS name,
+               CAST(SUM(m.effective_sets) AS REAL) AS effective_sets
+        FROM muscle_week AS m LEFT JOIN exercises AS e ON e.exerciseId = m.exercise_id
+        WHERE m.workout_id = :workoutId
+        GROUP BY m.muscle, m.exercise_id ORDER BY m.muscle, effective_sets DESC
+        """,
+    )
+    suspend fun muscleWeekByWorkout(workoutId: Long): List<MuscleWeekExerciseRow>
+
     /** Workouts with set rows of any of [exerciseIds] (re-derive after a mapping edit). */
     @Query("SELECT DISTINCT workoutId FROM sets WHERE exerciseId IN (:exerciseIds) ORDER BY workoutId")
     suspend fun workoutIdsForExercises(exerciseIds: List<Long>): List<Long>

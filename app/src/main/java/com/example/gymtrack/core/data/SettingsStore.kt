@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.gymtrack.feature.suggest.TrainingGoal
 import kotlinx.coroutines.flow.first
 
 private val Context.settingsDataStore by preferencesDataStore("settings")
@@ -20,6 +21,8 @@ object SettingsStore {
     private val CATEGORY_LIST = stringPreferencesKey("category_list_v2")
     private val DEFAULT_WEIGHT_UNIT = stringPreferencesKey("default_weight_unit")
     private val THEME_CHOICE = stringPreferencesKey("theme_choice")
+    /** #312: optional; missing = no goal. */
+    private val TRAINING_GOAL = stringPreferencesKey("training_goal")
 
     suspend fun load(context: Context): Settings {
         val prefs = context.settingsDataStore.data.first()
@@ -34,6 +37,7 @@ object SettingsStore {
             themeChoice = ThemeChoice.fromStorage(prefs[THEME_CHOICE], legacyDarkMode = prefs[DARK_MODE]),
             categories = cats,
             defaultWeightUnit = WeightUnit.fromStorage(prefs[DEFAULT_WEIGHT_UNIT]),
+            trainingGoal = TrainingGoal.fromStorage(prefs[TRAINING_GOAL]),
         )
     }
 
@@ -47,6 +51,7 @@ object SettingsStore {
             prefs[CATEGORY_LIST] = CategoryPrefs.encode(settings.categories)
             prefs[CATEGORIES] = CategoryPrefs.encodeLegacy(settings.categories)
             prefs[DEFAULT_WEIGHT_UNIT] = settings.defaultWeightUnit.storageValue
+            prefs[TRAINING_GOAL] = settings.trainingGoal.storageValue
         }
     }
 }

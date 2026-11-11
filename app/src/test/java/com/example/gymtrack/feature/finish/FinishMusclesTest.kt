@@ -37,12 +37,9 @@ class FinishMusclesTest {
     }
 
     @Test
-    fun setsPerMuscleAndNextTimeComeFromTheSource() {
-        val source = object : MuscleLoadSource {
-            override suspend fun weekLevels(weekKey: String) = MuscleWeek.unmapped
-            override fun workoutLevels(note: NoteLine) = week(mapOf(Muscle.QUADS to 2f, Muscle.GLUTE_MAX to 4f, Muscle.ADDUCTORS to 1f))
-        }
-        val summary = buildFinishSummary(note, WeightUnit.KG, emptyList(), nowMillis = 2_000L, muscleSource = source)
+    fun setsPerMuscleAndNextTimeComeFromTheLoadedMuscles() {
+        val muscles = week(mapOf(Muscle.QUADS to 2f, Muscle.GLUTE_MAX to 4f, Muscle.ADDUCTORS to 1f))
+        val summary = buildFinishSummary(note, WeightUnit.KG, emptyList(), nowMillis = 2_000L, muscles = muscles)
         assertEquals(listOf(Muscle.GLUTE_MAX, Muscle.QUADS, Muscle.ADDUCTORS), summary.setsPerMuscle.map { it.first })
         // Untrained big movers come first on ties: hamstrings before anything else at 0 sets.
         assertEquals(Muscle.HAMSTRINGS, summary.nextTime)

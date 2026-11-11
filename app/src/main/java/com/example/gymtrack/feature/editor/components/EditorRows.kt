@@ -16,6 +16,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import com.example.gymtrack.feature.suggest.SuggestionLine
+import com.example.gymtrack.feature.suggest.SuggestionSource
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -74,6 +81,7 @@ internal const val EDITOR_INPUT_FRAME_TEST_TAG = "editor-input-frame"
 internal const val EDITOR_ACTIVE_ROW_TEST_TAG = "editor-active-row"
 internal const val EDITOR_GHOST_SLOT_TEST_TAG = "editor-ghost-slot"
 internal const val EDITOR_HINT_SLOT_TEST_TAG = "editor-hint-slot"
+internal const val EDITOR_GHOST_PILL_TEST_TAG = "editor-ghost-pill"
 
 internal fun editorAddSetTestTag(exerciseIndex: Int): String = "editor-add-set-$exerciseIndex"
 
@@ -521,6 +529,100 @@ internal fun ActiveSetRow(
             }
         }
     }
+}
+
+/**
+ * The #308 history pill in the active row's ghost slot: grey, dashed, labelled "history" so it is
+ * never mistaken for a logged set or for advice. Tap fills the row (Next still commits it);
+ * long-press shows the "why", never inline. Sized inside the row's 40 dp, so no layout shift.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun GhostPill(
+    label: String,
+    why: List<SuggestionLine>,
+    onUse: () -> Unit,
+) {
+    val tokens = GymTrackTheme.tokens
+    val c = tokens.colors
+    var whyOpen by remember { mutableStateOf(false) }
+    val outline = if (tokens.isNotebook) {
+        Modifier.sketchBorder(c.inkMuted, seed = 308, strokeWidth = 1.2.dp, cornerRadius = 12.dp, wobble = 0.8.dp, dashed = true)
+    } else {
+        Modifier.drawBehind {
+            val stroke = 1.dp.toPx()
+            drawRoundRect(
+                color = c.inkMuted.copy(alpha = 0.7f),
+                topLeft = Offset(stroke / 2, stroke / 2),
+                size = Size(size.width - stroke, size.height - stroke),
+                cornerRadius = CornerRadius(size.height / 2),
+                style = Stroke(width = stroke, pathEffect = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 4.dp.toPx()))),
+            )
+        }
+    }
+    Box {
+        Row(
+            modifier = Modifier
+                .heightIn(min = 40.dp)
+                .combinedClickable(
+                    onClickLabel = "Fill this set",
+                    onLongClickLabel = "Why this suggestion",
+                    onClick = onUse,
+                    onLongClick = { whyOpen = true },
+                )
+                .testTag(EDITOR_GHOST_PILL_TEST_TAG)
+                .semantics { contentDescription = "Suggestion from your history: $label. Tap to fill, long-press for why." },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                modifier = outline.padding(horizontal = 10.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("history", style = tokens.type.label, color = c.inkMuted)
+                Spacer(Modifier.width(6.dp))
+                Text(label, style = tokens.type.body, fontWeight = FontWeight.SemiBold, color = c.inkMuted)
+            }
+        }
+        DropdownMenu(
+            expanded = whyOpen,
+            onDismissRequest = { whyOpen = false },
+            containerColor = if (tokens.isNotebook) c.bg else c.surface,
+        ) {
+            val history = why.filter { it.source == SuggestionSource.HISTORY }
+            val policy = why.filter { it.source == SuggestionSource.POLICY }
+            WhyHeader("From your history")
+            history.forEach { WhyLine(it.text) }
+            if (policy.isNotEmpty()) {
+                WhyHeader("Your goal (guideline)")
+                policy.forEach { WhyLine(it.text) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WhyHeader(text: String) {
+    val tokens = GymTrackTheme.tokens
+    Text(
+        text = text,
+        style = tokens.type.label,
+        fontWeight = FontWeight.Bold,
+        color = tokens.colors.ink,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 2.dp),
+    )
+}
+
+@Composable
+private fun WhyLine(text: String) {
+    val tokens = GymTrackTheme.tokens
+    Text(
+        text = text,
+        style = tokens.type.small,
+        color = tokens.colors.inkMuted,
+        modifier = Modifier
+            .widthIn(max = 300.dp)
+            .padding(horizontal = 16.dp, vertical = 2.dp),
+    )
 }
 
 @Composable
