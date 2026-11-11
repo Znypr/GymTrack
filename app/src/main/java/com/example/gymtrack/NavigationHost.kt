@@ -142,15 +142,18 @@ fun NavigationHost(
         navController.navigate(AppRoutes.editor(timestamp)) { launchSingleTop = true }
     }
 
-    /** Starts the workout after any question about the running one was answered. */
-    fun beginWorkout(category: Category?) {
+    /**
+     * Starts the workout after any question about the running one was answered. [prefill] is
+     * the "Start from last" text (#305): exercise names only, used with a category.
+     */
+    fun beginWorkout(category: Category?, prefill: String = "") {
         scope.launch {
             // Navigation must run on the main thread; the suspend calls before it may resume elsewhere.
             if (category == null) {
                 // The editor creates a blank workout and starts the timer itself.
                 withContext(Dispatchers.Main.immediate) { navController.navigate(AppRoutes.editor(-1L)) }
             } else {
-                val timestamp = homeViewModel.createWorkout(category)
+                val timestamp = homeViewModel.createWorkout(category, prefill)
                 NoteTimerStore.startOrRestore(appContext, timestamp)
                 withContext(Dispatchers.Main.immediate) { openWorkout(timestamp) }
             }
@@ -158,7 +161,7 @@ fun NavigationHost(
     }
 
     /** Every Start passes here, so no workout silently loses the timer (#293). */
-    fun requestStart(category: Category?) {
+    fun requestStart(category: Category?, prefill: String = "") {
         if (loadedNotes == null) return
         val activeTimestamp = timer.activeNoteTimestamp
         val activeNote = notes.firstOrNull { it.timestamp == activeTimestamp }
@@ -169,13 +172,13 @@ fun NavigationHost(
                 activeIsFinished = activeTimestamp != null && activeTimestamp in finished,
             )
         ) {
-            WorkoutStartDecision.StartNow -> beginWorkout(category)
+            WorkoutStartDecision.StartNow -> beginWorkout(category, prefill)
             is WorkoutStartDecision.ClearStale -> scope.launch {
                 if (decision.deleteEmptyNote && activeNote != null) homeViewModel.deleteEmptyWorkout(activeNote)
                 NoteTimerStore.stop(appContext, decision.activeTimestamp)
-                beginWorkout(category)
+                beginWorkout(category, prefill)
             }
-            is WorkoutStartDecision.AskFirst -> pendingStart = PendingStart(decision.active, category)
+            is WorkoutStartDecision.AskFirst -> pendingStart = PendingStart(decision.active, category, prefill)
         }
     }
 
@@ -197,7 +200,7 @@ fun NavigationHost(
                 return@launch
             }
             NoteTimerStore.stop(appContext, request.active.timestamp)
-            beginWorkout(request.category)
+            beginWorkout(request.category, request.prefill)
         }
     }
 
@@ -219,7 +222,8 @@ fun NavigationHost(
                     settings = settings,
                     today = today,
                     hasActiveWorkout = active != null,
-                    onStart = ::requestStart,
+                    onStart = { category -> requestStart(category) },
+                    onStartFromLast = { prefill -> requestStart(prefill.category, prefill.text) },
                     onOpen = { note -> openWorkout(note.timestamp) },
                     onSeeAll = { openTab(AppRoutes.HISTORY) },
                     onRestoreBackup = { navController.navigate(AppRoutes.SETTINGS) },
@@ -556,7 +560,7 @@ fun NavigationHost(
 }
 
 /** A Start waiting for the start sheet's answer; [category] null = blank workout. */
-private data class PendingStart(val active: NoteLine, val category: Category?)
+private data class PendingStart(val active: NoteLine, val category: Category?, val prefill: String = "")
 
 @Composable
 private fun RestoreConfirmationDialog(

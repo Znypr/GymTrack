@@ -35,8 +35,9 @@ sealed interface WorkoutStartDecision {
 
     /**
      * The timer points at nothing worth asking about (a workout that is already finished, was
-     * deleted, or has nothing logged): clear it without a question. [deleteEmptyNote] removes
-     * a saved workout that has no text at all (Start tapped, then Back).
+     * deleted, or has no set logged): clear it without a question. [deleteEmptyNote] removes
+     * a saved workout with no set (Start tapped, then Back; an untouched "Start from last" whose
+     * rows are only exercise names, #305) unless it has a title or learnings.
      */
     data class ClearStale(val activeTimestamp: Long, val deleteEmptyNote: Boolean) : WorkoutStartDecision
 
@@ -54,7 +55,8 @@ fun decideWorkoutStart(
         return WorkoutStartDecision.ClearStale(activeTimestamp, deleteEmptyNote = false)
     }
     if (activeIsFinished) return WorkoutStartDecision.ClearStale(activeTimestamp, deleteEmptyNote = false)
-    if (!activeNote.hasLoggedContent()) {
+    // Nothing counts as saved until a set is logged (#305): exercise names alone are cleaned up.
+    if (!activeNote.hasLoggedSet()) {
         return WorkoutStartDecision.ClearStale(
             activeTimestamp,
             deleteEmptyNote = activeNote.title.isBlank() && activeNote.learnings.isBlank(),
