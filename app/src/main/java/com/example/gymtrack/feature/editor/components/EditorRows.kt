@@ -330,6 +330,8 @@ internal fun SetRow(
     onDelete: () -> Unit,
     onEditAsText: () -> Unit,
     modifier: Modifier = Modifier,
+    /** An open mistake hint (#304): amber outline plus a "!" so colour is never alone. */
+    flagged: Boolean = false,
 ) {
     val tokens = GymTrackTheme.tokens
     val c = tokens.colors
@@ -375,6 +377,13 @@ internal fun SetRow(
                     .fillMaxWidth()
                     // Notebook: no fill, the ruled paper shows through.
                     .background(if (tokens.isNotebook) Color.Transparent else c.bg)
+                    .then(
+                        when {
+                            !flagged -> Modifier
+                            tokens.isNotebook -> Modifier.sketchBorder(c.warn, seed = 83, strokeWidth = 1.5.dp, cornerRadius = 8.dp)
+                            else -> Modifier.border(1.dp, c.warn, RoundedCornerShape(tokens.radii.small))
+                        },
+                    )
                     .heightIn(min = 40.dp)
                     .combinedClickable(
                         onClickLabel = "Edit set",
@@ -398,6 +407,17 @@ internal fun SetRow(
                     style = setRowStyle(tokens),
                     modifier = Modifier.weight(1f),
                 )
+                if (flagged) {
+                    Text(
+                        text = "!",
+                        style = tokens.type.body,
+                        fontWeight = FontWeight.Bold,
+                        color = c.warn,
+                        modifier = Modifier
+                            .padding(end = 6.dp)
+                            .semantics { contentDescription = "Possible mistake" },
+                    )
+                }
                 if (display.rest != null) {
                     Text(
                         text = display.rest,
@@ -459,6 +479,8 @@ internal fun ActiveSetRow(
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
     ghostSlot: @Composable () -> Unit = {},
+    /** A mistake hint (#304) about the set right above: drawn in the hint line, which then grows. */
+    guard: (@Composable () -> Unit)? = null,
 ) {
     val tokens = GymTrackTheme.tokens
     Column(modifier = modifier.fillMaxWidth()) {
@@ -487,12 +509,14 @@ internal fun ActiveSetRow(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(HINT_SLOT_HEIGHT)
+                .heightIn(min = HINT_SLOT_HEIGHT)
                 .padding(start = 8.dp)
                 .testTag(EDITOR_HINT_SLOT_TEST_TAG),
             contentAlignment = Alignment.CenterStart,
         ) {
-            if (hint != null) {
+            if (guard != null) {
+                guard()
+            } else if (hint != null) {
                 Text(hint, style = tokens.type.label, color = mutedInk())
             }
         }

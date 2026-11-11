@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- #349: the optional rest countdown ends with one quiet buzz (no sound). Normal permission. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <!-- Android Auto Backup is ON on purpose (#339) with explicit include rules:
          database + settings only. See docs/BACKUP_FORMAT.md before changing. -->
     <application
