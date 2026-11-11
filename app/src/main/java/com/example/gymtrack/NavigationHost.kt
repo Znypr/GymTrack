@@ -72,7 +72,9 @@ import java.time.Instant
 import java.time.ZoneId
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val CURRENT_DATABASE_SCHEMA_VERSION = 10
 
@@ -143,13 +145,14 @@ fun NavigationHost(
     /** Starts the workout after any question about the running one was answered. */
     fun beginWorkout(category: Category?) {
         scope.launch {
+            // Navigation must run on the main thread; the suspend calls before it may resume elsewhere.
             if (category == null) {
                 // The editor creates a blank workout and starts the timer itself.
-                navController.navigate(AppRoutes.editor(-1L))
+                withContext(Dispatchers.Main.immediate) { navController.navigate(AppRoutes.editor(-1L)) }
             } else {
                 val timestamp = homeViewModel.createWorkout(category)
                 NoteTimerStore.startOrRestore(appContext, timestamp)
-                openWorkout(timestamp)
+                withContext(Dispatchers.Main.immediate) { openWorkout(timestamp) }
             }
         }
     }
@@ -188,7 +191,9 @@ fun NavigationHost(
                     OrphanChoice.KEEP_BOTH -> Unit
                 }
             } catch (error: Exception) {
-                Toast.makeText(context, "Could not finish the workout: ${error.localizedMessage}", Toast.LENGTH_LONG).show()
+                withContext(Dispatchers.Main.immediate) {
+                    Toast.makeText(context, "Could not finish the workout: ${error.localizedMessage}", Toast.LENGTH_LONG).show()
+                }
                 return@launch
             }
             NoteTimerStore.stop(appContext, request.active.timestamp)
