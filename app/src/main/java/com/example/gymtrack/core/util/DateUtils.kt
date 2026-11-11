@@ -7,24 +7,26 @@ import java.util.*
 
 // --- EXISTING FORMATTERS ---
 
+// Compiled once: Stats and rest inference call this for every row (#303).
+private val primeDurationRegex = "(\\d+)'(\\d{2})''".toRegex()
+private val hmsDurationRegex = "(\\d{1,2}):(\\d{2}):(\\d{2})".toRegex()
+private val hmDurationRegex = "(\\d{1,2}):(\\d{2})".toRegex()
+
 fun parseDurationSeconds(str: String): Int {
-    val primeRegex = "(\\d+)'(\\d{2})''".toRegex()
-    primeRegex.matchEntire(str)?.let {
+    primeDurationRegex.matchEntire(str)?.let {
         val minutes = it.groupValues[1].toInt()
         val seconds = it.groupValues[2].toInt()
         return minutes * 60 + seconds
     }
 
-    val hmsRegex = "(\\d{1,2}):(\\d{2}):(\\d{2})".toRegex()
-    hmsRegex.matchEntire(str)?.let {
+    hmsDurationRegex.matchEntire(str)?.let {
         val h = it.groupValues[1].toInt()
         val m = it.groupValues[2].toInt()
         val s = it.groupValues[3].toInt()
         return h * 3600 + m * 60 + s
     }
 
-    val hmRegex = "(\\d{1,2}):(\\d{2})".toRegex()
-    hmRegex.matchEntire(str)?.let {
+    hmDurationRegex.matchEntire(str)?.let {
         val h = it.groupValues[1].toInt()
         val m = it.groupValues[2].toInt()
         return h * 3600 + m * 60

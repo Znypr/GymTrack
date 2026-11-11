@@ -3,6 +3,8 @@ package com.example.gymtrack.core.backup
 import com.example.gymtrack.core.data.ExerciseEntity
 import com.example.gymtrack.core.data.NoteEntity
 import com.example.gymtrack.core.data.SetEntity
+import com.example.gymtrack.core.data.SetType
+import com.example.gymtrack.core.data.SetTypeSource
 import com.example.gymtrack.core.data.WeightUnit
 import org.json.JSONObject
 
@@ -52,6 +54,9 @@ internal fun SetEntity.asBackupJson(): JSONObject = JSONObject()
     .putOptional("brand", brand)
     .putOptional("relativeTime", relativeTime)
     .putOptional("absoluteTime", absoluteTime)
+    .put("setType", SetType.fromStorage(setType).storageValue)
+    .put("setTypeSource", SetTypeSource.fromStorage(setTypeSource).storageValue)
+    .apply { restSeconds?.let { put("restSeconds", it) } }
 
 internal fun JSONObject.asBackupSetEntity(): SetEntity = SetEntity(
     setId = getLong("setId"),
@@ -65,4 +70,8 @@ internal fun JSONObject.asBackupSetEntity(): SetEntity = SetEntity(
     relativeTime = optionalString("relativeTime"),
     absoluteTime = optionalString("absoluteTime"),
     weightUnit = WeightUnit.fromStorage(optString("weightUnit", WeightUnit.KG.storageValue)).storageValue,
+    // Backups from before v14 have no set type: WORKING / INFERRED, re-inferred after restore (#306).
+    setType = SetType.fromStorage(optString("setType", SetType.WORKING.storageValue)).storageValue,
+    setTypeSource = SetTypeSource.fromStorage(optString("setTypeSource", SetTypeSource.INFERRED.storageValue)).storageValue,
+    restSeconds = if (has("restSeconds") && !isNull("restSeconds")) getInt("restSeconds") else null,
 )

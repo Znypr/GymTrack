@@ -38,7 +38,7 @@ fun buildStatsState(
         )
     }
 
-    val noteDigests = digests.digestAll(notes, facts.storedSetUnits) { parser }
+    val noteDigests = digests.digestAll(notes, facts) { parser }
     val mainCount = noteDigests.sumOf { it.mainLineCount }
     val subCount = noteDigests.sumOf { it.subLineCount }
     val avgSets = if (mainCount > 0) subCount.toFloat() / mainCount else 0f
@@ -70,7 +70,7 @@ fun buildStatsState(
     }
 
     val exerciseCounts = noteDigests.asSequence()
-        .flatMap { digest -> digest.sets.asSequence().map { it.set.exerciseName } }
+        .flatMap { digest -> digest.workingSets.asSequence().map { it.set.exerciseName } }
         .groupingBy { it }
         .eachCount()
         .toList()

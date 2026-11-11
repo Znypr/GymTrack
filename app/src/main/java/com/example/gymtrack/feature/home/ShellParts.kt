@@ -95,7 +95,14 @@ internal fun NoteLine.categoryLook(settings: Settings) = categoryLook(categoryNa
 
 /** A category as a list row: mark + name, one 56 dp target (sheets, the Other workout picker). */
 @Composable
-internal fun CategoryChoiceRow(category: Category, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun CategoryChoiceRow(
+    category: Category,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    label: String = "Start ${category.name}",
+    /** A muted second line, e.g. the exercises "Start from last" brings (#305). */
+    detail: String? = null,
+) {
     val tokens = GymTrackTheme.tokens
     val kind = CategoryKind.fromName(category.name)
     Row(
@@ -108,14 +115,24 @@ internal fun CategoryChoiceRow(category: Category, onClick: () -> Unit, modifier
     ) {
         CategoryMark(kind, label = category.name, size = 14.dp, customColor = Color(category.color))
         Spacer(Modifier.width(tokens.spacing.sm))
-        Text(
-            "Start ${category.name}",
-            style = tokens.type.body,
-            color = tokens.colors.ink,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
+        Column(Modifier.weight(1f).padding(vertical = tokens.spacing.xxs)) {
+            Text(
+                label,
+                style = tokens.type.body,
+                color = tokens.colors.ink,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (detail != null) {
+                Text(
+                    detail,
+                    style = tokens.type.small,
+                    color = tokens.colors.inkMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
         AppIconView(AppIcon.CHEVRON, contentDescription = null, tint = tokens.colors.inkMuted, size = 20.dp)
     }
 }

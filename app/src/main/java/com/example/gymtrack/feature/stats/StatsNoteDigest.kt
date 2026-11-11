@@ -22,11 +22,17 @@ data class StatsNoteDigest(
     val maxElapsedSeconds: Int?,
     /** Rows that are exercises, as the training insights count them. */
     val insightExerciseCount: Int,
-    /** Every parsed set with the unit it was typed in. Timed sets have reps = 0 and a duration. */
+    /**
+     * Every parsed set with the unit it was typed in and its set type (#306). Timed sets have
+     * reps = 0 and a duration. Use [workingSets] for anything that counts work.
+     */
     val sets: List<UnitResolvedSet>,
     /** Workout duration by docs/WORKOUT_DURATION.md, in minutes; null when unknown. */
     val workoutDurationMinutes: Float?,
-)
+) {
+    /** Sets that count as work (warm-ups left out, #306). */
+    val workingSets: List<UnitResolvedSet> get() = sets.filter { it.isWorking }
+}
 
 /** Identity of a note's content for the digest memo: same text, metadata and units = same digest. */
 private data class DigestKey(
@@ -75,7 +81,7 @@ val DefaultStatsNoteDigester = StatsNoteDigester { note, storedUnits, parser ->
         subLineCount = sub,
         maxElapsedSeconds = maxElapsed,
         insightExerciseCount = exercises,
-        sets = resolveSetUnits(note, parser, storedUnits),
+        sets = classifySetTypes(resolveSetUnits(note, parser, storedUnits)),
         workoutDurationMinutes = noteWorkoutDuration(note.text, note.rowMetadata, note.timestamp)
             ?.seconds
             ?.div(60f),
@@ -123,6 +129,23 @@ class StatsDigestCache(
     ): List<StatsNoteDigest> {
         val parser = parserFactory()
         return notes.map { digest(it, storedSetUnits[it.timestamp], parser) }
+    }
+
+    /**
+     * [digestAll] with the user's set-type choices applied (#306). The memo keeps the inferred
+     * digest; choices are laid over it, so changing one never re-parses the note.
+     */
+    fun digestAll(
+        notes: List<NoteLine>,
+        facts: StatsWorkoutFacts,
+        parserFactory: () -> WorkoutParser = ::WorkoutParser,
+    ): List<StatsNoteDigest> {
+        val parser = parserFactory()
+        return notes.map { note ->
+            val digest = digest(note, facts.storedSetUnits[note.timestamp], parser)
+            val userTypes = facts.userSetTypes[note.timestamp] ?: return@map digest
+            digest.copy(sets = applyUserSetTypes(digest.sets, userTypes))
+        }
     }
 
     companion object {

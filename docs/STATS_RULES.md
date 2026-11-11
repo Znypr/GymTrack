@@ -78,5 +78,39 @@ see docs/EDITOR_BEHAVIOUR.md. The parser stores its time in `durationSeconds` an
   even if the screen is closed right after the result is shown. One persisted entry per range +
   unit: a newer history replaces the older entry. Note text is not persisted; the counted notes are
   re-attached from the live list after a read.
-- `StatsPersistentCacheStore.CACHE_VERSION` is 3. Entries of older versions are deleted on the
+- `StatsPersistentCacheStore.CACHE_VERSION` is 5. Entries of older versions are deleted on the
   next write.
+
+## Warm-up and working sets (#306)
+
+- **Only working sets count.** Strength, reps, sets per minute, sets per exercise, top exercises,
+  the Progress charts (average weight, volume, set counts) and the derived indexes use WORKING
+  sets. Warm-ups stay in the note and on screen; they are just not work. Timed and bodyweight sets
+  are always WORKING. The line-based "Avg Sets" card still counts set rows as typed.
+- **Inferred, never typed.** `SetTypeInference` runs at Finish/save (and in the lazy rebuild),
+  never on a keystroke. Per exercise block, with `top` = the heaviest load and `topReps` = reps of
+  the first set at it, the leading sets are warm-ups while each is lighter than 50 % of `top`
+  (any reps), lighter than 80 % with no more reps than `topReps`, or up to ~90 % with 1-3 reps and
+  fewer than `topReps`; and the ramp does not go down. The first set that fails starts the working
+  sets; everything after is WORKING, so a light back-off set is never a warm-up and an ascending
+  pyramid with more reps on lighter sets stays WORKING. When unsure, a set counts (WORKING).
+  Loads are compared in kilograms.
+- **User choice wins.** Each `sets` row stores `setType` (WARMUP/WORKING) and `setTypeSource`
+  (INFERRED/USER). A USER choice survives edits (matched by exercise and position within it), the
+  lazy rebuild and Stats (laid over the inferred digest; part of the cache key).
+  `WorkoutRepository.setSetTypeOverride` sets it; the long-press UI is the editor's follow-up.
+- **Rest** = seconds between two consecutive set rows of the same exercise block (their logging
+  times). Not rest: the gap before a block's first set, gaps across exercises, unknown times, and
+  gaps over 30 min.
+
+## Derived indexes (#307)
+
+- `exercise_recent` (one row per workout × exercise: working sets, warm-ups, top load and reps,
+  volume in kg, `8x 80 · 8x 80` summary) and `muscle_week` (ISO week × muscle × workout: effective
+  working sets; muscle is a stub — the exercise's `muscleGroup` or `exercise:<id>` — until the
+  muscle map lands) are written in the same transaction as the workout's `sets` rows (Finish,
+  history edit, set-type override) and deleted with the workout.
+- A version stamp (`derived_index_state`, `DerivedIndexWriter.VERSION`) marks them current. After
+  the v14 migration, a restore or a version bump, the first reader rebuilds lazily in chunks of 50
+  workouts per transaction (resumable), never at startup. The rebuild re-infers set types of
+  stored rows in place; it never re-parses units.

@@ -143,6 +143,11 @@ class BackupRepository(
             database.noteDao().insertAllForRestore(payload.legacyNotes)
             database.exerciseDao().insertAllForRestore(payload.legacyExercises)
             database.setDao().insertSets(payload.legacySets)
+            // Derived rows (#307) are not in backups: drop them and the version stamp so the next
+            // reader rebuilds them lazily from the restored sets (and infers old backups' set types).
+            database.derivedIndexDao().deleteAllRecent()
+            database.derivedIndexDao().deleteAllMuscleWeek()
+            database.derivedIndexDao().clearStates()
             restoreInterruptionProbe(RestoreInterruptionPoint.AFTER_LEGACY_ROWS_INSERTED)
         }
     }

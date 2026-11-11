@@ -20,7 +20,7 @@ class NoteRepository(private val dao: NoteDao) {
         dao.observeCompletedWorkoutTimestamps(),
         dao.observeStoredSetUnits(),
     ) { completed, units ->
-        StatsWorkoutFacts.fromRows(completed, units.map { it.workoutId to it.weightUnit })
+        StatsWorkoutFacts.fromStoredRows(completed, units)
     }
 
     suspend fun saveNote(note: NoteLine) {

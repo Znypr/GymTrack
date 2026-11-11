@@ -107,12 +107,26 @@ data class SetEntity(
     val relativeTime: String? = null,
     val absoluteTime: String? = null,
     val weightUnit: String = WeightUnit.KG.storageValue,
+    /** [SetType] storage value (#306); stats, PRs and volume count WORKING rows only. */
+    val setType: String = SetType.WORKING.storageValue,
+    /** [SetTypeSource] storage value: INFERRED by [SetTypeInference] or set by the USER. */
+    val setTypeSource: String = SetTypeSource.INFERRED.storageValue,
+    /** Seconds since the previous set of the same exercise block; null when unknown (#306). */
+    val restSeconds: Int? = null,
 )
 
 data class GraphPoint(val originTimestamp: Long, val avgVal: Float)
 
-/** One legacy `sets` row's unit, for Stats unit resolution (docs/STATS_RULES.md). */
-data class StoredSetUnitRow(val workoutId: Long, val weightUnit: String)
+/**
+ * One legacy `sets` row's unit and set type, for Stats unit resolution and user set-type
+ * overrides (docs/STATS_RULES.md).
+ */
+data class StoredSetUnitRow(
+    val workoutId: Long,
+    val weightUnit: String,
+    val setType: String = SetType.WORKING.storageValue,
+    val setTypeSource: String = SetTypeSource.INFERRED.storageValue,
+)
 
 @Dao
 interface NoteDao {
@@ -145,7 +159,7 @@ interface NoteDao {
     fun observeCompletedWorkoutTimestamps(): Flow<List<Long>>
 
     /** Unit of every derived set row, in insertion order per workout (Stats unit rule #326). */
-    @Query("SELECT workoutId, weightUnit FROM sets ORDER BY workoutId, setId")
+    @Query("SELECT workoutId, weightUnit, setType, setTypeSource FROM sets ORDER BY workoutId, setId")
     fun observeStoredSetUnits(): Flow<List<StoredSetUnitRow>>
 }
 
@@ -179,7 +193,7 @@ interface ExerciseDao {
             T1.name,
             COUNT(T2.exerciseId) AS setTotalCount
         FROM exercises AS T1
-        LEFT JOIN sets AS T2 ON T1.exerciseId = T2.exerciseId
+        LEFT JOIN sets AS T2 ON T1.exerciseId = T2.exerciseId AND T2.setType = 'WORKING'
         GROUP BY T1.exerciseId, T1.name
         ORDER BY setTotalCount DESC, T1.name ASC
         """,
@@ -194,7 +208,7 @@ interface ExerciseDao {
             COUNT(T2.exerciseId) AS setTotalCount
         FROM exercises AS T1
         JOIN sets AS T2 ON T1.exerciseId = T2.exerciseId
-        WHERE T2.workoutId >= :minTimestamp
+        WHERE T2.workoutId >= :minTimestamp AND T2.setType = 'WORKING'
         GROUP BY T1.exerciseId, T1.name
         ORDER BY setTotalCount DESC, T1.name ASC
         """,
@@ -212,6 +226,7 @@ interface ExerciseDao {
             COUNT(T2.setId) AS setTotalCount
         FROM exercises AS T1
         JOIN sets AS T2 ON T1.exerciseId = T2.exerciseId
+        WHERE T2.setType = 'WORKING'
         GROUP BY T1.exerciseId, T1.name, T2.modifier, T2.brand, T2.isUnilateral
         ORDER BY setTotalCount DESC, T1.name ASC
         """,
@@ -229,7 +244,7 @@ interface ExerciseDao {
             COUNT(T2.setId) AS setTotalCount
         FROM exercises AS T1
         JOIN sets AS T2 ON T1.exerciseId = T2.exerciseId
-        WHERE T2.workoutId >= :minTimestamp
+        WHERE T2.workoutId >= :minTimestamp AND T2.setType = 'WORKING'
         GROUP BY T1.exerciseId, T1.name, T2.modifier, T2.brand, T2.isUnilateral
         ORDER BY setTotalCount DESC, T1.name ASC
         """,
@@ -260,6 +275,12 @@ interface SetDao {
     @Query("SELECT COUNT(*) FROM sets WHERE workoutId = :workoutId")
     suspend fun countForWorkout(workoutId: Long): Int
 
+    @Query("SELECT * FROM sets WHERE workoutId = :workoutId ORDER BY setId")
+    suspend fun getForWorkout(workoutId: Long): List<SetEntity>
+
+    @Query("UPDATE sets SET setType = :setType, setTypeSource = :source, restSeconds = :restSeconds WHERE setId = :setId")
+    suspend fun updateSetType(setId: Long, setType: String, source: String, restSeconds: Int?)
+
     /** Rep-weighted average weight per workout, in KILOGRAMS (lb rows converted per set). */
     @Query(
         """
@@ -267,7 +288,7 @@ interface SetDao {
             workoutId AS originTimestamp,
             CAST(SUM(weight * reps * (CASE WHEN UPPER(weightUnit) IN ('LB', 'LBS') THEN 0.45359237 ELSE 1.0 END)) AS REAL) / SUM(reps) AS avgVal
         FROM sets
-        WHERE exerciseId = :exerciseId
+        WHERE exerciseId = :exerciseId AND setType = 'WORKING'
         GROUP BY workoutId
         ORDER BY workoutId ASC
         """,
@@ -281,7 +302,7 @@ interface SetDao {
             workoutId AS originTimestamp,
             CAST(SUM(weight * reps * (CASE WHEN UPPER(weightUnit) IN ('LB', 'LBS') THEN 0.45359237 ELSE 1.0 END)) AS REAL) / SUM(reps) AS avgVal
         FROM sets
-        WHERE exerciseId IN (:exerciseIds)
+        WHERE exerciseId IN (:exerciseIds) AND setType = 'WORKING'
         GROUP BY workoutId
         ORDER BY workoutId ASC
         """,
@@ -301,7 +322,7 @@ interface SetDao {
             SUM(T1.reps) AS totalReps
         FROM sets AS T1
         JOIN exercises AS T2 ON T1.exerciseId = T2.exerciseId
-        WHERE T1.exerciseId IN (:exerciseIds)
+        WHERE T1.exerciseId IN (:exerciseIds) AND T1.setType = 'WORKING'
         GROUP BY T1.workoutId, T2.name, T1.modifier, T1.brand, T1.isUnilateral
         ORDER BY T1.workoutId ASC
         """,
@@ -329,8 +350,11 @@ interface SetDao {
         CanonicalWorkoutExerciseEntity::class,
         CanonicalWorkoutSetEntity::class,
         TrainingSummaryOutboxEntity::class,
+        ExerciseRecentEntity::class,
+        MuscleWeekEntity::class,
+        DerivedIndexStateEntity::class,
     ],
-    version = 13,
+    version = 14,
 )
 abstract class NoteDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
@@ -343,6 +367,7 @@ abstract class NoteDatabase : RoomDatabase() {
     abstract fun canonicalWorkoutSetDao(): CanonicalWorkoutSetDao
     abstract fun backupDao(): BackupDao
     abstract fun trainingSummaryOutboxDao(): TrainingSummaryOutboxDao
+    abstract fun derivedIndexDao(): DerivedIndexDao
 
     companion object {
         @Volatile

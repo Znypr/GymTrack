@@ -19,10 +19,17 @@ import com.example.gymtrack.domain.model.WorkoutStatus
 import com.example.gymtrack.domain.summary.TrainingSummaryBuilder
 import com.example.gymtrack.domain.summary.TrainingSummaryJson
 import com.example.gymtrack.domain.summary.TrainingSummaryOutboxEntry
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import java.time.ZoneId
 
 class WorkoutRepository(
@@ -31,6 +38,7 @@ class WorkoutRepository(
     private val noteDao = database.noteDao()
     private val exerciseDao = database.exerciseDao()
     private val setDao = database.setDao()
+    private val derivedDao = database.derivedIndexDao()
     private val parser = WorkoutParser()
     private val canonicalProjector = LegacyWorkoutProjector()
     private val summaryBuilder = TrainingSummaryBuilder()
@@ -52,7 +60,7 @@ class WorkoutRepository(
             exerciseDao.getExerciseProgressOptions()
         } else {
             exerciseDao.getExerciseProgressOptionsAfter(minTimestamp)
-        }
+        }.withLazyDerivedRebuild()
 
         return rowsFlow.map { rows ->
             rows
@@ -141,16 +149,24 @@ class WorkoutRepository(
     }
 
     suspend fun cleanUpOrphans() {
-        setDao.deleteOrphanedSets()
+        database.withTransaction {
+            setDao.deleteOrphanedSets()
+            derivedDao.deleteOrphanedRecent()
+            derivedDao.deleteOrphanedMuscleWeek()
+        }
     }
 
     suspend fun deleteWorkout(timestamp: Long) {
-        setDao.deleteSetsForWorkout(timestamp)
+        database.withTransaction {
+            setDao.deleteSetsForWorkout(timestamp)
+            deleteDerivedRows(timestamp)
+        }
     }
 
     suspend fun deleteWorkout(note: NoteEntity) {
         database.withTransaction {
             setDao.deleteSetsForWorkout(note.timestamp)
+            deleteDerivedRows(note.timestamp)
             database.canonicalWorkoutDao()
                 .getByLegacyTimestamp(note.timestamp)
                 ?.let { workout ->
@@ -161,8 +177,14 @@ class WorkoutRepository(
         }
     }
 
+    /**
+     * Replaces the `sets` rows of [workoutId] with [sets], classified into warm-up / working with
+     * rest (#306), and rewrites the workout's derived rows (#307), in one transaction. Set types
+     * the user chose (source USER) survive the re-derive: they are matched by exercise and by the
+     * set's position within that exercise.
+     */
     suspend fun saveParsedSets(sets: List<ParsedSetDTO>, workoutId: Long) {
-        val setEntities = sets.map { set ->
+        val unclassified = sets.map { set ->
             val exerciseId = resolveExerciseId(set)
             SetEntity(
                 workoutId = workoutId,
@@ -177,7 +199,195 @@ class WorkoutRepository(
                 weightUnit = WorkoutParser.normalizeWeightUnit(set.weightUnit),
             )
         }
-        setDao.replaceSetsForWorkout(workoutId, setEntities)
+        database.withTransaction {
+            val userTypes = userOverridesByPosition(setDao.getForWorkout(workoutId))
+            val classified = DerivedIndexWriter.classify(
+                rows = unclassified,
+                offsets = sets.map { it.rowOffsetSeconds },
+                overrides = positionKeys(unclassified).map { userTypes[it] },
+            )
+            setDao.replaceSetsForWorkout(workoutId, classified)
+            writeDerivedRows(workoutId, classified)
+        }
+    }
+
+    /**
+     * Sets or clears the user's set type for the [setOrdinal]-th saved set (0-based, logged order)
+     * of the workout started at [workoutTimestamp] (#306). Null puts the set back on inference.
+     * Rewrites the workout's derived rows in the same transaction. Returns false when there is no
+     * such set (the workout is unfinished, or the ordinal is out of range).
+     *
+     * TODO(#306): the editor session wires this to a long-press on a set row ("Warm-up" /
+     * "Working" / "Auto"); the ordinal is the row's index among the note's parsed sets.
+     */
+    suspend fun setSetTypeOverride(workoutTimestamp: Long, setOrdinal: Int, type: SetType?): Boolean =
+        database.withTransaction {
+            val rows = setDao.getForWorkout(workoutTimestamp)
+            if (setOrdinal !in rows.indices) return@withTransaction false
+            val overrides = rows.mapIndexed { index, row ->
+                when {
+                    index == setOrdinal -> type
+                    SetTypeSource.fromStorage(row.setTypeSource) == SetTypeSource.USER -> SetType.fromStorage(row.setType)
+                    else -> null
+                }
+            }
+            // Rest does not depend on the type; keep what was stored.
+            val reclassified = DerivedIndexWriter.classify(rows = rows, overrides = overrides)
+                .zip(rows) { new, old -> new.copy(restSeconds = old.restSeconds) }
+            updateChangedRows(rows, reclassified)
+            writeDerivedRows(workoutTimestamp, reclassified)
+            true
+        }
+
+    /**
+     * The newest [perExercise] finished sessions (working sets only) of each exercise in
+     * [exerciseIds], newest first (#307). For suggestions: load once per note, off the main
+     * thread, and keep in memory; never on Enter.
+     */
+    suspend fun recentSessions(
+        exerciseIds: Collection<Long>,
+        perExercise: Int = RECENT_SESSIONS,
+    ): Map<Long, List<ExerciseRecentEntity>> {
+        if (exerciseIds.isEmpty()) return emptyMap()
+        ensureDerivedIndexes()
+        return derivedDao.recentForExercises(exerciseIds.distinct(), perExercise).groupBy { it.exerciseId }
+    }
+
+    /**
+     * [recentSessions] by exercise name as typed in a note (resolved like the parser does), keyed
+     * by the given name. Names without saved history are left out.
+     */
+    suspend fun recentSessionsForNames(
+        names: Collection<String>,
+        perExercise: Int = RECENT_SESSIONS,
+    ): Map<String, List<ExerciseRecentEntity>> = withContext(Dispatchers.IO) {
+        val idsByName = names.distinct().mapNotNull { name ->
+            val canonical = ExerciseIdentityResolver.resolve(rawName = name).canonicalName.trim()
+            val exercise = exerciseDao.getByName(canonical.ifBlank { name.trim() })
+                ?: exerciseDao.getByName(name.trim())
+            exercise?.let { name to it.exerciseId }
+        }
+        val sessions = recentSessions(idsByName.map { it.second }, perExercise)
+        idsByName.mapNotNull { (name, id) -> sessions[id]?.let { name to it } }.toMap()
+    }
+
+    /** Effective working sets per muscle in the ISO week [weekKey] (`2026-W45`), most first (#307). */
+    suspend fun muscleWeek(weekKey: String = DerivedIndexWriter.weekKey(AppClock.nowMillis())): List<MuscleWeekTotal> {
+        ensureDerivedIndexes()
+        return derivedDao.muscleWeek(weekKey)
+    }
+
+    /**
+     * Brings the derived rows and the inferred set types of saved workouts up to date when the
+     * version stamp is missing or old (after the v14 migration, a restore, or a
+     * [DerivedIndexWriter.VERSION] bump). Lazy: only readers call it, never startup (#126).
+     * Chunked: [chunkSize] workouts per transaction, yielding between chunks; it resumes where it
+     * stopped. Rows the user set (USER) keep their type; units are never touched.
+     */
+    suspend fun ensureDerivedIndexes(chunkSize: Int = REBUILD_CHUNK) {
+        withContext(Dispatchers.IO) {
+            rebuildMutex.withLock {
+                var state = derivedDao.state(DerivedIndexWriter.INDEX_NAME)
+                if (state != null && state.version == DerivedIndexWriter.VERSION && state.complete) {
+                    return@withLock
+                }
+                if (state == null || state.version != DerivedIndexWriter.VERSION) {
+                    val fresh = DerivedIndexStateEntity(
+                        name = DerivedIndexWriter.INDEX_NAME,
+                        version = DerivedIndexWriter.VERSION,
+                        rebuiltThrough = Long.MIN_VALUE,
+                        complete = false,
+                    )
+                    database.withTransaction {
+                        derivedDao.deleteAllRecent()
+                        derivedDao.deleteAllMuscleWeek()
+                        derivedDao.putState(fresh)
+                    }
+                    state = fresh
+                }
+                var cursor: DerivedIndexStateEntity = state
+                while (true) {
+                    val workoutIds = derivedDao.workoutIdsWithSetsAfter(cursor.rebuiltThrough, chunkSize)
+                    if (workoutIds.isEmpty()) {
+                        derivedDao.putState(cursor.copy(complete = true))
+                        break
+                    }
+                    database.withTransaction {
+                        workoutIds.forEach { rederiveStoredWorkout(it) }
+                        cursor = cursor.copy(rebuiltThrough = workoutIds.last())
+                        derivedDao.putState(cursor)
+                    }
+                    yield()
+                }
+            }
+        }
+    }
+
+    /** Marks the derived rows stale (a restore replaced `sets`); the next reader rebuilds them. */
+    suspend fun invalidateDerivedIndexes() {
+        database.withTransaction {
+            derivedDao.clearStates()
+            derivedDao.deleteAllRecent()
+            derivedDao.deleteAllMuscleWeek()
+        }
+    }
+
+    /** Re-classifies one workout's stored rows in place (units untouched) and rewrites its derived rows. */
+    private suspend fun rederiveStoredWorkout(workoutId: Long) {
+        val rows = setDao.getForWorkout(workoutId)
+        if (rows.isEmpty()) {
+            deleteDerivedRows(workoutId)
+            return
+        }
+        // Rest needs each row's own logging time, which only the note has. Rows line up with the
+        // parsed sets when the counts match (the same rule Stats uses for units).
+        val offsets = noteDao.getById(workoutId)?.let { note ->
+            parser.parseWorkout(note.text, rowMetadata = note.rowMetadata)
+                .takeIf { it.size == rows.size }
+                ?.map { it.rowOffsetSeconds }
+        }
+        val overrides = rows.map { row ->
+            if (SetTypeSource.fromStorage(row.setTypeSource) == SetTypeSource.USER) SetType.fromStorage(row.setType) else null
+        }
+        val classified = DerivedIndexWriter.classify(rows, offsets, overrides = overrides)
+        updateChangedRows(rows, classified)
+        writeDerivedRows(workoutId, classified)
+    }
+
+    private suspend fun updateChangedRows(old: List<SetEntity>, new: List<SetEntity>) {
+        old.zip(new).forEach { (before, after) ->
+            if (before.setType != after.setType ||
+                before.setTypeSource != after.setTypeSource ||
+                before.restSeconds != after.restSeconds
+            ) {
+                setDao.updateSetType(before.setId, after.setType, after.setTypeSource, after.restSeconds)
+            }
+        }
+    }
+
+    private suspend fun writeDerivedRows(workoutId: Long, rows: List<SetEntity>) {
+        deleteDerivedRows(workoutId)
+        val recent = DerivedIndexWriter.recentRows(workoutId, rows)
+        if (recent.isNotEmpty()) derivedDao.insertRecent(recent)
+        val exerciseIds = rows.map { it.exerciseId }.filter { it > 0 }.distinct()
+        if (exerciseIds.isEmpty()) return
+        val groups = derivedDao.muscleGroups(exerciseIds).associate { it.exerciseId to it.muscleGroup }
+        val muscles = DerivedIndexWriter.muscleWeekRows(workoutId, rows, groups::get)
+        if (muscles.isNotEmpty()) derivedDao.insertMuscleWeek(muscles)
+    }
+
+    private suspend fun deleteDerivedRows(workoutId: Long) {
+        derivedDao.deleteRecentForWorkout(workoutId)
+        derivedDao.deleteMuscleWeekForWorkout(workoutId)
+    }
+
+    /** Lazily starts the derived rebuild when [this] is collected, without delaying its first value. */
+    private fun <T> Flow<T>.withLazyDerivedRebuild(): Flow<T> {
+        val source = this
+        return channelFlow {
+            launch { ensureDerivedIndexes() }
+            source.collect { send(it) }
+        }
     }
 
     /**
@@ -467,6 +677,28 @@ class WorkoutRepository(
         ?: "Default"
 
     companion object {
+        const val RECENT_SESSIONS = 5
+        const val REBUILD_CHUNK = 50
+
+        /** One rebuild at a time per process, whichever repository instance asks. */
+        private val rebuildMutex = Mutex()
+
+        /** (exerciseId, n-th set of that exercise in the workout) for each row, in order. */
+        internal fun positionKeys(rows: List<SetEntity>): List<Pair<Long, Int>> {
+            val seen = HashMap<Long, Int>()
+            return rows.map { row ->
+                val n = seen.getOrDefault(row.exerciseId, 0)
+                seen[row.exerciseId] = n + 1
+                row.exerciseId to n
+            }
+        }
+
+        /** The user's set types of [rows] by [positionKeys]. */
+        internal fun userOverridesByPosition(rows: List<SetEntity>): Map<Pair<Long, Int>, SetType> =
+            positionKeys(rows).zip(rows)
+                .filter { (_, row) -> SetTypeSource.fromStorage(row.setTypeSource) == SetTypeSource.USER }
+                .associate { (key, row) -> key to SetType.fromStorage(row.setType) }
+
         /**
          * Canonical `ended_at` of a workout finished at [finishedAtMillis] (null: no real Finish),
          * per the duration rule in docs/WORKOUT_DURATION.md. Null when nothing gives a duration.
