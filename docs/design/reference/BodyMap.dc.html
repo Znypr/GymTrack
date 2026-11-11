@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Body map</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#F2B705}a:hover{color:#ffd24a}
+</style>
+</helmet>
+<div style="width: {{w}}; box-sizing: border-box; background: {{bg}}; color: #FFFFFF; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; gap: 8px">
+  <svg viewBox="0 0 440 400" width="100%" role="img" aria-label="{{label}}">
+    <defs>
+      <pattern id="bm-hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <rect width="5" height="5" fill="#0E3F39"></rect>
+        <rect width="2.4" height="5" fill="#1A8A7C"></rect>
+      </pattern>
+      <pattern id="bm-pencil-light" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(40)">
+        <rect width="6" height="6" fill="#FBF8EF"></rect>
+        <rect width="1.1" height="6" fill="#6E6A62"></rect>
+      </pattern>
+      <pattern id="bm-pencil-dense" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(40)">
+        <rect width="4" height="4" fill="#D9D3C4"></rect>
+        <rect width="1.4" height="4" fill="#2B2A28"></rect>
+        <rect width="4" height="0.9" fill="#4A4740"></rect>
+      </pattern>
+    </defs>
+    <g fill="{{base}}" stroke="{{baseStroke}}" stroke-width="1">
+      <circle cx="110" cy="34" r="18"></circle>
+      <rect x="102" y="50" width="16" height="12" rx="3"></rect>
+      <rect x="86" y="164" width="48" height="26" rx="10"></rect>
+      <circle cx="52" cy="184" r="6"></circle>
+      <circle cx="168" cy="184" r="6"></circle>
+      <circle cx="96" cy="258" r="7"></circle>
+      <circle cx="124" cy="258" r="7"></circle>
+      <ellipse cx="93" cy="336" rx="10" ry="5"></ellipse>
+      <ellipse cx="127" cy="336" rx="10" ry="5"></ellipse>
+      <circle cx="330" cy="34" r="18"></circle>
+      <rect x="322" y="50" width="16" height="12" rx="3"></rect>
+      <circle cx="272" cy="184" r="6"></circle>
+      <circle cx="388" cy="184" r="6"></circle>
+      <circle cx="316" cy="264" r="6"></circle>
+      <circle cx="344" cy="264" r="6"></circle>
+      <ellipse cx="313" cy="336" rx="10" ry="5"></ellipse>
+      <ellipse cx="347" cy="336" rx="10" ry="5"></ellipse>
+    </g>
+    <g stroke="{{stroke}}" stroke-width="1.5">
+      <ellipse cx="95" cy="62" rx="12" ry="5" transform="rotate(20 95 62)" fill="{{f.traps}}"></ellipse>
+      <ellipse cx="125" cy="62" rx="12" ry="5" transform="rotate(-20 125 62)" fill="{{f.traps}}"></ellipse>
+      <ellipse cx="76" cy="80" rx="13" ry="15" fill="{{f.shoulders}}"></ellipse>
+      <ellipse cx="144" cy="80" rx="13" ry="15" fill="{{f.shoulders}}"></ellipse>
+      <ellipse cx="96" cy="92" rx="17" ry="13" fill="{{f.chest}}"></ellipse>
+      <ellipse cx="124" cy="92" rx="17" ry="13" fill="{{f.chest}}"></ellipse>
+      <ellipse cx="66" cy="116" rx="8" ry="19" transform="rotate(12 66 116)" fill="{{f.biceps}}"></ellipse>
+      <ellipse cx="154" cy="116" rx="8" ry="19" transform="rotate(-12 154 116)" fill="{{f.biceps}}"></ellipse>
+      <ellipse cx="58" cy="156" rx="7" ry="21" transform="rotate(14 58 156)" fill="{{f.forearms}}"></ellipse>
+      <ellipse cx="162" cy="156" rx="7" ry="21" transform="rotate(-14 162 156)" fill="{{f.forearms}}"></ellipse>
+      <rect x="99" y="108" width="10" height="15" rx="3" fill="{{f.abs}}"></rect>
+      <rect x="111" y="108" width="10" height="15" rx="3" fill="{{f.abs}}"></rect>
+      <rect x="99" y="126" width="10" height="15" rx="3" fill="{{f.abs}}"></rect>
+      <rect x="111" y="126" width="10" height="15" rx="3" fill="{{f.abs}}"></rect>
+      <rect x="99" y="144" width="10" height="15" rx="3" fill="{{f.abs}}"></rect>
+      <rect x="111" y="144" width="10" height="15" rx="3" fill="{{f.abs}}"></rect>
+      <ellipse cx="87" cy="134" rx="6" ry="20" fill="{{f.obliques}}"></ellipse>
+      <ellipse cx="133" cy="134" rx="6" ry="20" fill="{{f.obliques}}"></ellipse>
+      <ellipse cx="103" cy="206" rx="5" ry="20" fill="{{f.adductors}}"></ellipse>
+      <ellipse cx="117" cy="206" rx="5" ry="20" fill="{{f.adductors}}"></ellipse>
+      <ellipse cx="93" cy="214" rx="12" ry="38" transform="rotate(4 93 214)" fill="{{f.quads}}"></ellipse>
+      <ellipse cx="127" cy="214" rx="12" ry="38" transform="rotate(-4 127 214)" fill="{{f.quads}}"></ellipse>
+      <ellipse cx="95" cy="298" rx="8" ry="28" fill="{{f.calves}}"></ellipse>
+      <ellipse cx="125" cy="298" rx="8" ry="28" fill="{{f.calves}}"></ellipse>
+
+      <path d="M330 50 L352 64 L330 84 L308 64 Z" fill="{{f.traps}}"></path>
+      <ellipse cx="296" cy="80" rx="13" ry="15" fill="{{f.rearDelts}}"></ellipse>
+      <ellipse cx="364" cy="80" rx="13" ry="15" fill="{{f.rearDelts}}"></ellipse>
+      <ellipse cx="330" cy="100" rx="14" ry="12" fill="{{f.upperBack}}"></ellipse>
+      <ellipse cx="309" cy="116" rx="11" ry="28" transform="rotate(-12 309 116)" fill="{{f.lats}}"></ellipse>
+      <ellipse cx="351" cy="116" rx="11" ry="28" transform="rotate(12 351 116)" fill="{{f.lats}}"></ellipse>
+      <ellipse cx="286" cy="116" rx="8" ry="19" transform="rotate(12 286 116)" fill="{{f.triceps}}"></ellipse>
+      <ellipse cx="374" cy="116" rx="8" ry="19" transform="rotate(-12 374 116)" fill="{{f.triceps}}"></ellipse>
+      <ellipse cx="278" cy="156" rx="7" ry="21" transform="rotate(14 278 156)" fill="{{f.forearms}}"></ellipse>
+      <ellipse cx="382" cy="156" rx="7" ry="21" transform="rotate(-14 382 156)" fill="{{f.forearms}}"></ellipse>
+      <rect x="319" y="122" width="22" height="38" rx="6" fill="{{f.lowerBack}}"></rect>
+      <ellipse cx="316" cy="182" rx="15" ry="15" fill="{{f.glutes}}"></ellipse>
+      <ellipse cx="344" cy="182" rx="15" ry="15" fill="{{f.glutes}}"></ellipse>
+      <ellipse cx="315" cy="228" rx="12" ry="32" fill="{{f.hamstrings}}"></ellipse>
+      <ellipse cx="345" cy="228" rx="12" ry="32" fill="{{f.hamstrings}}"></ellipse>
+      <ellipse cx="315" cy="298" rx="10" ry="26" fill="{{f.calves}}"></ellipse>
+      <ellipse cx="345" cy="298" rx="10" ry="26" fill="{{f.calves}}"></ellipse>
+    </g>
+    <text x="110" y="384" text-anchor="middle" fill="{{viewInk}}" font-size="13" font-weight="700" letter-spacing="1.5">FRONT</text>
+    <text x="330" y="384" text-anchor="middle" fill="{{viewInk}}" font-size="13" font-weight="700" letter-spacing="1.5">BACK</text>
+  </svg>
+  <sc-if value="{{legend}}" hint-placeholder-val="{{ true }}">
+    <div style="display: flex; justify-content: center; gap: 16px; font-size: 12px; color: {{legendInk}}; flex-wrap: wrap">
+      <span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: {{lg.hi}}"></span>{{lg.hiL}}</span>
+      <span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: {{lg.lo}}"></span>{{lg.loL}}</span>
+      <span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #3A3A3C; outline: 1px solid #6C6C70"></span>{{lg.noneL}}</span>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"levels":{"editor":null},"palette":{"editor":"enum","options":["red","teal","pencil"],"default":"red"},"width":{"editor":"int","default":440,"min":160,"max":800},"legend":{"editor":"boolean","default":true},"$preview":{"width":440,"height":470}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const keys = ['chest','shoulders','rearDelts','biceps','triceps','forearms','abs','obliques','traps','lats','upperBack','lowerBack','glutes','quads','hamstrings','adductors','calves'];
+    const demo = { chest: 2, shoulders: 2, triceps: 1, abs: 1, traps: 1 };
+    const levels = this.props.levels || demo;
+    const pal = this.props.palette || 'red';
+    const teal = pal === 'teal';
+    const pencil = pal === 'pencil';
+    const color = pencil ? ['#FBF8EF', 'url(#bm-pencil-light)', 'url(#bm-pencil-dense)']
+      : teal ? ['#3A3A3C', 'url(#bm-hatch)', '#2DD4BF'] : ['#3A3A3C', '#FF9A94', '#FF3B30'];
+    const lg = pencil
+      ? { hi: 'repeating-linear-gradient(40deg,#2B2A28 0 1.5px,#D9D3C4 1.5px 4px)', lo: 'repeating-linear-gradient(40deg,#6E6A62 0 1px,#FBF8EF 1px 6px)', hiL: 'Moderate–high', loL: 'Low', noneL: 'None' }
+      : teal
+      ? { hi: '#2DD4BF', lo: 'repeating-linear-gradient(45deg,#1A8A7C 0 3px,#0E3F39 3px 6px)', hiL: 'Moderate–high', loL: 'Low', noneL: 'None' }
+      : { hi: '#FF3B30', lo: '#FF9A94', hiL: 'Trained', loL: 'Under-trained', noneL: 'Not trained' };
+    const f = {};
+    const hit = [];
+    keys.forEach((k) => {
+      const l = levels[k] || 0;
+      f[k] = color[l] || color[0];
+      if (l > 0) hit.push(k);
+    });
+    const w = Number(this.props.width ?? 440);
+    const legend = this.props.legend === undefined ? true : (this.props.legend === true || this.props.legend === 'true');
+    return {
+      f: f,
+      lg: lg,
+      stroke: pencil ? '#2B2A28' : (teal ? '#6C6C70' : '#000000'),
+      legendInk: pencil ? '#2B2A28' : '#AEAEB2',
+      viewInk: pencil ? '#4A4740' : '#8E8E93',
+      base: pencil ? '#FBF8EF' : '#1E1E20',
+      baseStroke: pencil ? '#6E6A62' : '#2C2C2E',
+      w: w + 'px',
+      bg: 'transparent',
+      legend: legend,
+      label: 'Body map, trained muscles: ' + (hit.length ? hit.join(', ') : 'none')
+    };
+  }
+}
+</script>
+</body>
+</html>
