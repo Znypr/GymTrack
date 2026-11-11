@@ -23,6 +23,13 @@ import com.example.gymtrack.feature.editor.guardrail.GuardrailFix
 import com.example.gymtrack.feature.editor.guardrail.GuardrailHint
 import com.example.gymtrack.feature.editor.guardrail.SetGuardrails
 import com.example.gymtrack.feature.editor.guardrail.SetHistory
+import com.example.gymtrack.feature.suggest.ExerciseKind
+import com.example.gymtrack.feature.suggest.ExerciseSuggestion
+import com.example.gymtrack.feature.suggest.LoadUnit
+import com.example.gymtrack.feature.suggest.SuggestionEngine
+import com.example.gymtrack.feature.suggest.SuggestionHistory
+import com.example.gymtrack.feature.suggest.TodaySet
+import com.example.gymtrack.feature.suggest.TrainingGoal
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -91,6 +98,14 @@ private class EditorViewModelPersistence(
 data class SetCommit(val sequence: Int, val exerciseName: String, val flag: ExerciseFlag)
 
 private val RELATIVE_TIME_SUFFIX = Regex(""".*\(\d+'\d{2}''\)$""")
+
+/** A set row above the pill as the engine sees it; unknown parts stay null (low confidence). */
+internal fun todaySet(display: SetRowDisplay, defaultUnit: LoadUnit): TodaySet {
+    val reps = display.reps?.split('+')?.map { it.toIntOrNull() ?: return TodaySet(null, null, null) }?.sum()
+        ?: return TodaySet(null, null, null)
+    val load = display.weight?.replace(',', '.')?.toDoubleOrNull() ?: if (display.weight == null) 0.0 else return TodaySet(null, null, null)
+    return TodaySet(reps, load, LoadUnit.fromLabel(display.unit) ?: defaultUnit)
+}
 
 class NoteEditorState internal constructor(
     private val persistence: NoteEditorPersistence,
@@ -184,6 +199,59 @@ class NoteEditorState internal constructor(
     fun useHistory(history: SetHistory) {
         guardrails = SetGuardrails(history, settings.defaultWeightUnit.storageValue)
     }
+
+    /**
+     * Last sessions per exercise for the history pill (#308). Empty until [useSuggestionHistory];
+     * a snapshot, so the pill never queries anything.
+     */
+    var suggestionHistory by mutableStateOf(SuggestionHistory.EMPTY)
+        private set
+
+    /** Opt-in coaching (#312): NONE = history only. */
+    val trainingGoal: TrainingGoal get() = settings.trainingGoal
+
+    fun useSuggestionHistory(history: SuggestionHistory) {
+        suggestionHistory = history
+    }
+
+    /**
+     * The pill for the keypad row at [index] (#308), or null. Only on the empty open set row in
+     * LIVE mode, never when a set of this block has an open mistake hint (#304) or cannot be read.
+     * Cheap: one parse of this block's rows and a map lookup; the caller remembers it per block.
+     */
+    fun ghostSuggestion(index: Int): ExerciseSuggestion? {
+        if (keypadMode != KeypadMode.LIVE || index !in lines.indices || isMainRow(index)) return null
+        if (lines[index].id != keypadRowId || splitSetRow(lines[index].text.value.text).entry.isNotBlank()) return null
+        val ex = exerciseIndexOf(index)
+        val name = lines[ex].text.value.text
+        if (name.isBlank()) return null
+        val sessions = suggestionHistory.forExercise(name)
+        if (sessions.isEmpty()) return null
+        val earlierRows = (ex + 1 until index).filter { lines[it].text.value.text.isNotBlank() }
+        if (earlierRows.any { lines[it].id in guardHints }) return null
+        val defaultUnit = if (settings.defaultWeightUnit == com.example.gymtrack.core.data.WeightUnit.LB) LoadUnit.LB else LoadUnit.KG
+        val texts = earlierRows.map { lines[it].text.value.text }
+        val today = texts.mapIndexed { i, text -> todaySet(setRowDisplay(text, texts.take(i), settings.defaultWeightUnit), defaultUnit) }
+        val usualRest = runCatching { guardrails.usualRestSeconds(name, lines[ex].flag.value) }.getOrNull()
+        return SuggestionEngine.suggest(sessions, today, trainingGoal, ExerciseKind.guess(name), usualRest)
+            .takeIf { it.next != null }
+    }
+
+    /** Pill tap (#308): fills the empty open set row; Next still commits it. Nothing is logged here. */
+    fun applySuggestion(rowId: Long, entry: String): Boolean {
+        if (finishing || keypadMode != KeypadMode.LIVE || keypadRowId != rowId) return false
+        val index = indexOfRow(rowId)
+        if (index < 0 || lines[index].text.value.text.isNotBlank()) return false
+        val text = entry.trim()
+        if (text.isEmpty()) return false
+        onTextChange(index, TextFieldValue(text, TextRange(text.length)))
+        suggestionsAccepted += 1
+        return true
+    }
+
+    /** Pill taps this editor session (#308 accept rate; not persisted yet). */
+    var suggestionsAccepted = 0
+        private set
 
     /** The current exercise's usual rest from history (#349), or null. */
     fun usualRestSeconds(exerciseName: String, flag: ExerciseFlag): Int? = guardrails.usualRestSeconds(exerciseName, flag)

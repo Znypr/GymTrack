@@ -31,7 +31,7 @@ Keep the two files in sync. Because the rules use `<include>`, only the listed f
 | `databases/note_database` (Room) | Yes | All workouts, exercises, sets and notes |
 | `databases/note_database-wal` | Yes | SQLite write-ahead log. It can hold recent writes not yet checkpointed into the main file. Backed up together so the snapshot is complete |
 | `databases/note_database-shm` | No | SQLite shared-memory index. SQLite rebuilds it from the WAL on open |
-| `files/datastore/settings.preferences_pb` (`SettingsStore`) | Yes | 24-hour clock, rounding, dark mode, categories, default weight unit |
+| `files/datastore/settings.preferences_pb` (`SettingsStore`) | Yes | 24-hour clock, rounding, dark mode, categories, default weight unit, training goal |
 | `files/datastore/note_timer.preferences_pb` (`NoteTimerStore`) | No | The running workout timer is stored as wall-clock start time. Restored days later or on another phone it would show a wrong, huge elapsed time |
 | `shared_prefs/stats_cache.xml` (`StatsPersistentCacheStore`) | No | Rebuildable statistics cache, versioned and recomputed from the database |
 | `files/csv/`, `files/export_failed.log` | No | Old CSV export copies, derived from the database. The user's copies are in Downloads |
@@ -145,6 +145,8 @@ Top-level fields:
 - `canonicalWorkouts`
 - `canonicalWorkoutExercises`
 - `canonicalWorkoutSets`
+
+`settings.trainingGoal` (#312) is optional: `NONE`, `BUILD_MUSCLE`, `LOSE_FAT` or `GET_STRONGER`. Backups without it, or with an unknown value, restore as `NONE` (no goal). Older app versions ignore it.
 
 Legacy set records include `weightUnit` when available. Older v1 backup files that do not contain this field are still readable and default missing legacy set units to `KG` during decode because previous legacy rows had no source-unit column.
 

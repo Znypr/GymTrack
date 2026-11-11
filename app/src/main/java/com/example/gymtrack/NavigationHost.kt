@@ -290,6 +290,7 @@ fun NavigationHost(
                     onStartCategory = { name ->
                         requestStart(settings.categories.firstOrNull { it.name == name })
                     },
+                    onGoalSelected = { goal -> onSettingsUpdate(settings.copy(trainingGoal = goal)) },
                 )
             }
 

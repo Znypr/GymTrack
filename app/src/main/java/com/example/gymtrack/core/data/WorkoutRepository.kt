@@ -271,6 +271,26 @@ class WorkoutRepository(
         idsByName.mapNotNull { (name, id) -> sessions[id]?.let { name to it } }.toMap()
     }
 
+    /**
+     * [recentSessions] of every exercise with saved history, keyed by the exercise's stored name
+     * (#308). The editor loads this once when it opens, off the main thread, so an exercise typed
+     * mid-workout needs no query; Enter never queries.
+     */
+    suspend fun recentSessionsForAllExercises(
+        perExercise: Int = RECENT_SESSIONS,
+    ): Map<String, List<ExerciseRecentEntity>> = withContext(Dispatchers.IO) {
+        val exercises = exerciseDao.getAllForBackup()
+        if (exercises.isEmpty()) return@withContext emptyMap()
+        ensureDerivedIndexes()
+        val nameById = exercises.associate { it.exerciseId to it.name }
+        // SQLite caps bound parameters; chunk the id list.
+        exercises.map { it.exerciseId }.chunked(RECENT_ID_CHUNK).flatMap { ids ->
+            derivedDao.recentForExercises(ids, perExercise)
+        }.groupBy { it.exerciseId }
+            .mapNotNull { (id, rows) -> nameById[id]?.let { it to rows } }
+            .toMap()
+    }
+
     /** Effective working sets per muscle in the ISO week [weekKey] (`2026-W45`), most first (#307). */
     suspend fun muscleWeek(weekKey: String = DerivedIndexWriter.weekKey(AppClock.nowMillis())): List<MuscleWeekTotal> {
         ensureDerivedIndexes()
@@ -679,6 +699,7 @@ class WorkoutRepository(
     companion object {
         const val RECENT_SESSIONS = 5
         const val REBUILD_CHUNK = 50
+        private const val RECENT_ID_CHUNK = 500
 
         /** One rebuild at a time per process, whichever repository instance asks. */
         private val rebuildMutex = Mutex()
