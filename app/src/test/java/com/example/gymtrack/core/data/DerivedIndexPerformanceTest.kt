@@ -1,5 +1,7 @@
 package com.example.gymtrack.core.data
 
+import com.example.gymtrack.core.muscle.MuscleExerciseRef
+import com.example.gymtrack.core.muscle.MuscleResolver
 import com.example.gymtrack.core.util.WorkoutParser
 import com.example.gymtrack.simulation.EditorTranscript
 import com.example.gymtrack.simulation.WorkoutHistoryGenerator
@@ -49,12 +51,16 @@ class DerivedIndexPerformanceTest {
         var warmUps = 0
         var recentRows = 0
         var muscleRows = 0
+        // Live view of the exercises seen so far: the real seed, as the repository's rebuild uses it (#309).
+        val refs = LinkedHashMap<Long, MuscleExerciseRef>()
+        val resolver = MuscleResolver(refs, emptyMap())
         for (note in notes) {
             val parsed = parser.parseWorkout(note.text, rowMetadata = note.rowMetadata)
             val rows = parsed.map { set ->
                 SetEntity(
                     workoutId = note.timestamp,
-                    exerciseId = exerciseIds.getOrPut(set.exerciseIdentity.canonicalName) { exerciseIds.size + 1L },
+                    exerciseId = exerciseIds.getOrPut(set.exerciseIdentity.canonicalName) { exerciseIds.size + 1L }
+                        .also { id -> refs.getOrPut(id) { MuscleExerciseRef(id, set.exerciseIdentity.canonicalName, null) } },
                     weight = set.weight,
                     reps = set.reps,
                     isUnilateral = set.isUnilateral,
@@ -69,7 +75,7 @@ class DerivedIndexPerformanceTest {
             sets += classified.size
             warmUps += classified.count { it.setType == SetType.WARMUP.storageValue }
             recentRows += DerivedIndexWriter.recentRows(note.timestamp, classified).size
-            muscleRows += DerivedIndexWriter.muscleWeekRows(note.timestamp, classified, { null }).size
+            muscleRows += DerivedIndexWriter.muscleWeekRows(note.timestamp, classified, resolver::resolve).size
         }
         return Totals(sets, warmUps, recentRows, muscleRows)
     }

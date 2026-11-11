@@ -4,7 +4,7 @@ GymTrack stores workout history locally. Production database upgrades must never
 
 ## Current schema
 
-The current Room schema is version 13.
+The current Room schema is version 15.
 
 Legacy compatibility tables remain available:
 
@@ -41,11 +41,13 @@ Repository history provides complete schemas for these versions:
 | 11 | Adds `notes.rowMetadata` |
 | 12 | Adds the training-summary outbox |
 | 13 | No schema change: backfills NULL `workout_sets.weight_unit` from legacy `sets.weightUnit` |
+| 14 | Adds `sets.setType`/`setTypeSource`/`restSeconds` and the derived `exercise_recent`, `muscle_week`, `derived_index_state` tables (#306, #307) |
+| 15 | Adds `exercise_muscles` (user muscle overrides, FK CASCADE to `exercises`); recreates the derived `muscle_week` with `exercise_id` and clears the derived stamp so the lazy rebuild writes real per-muscle sets (#309, #310, ADR 0003) |
 
 The supported upgrade chain is:
 
 ```text
-1 -> 2 -> 3 -> 4 -> 8 -> 9 -> 10 -> 11 -> 12 -> 13
+1 -> 2 -> 3 -> 4 -> 8 -> 9 -> 10 -> 11 -> 12 -> 13 -> 14 -> 15
 ```
 
 Versions 5, 6, and 7 do not exist in committed schema history. GymTrack does not guess their structure. Opening one of those databases fails without deleting or replacing the database file.

@@ -15,6 +15,7 @@ object BackupJsonCodec {
         .put("canonicalWorkouts", payload.canonicalWorkouts.asJsonArray { it.toBackupObject() })
         .put("canonicalWorkoutExercises", payload.canonicalWorkoutExercises.asJsonArray { it.toBackupObject() })
         .put("canonicalWorkoutSets", payload.canonicalWorkoutSets.asJsonArray { it.toBackupObject() })
+        .put("exerciseMuscles", payload.exerciseMuscles.asJsonArray { it.asBackupJson() })
         .toString()
         .toByteArray(StandardCharsets.UTF_8)
 
@@ -31,6 +32,8 @@ object BackupJsonCodec {
             canonicalWorkouts = root.getJSONArray("canonicalWorkouts").mapJsonObjects { it.readBackupWorkout() },
             canonicalWorkoutExercises = root.getJSONArray("canonicalWorkoutExercises").mapJsonObjects { it.readBackupWorkoutExercise() },
             canonicalWorkoutSets = root.getJSONArray("canonicalWorkoutSets").mapJsonObjects { it.readBackupWorkoutSet() },
+            // Optional (#310): absent in backups from before v15.
+            exerciseMuscles = root.optJSONArray("exerciseMuscles")?.mapJsonObjects { it.asBackupExerciseMuscle() }.orEmpty(),
         )
     } catch (error: Exception) {
         throw InvalidBackupException("Backup data is malformed", error)
@@ -71,6 +74,7 @@ private fun BackupCounts.toJsonObject(): JSONObject = JSONObject()
     .put("canonicalWorkouts", canonicalWorkouts)
     .put("canonicalWorkoutExercises", canonicalWorkoutExercises)
     .put("canonicalWorkoutSets", canonicalWorkoutSets)
+    .put("exerciseMuscles", exerciseMuscles)
 
 private fun JSONObject.asBackupCounts(): BackupCounts = BackupCounts(
     legacyNotes = getInt("legacyNotes"),
@@ -82,4 +86,5 @@ private fun JSONObject.asBackupCounts(): BackupCounts = BackupCounts(
     canonicalWorkouts = getInt("canonicalWorkouts"),
     canonicalWorkoutExercises = getInt("canonicalWorkoutExercises"),
     canonicalWorkoutSets = getInt("canonicalWorkoutSets"),
+    exerciseMuscles = optInt("exerciseMuscles", 0),
 )

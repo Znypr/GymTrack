@@ -1,6 +1,16 @@
 package com.example.gymtrack.core.data
 
 import com.example.gymtrack.core.time.AppClock
+import com.example.gymtrack.core.muscle.Muscle
+import com.example.gymtrack.core.muscle.MuscleExerciseRef
+import com.example.gymtrack.core.muscle.MuscleLevel
+import com.example.gymtrack.core.muscle.MuscleMapping
+import com.example.gymtrack.core.muscle.MuscleMappingSeed
+import com.example.gymtrack.core.muscle.MuscleResolver
+import com.example.gymtrack.core.muscle.MuscleRole
+import com.example.gymtrack.core.muscle.MuscleSeedEntry
+import com.example.gymtrack.core.muscle.MuscleWeekRow
+import com.example.gymtrack.core.muscle.WeeklyMuscleSummary
 import androidx.room.withTransaction
 import com.example.gymtrack.core.data.canonical.toDomain
 import com.example.gymtrack.core.data.transition.CanonicalExerciseCatalog
@@ -271,11 +281,82 @@ class WorkoutRepository(
         idsByName.mapNotNull { (name, id) -> sessions[id]?.let { name to it } }.toMap()
     }
 
-    /** Effective working sets per muscle in the ISO week [weekKey] (`2026-W45`), most first (#307). */
+    /**
+     * Effective working sets per muscle key in the ISO week [weekKey] (`2026-W45`), most first
+     * (#307). Keys are [Muscle.id]s plus [WeeklyMuscleSummary.UNMAPPED_KEY]; prefer
+     * [weeklyMuscleSummary], which also gives levels and the exercises behind each muscle.
+     */
     suspend fun muscleWeek(weekKey: String = DerivedIndexWriter.weekKey(AppClock.nowMillis())): List<MuscleWeekTotal> {
         ensureDerivedIndexes()
         return derivedDao.muscleWeek(weekKey)
     }
+
+    /**
+     * All 26 regions for the ISO week [weekKey] (#309): fractional working sets, level and the
+     * exercises behind them, plus the trained exercises that have no mapping.
+     */
+    suspend fun weeklyMuscleSummary(weekKey: String = DerivedIndexWriter.weekKey(AppClock.nowMillis())): WeeklyMuscleSummary =
+        withContext(Dispatchers.IO) {
+            ensureDerivedIndexes()
+            val rows = derivedDao.muscleWeekByExercise(weekKey).map {
+                MuscleWeekRow(it.muscle, it.exerciseId, it.name, it.effectiveSets)
+            }
+            WeeklyMuscleSummary.from(weekKey, rows)
+        }
+
+    /** Level of each of the 26 regions in [weekKey]; [MuscleLevel.UNMAPPED] is never zero (#309). */
+    suspend fun weeklyMuscleLevels(weekKey: String = DerivedIndexWriter.weekKey(AppClock.nowMillis())): Map<Muscle, MuscleLevel> =
+        weeklyMuscleSummary(weekKey).levels
+
+    /**
+     * The muscles [exerciseIds] count for (#310): the first id's resolved mapping (they are one
+     * exercise group on the Progress tab), whether it is the user's edit, and the seed behind it.
+     */
+    suspend fun exerciseMuscleMapping(exerciseIds: List<Long>): ExerciseMuscleMappingState = withContext(Dispatchers.IO) {
+        val id = exerciseIds.firstOrNull() ?: return@withContext ExerciseMuscleMappingState(null, null, isUserEdit = false)
+        val resolver = muscleResolver()
+        val exercise = derivedDao.exerciseMuscleRefs().firstOrNull { it.exerciseId == id }
+        ExerciseMuscleMappingState(
+            mapping = resolver.resolve(id),
+            seed = exercise?.let { MuscleMappingSeed.lookup(it.name) },
+            isUserEdit = database.exerciseMuscleDao().getForExercises(listOf(id)).isNotEmpty(),
+        )
+    }
+
+    /**
+     * Stores the user's muscles for every id in [exerciseIds] (#310) and re-renders the muscle rows
+     * of every workout with those exercises. Logged sets are never rewritten. [primary] must not
+     * be empty; a muscle in both sets counts as primary.
+     */
+    suspend fun setExerciseMuscles(exerciseIds: List<Long>, primary: Set<Muscle>, secondary: Set<Muscle>) {
+        require(primary.isNotEmpty()) { "An exercise needs at least one primary muscle" }
+        val rows = exerciseIds.distinct().flatMap { id ->
+            primary.map { ExerciseMuscleEntity(id, it.id, MuscleRole.PRIMARY.storageValue) } +
+                (secondary - primary).map { ExerciseMuscleEntity(id, it.id, MuscleRole.SECONDARY.storageValue) }
+        }
+        replaceExerciseMuscles(exerciseIds, rows)
+    }
+
+    /** Deletes the user's muscles of [exerciseIds]: they use the seed again (#310). */
+    suspend fun resetExerciseMusclesToSeed(exerciseIds: List<Long>) = replaceExerciseMuscles(exerciseIds, emptyList())
+
+    private suspend fun replaceExerciseMuscles(exerciseIds: List<Long>, rows: List<ExerciseMuscleEntity>) {
+        if (exerciseIds.isEmpty()) return
+        withContext(Dispatchers.IO) {
+            database.withTransaction {
+                database.exerciseMuscleDao().replaceForExercises(exerciseIds.distinct(), rows)
+                val resolver = muscleResolver()
+                derivedDao.workoutIdsForExercises(exerciseIds.distinct()).forEach { workoutId ->
+                    writeMuscleRows(workoutId, setDao.getForWorkout(workoutId), resolver)
+                }
+            }
+        }
+    }
+
+    private suspend fun muscleResolver(): MuscleResolver = MuscleResolver(
+        exercises = derivedDao.exerciseMuscleRefs().associate { it.exerciseId to MuscleExerciseRef(it.exerciseId, it.name, it.parentId) },
+        overrides = database.exerciseMuscleDao().getAll().toOverrides(),
+    )
 
     /**
      * Brings the derived rows and the inferred set types of saved workouts up to date when the
@@ -313,7 +394,8 @@ class WorkoutRepository(
                         break
                     }
                     database.withTransaction {
-                        workoutIds.forEach { rederiveStoredWorkout(it) }
+                        val resolver = muscleResolver()
+                        workoutIds.forEach { rederiveStoredWorkout(it, resolver) }
                         cursor = cursor.copy(rebuiltThrough = workoutIds.last())
                         derivedDao.putState(cursor)
                     }
@@ -333,7 +415,7 @@ class WorkoutRepository(
     }
 
     /** Re-classifies one workout's stored rows in place (units untouched) and rewrites its derived rows. */
-    private suspend fun rederiveStoredWorkout(workoutId: Long) {
+    private suspend fun rederiveStoredWorkout(workoutId: Long, resolver: MuscleResolver) {
         val rows = setDao.getForWorkout(workoutId)
         if (rows.isEmpty()) {
             deleteDerivedRows(workoutId)
@@ -351,7 +433,7 @@ class WorkoutRepository(
         }
         val classified = DerivedIndexWriter.classify(rows, offsets, overrides = overrides)
         updateChangedRows(rows, classified)
-        writeDerivedRows(workoutId, classified)
+        writeDerivedRows(workoutId, classified, resolver)
     }
 
     private suspend fun updateChangedRows(old: List<SetEntity>, new: List<SetEntity>) {
@@ -365,14 +447,17 @@ class WorkoutRepository(
         }
     }
 
-    private suspend fun writeDerivedRows(workoutId: Long, rows: List<SetEntity>) {
-        deleteDerivedRows(workoutId)
+    private suspend fun writeDerivedRows(workoutId: Long, rows: List<SetEntity>, resolver: MuscleResolver? = null) {
+        derivedDao.deleteRecentForWorkout(workoutId)
         val recent = DerivedIndexWriter.recentRows(workoutId, rows)
         if (recent.isNotEmpty()) derivedDao.insertRecent(recent)
-        val exerciseIds = rows.map { it.exerciseId }.filter { it > 0 }.distinct()
-        if (exerciseIds.isEmpty()) return
-        val groups = derivedDao.muscleGroups(exerciseIds).associate { it.exerciseId to it.muscleGroup }
-        val muscles = DerivedIndexWriter.muscleWeekRows(workoutId, rows, groups::get)
+        writeMuscleRows(workoutId, rows, resolver ?: muscleResolver())
+    }
+
+    /** Rewrites one workout's `muscle_week` rows from its stored, classified [rows] (#309). */
+    private suspend fun writeMuscleRows(workoutId: Long, rows: List<SetEntity>, resolver: MuscleResolver) {
+        derivedDao.deleteMuscleWeekForWorkout(workoutId)
+        val muscles = DerivedIndexWriter.muscleWeekRows(workoutId, rows, resolver::resolve)
         if (muscles.isNotEmpty()) derivedDao.insertMuscleWeek(muscles)
     }
 
@@ -708,3 +793,13 @@ class WorkoutRepository(
                 ?.let { note.timestamp + it.seconds * 1_000L }
     }
 }
+
+/** What the "Edit muscles" sheet shows for one exercise (#310). */
+data class ExerciseMuscleMappingState(
+    /** The resolved mapping; null when the exercise is unmapped. */
+    val mapping: MuscleMapping?,
+    /** The built-in seed row for the exercise, if any (what "Reset" goes back to). */
+    val seed: MuscleSeedEntry?,
+    /** True when the user's own edit is stored. */
+    val isUserEdit: Boolean,
+)

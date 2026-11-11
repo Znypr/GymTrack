@@ -5,6 +5,7 @@ object BackupValidator {
         checkUnique("legacy note timestamps", payload.legacyNotes.map { it.timestamp })
         checkUnique("legacy exercise IDs", payload.legacyExercises.map { it.exerciseId })
         checkUnique("legacy set IDs", payload.legacySets.map { it.setId })
+        checkUnique("exercise muscles", payload.exerciseMuscles.map { it.exerciseId to it.muscle })
         checkUnique("canonical category IDs", payload.canonicalCategories.map { it.id })
         checkUnique("canonical exercise IDs", payload.canonicalExercises.map { it.id })
         checkUnique("canonical alias IDs", payload.canonicalExerciseAliases.map { it.id })
@@ -33,6 +34,11 @@ object BackupValidator {
         payload.legacySets.forEach { value ->
             ensure(value.workoutId in legacyNotes, "Legacy set ${value.setId} references a missing workout")
             ensure(value.exerciseId in legacyExercises, "Legacy set ${value.setId} references a missing exercise")
+        }
+        // Unknown muscle ids or roles (a newer app) are kept but ignored by the resolver.
+        payload.exerciseMuscles.forEach { value ->
+            ensure(value.exerciseId in legacyExercises, "Muscle edit ${value.exerciseId}/${value.muscle} references a missing exercise")
+            ensure(value.muscle.isNotBlank() && value.role.isNotBlank(), "Muscle edit of exercise ${value.exerciseId} is blank")
         }
 
         val categories = payload.canonicalCategories.mapTo(hashSetOf()) { it.id }

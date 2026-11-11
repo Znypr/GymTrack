@@ -103,6 +103,7 @@ Fields:
 - `canonicalWorkouts`
 - `canonicalWorkoutExercises`
 - `canonicalWorkoutSets`
+- `exerciseMuscles` (optional, since schema 15; missing means 0)
 
 The total user-facing restore count is the sum of those count fields.
 
@@ -145,6 +146,7 @@ Top-level fields:
 - `canonicalWorkouts`
 - `canonicalWorkoutExercises`
 - `canonicalWorkoutSets`
+- `exerciseMuscles` (optional, since schema 15): the user's muscle edits, `{exerciseId, muscle, role, source}` per row. Missing in older backups, which restore with no edits (every exercise uses the built-in mapping). Unknown muscle ids or roles from a newer app are kept and ignored.
 
 Legacy set records include `weightUnit` when available. Older v1 backup files that do not contain this field are still readable and default missing legacy set units to `KG` during decode because previous legacy rows had no source-unit column.
 
@@ -169,6 +171,7 @@ A backup is rejected when:
 - canonical workouts reference missing categories;
 - canonical workout exercises reference missing workouts or exercises;
 - canonical workout sets reference missing workout exercises;
+- muscle edits reference missing legacy exercises, are blank, or repeat an (exercise, muscle) pair;
 - canonical exercise parent references are missing, self-referential, or cyclic.
 
 Unsupported backup versions fail safely with an explicit unsupported-version error. The app does not guess or partially import unknown formats.

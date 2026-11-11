@@ -1,6 +1,7 @@
 package com.example.gymtrack.core.backup
 
 import com.example.gymtrack.core.data.ExerciseEntity
+import com.example.gymtrack.core.data.ExerciseMuscleEntity
 import com.example.gymtrack.core.data.NoteEntity
 import com.example.gymtrack.core.data.SetEntity
 import com.example.gymtrack.core.data.SetType
@@ -27,6 +28,8 @@ internal fun JSONObject.asBackupNoteEntity(): NoteEntity = NoteEntity(
     rowMetadata = optionalString("rowMetadata"),
 )
 
+// The free-text muscleGroup is kept in backups so no data is lost, but never read for stats (#309).
+@Suppress("DEPRECATION")
 internal fun ExerciseEntity.asBackupJson(): JSONObject = JSONObject()
     .put("exerciseId", exerciseId)
     .put("name", name)
@@ -40,6 +43,19 @@ internal fun JSONObject.asBackupExerciseEntity(): ExerciseEntity = ExerciseEntit
     parentId = optionalLong("parentId"),
     muscleGroup = optionalString("muscleGroup"),
     aliases = getString("aliases"),
+)
+
+internal fun ExerciseMuscleEntity.asBackupJson(): JSONObject = JSONObject()
+    .put("exerciseId", exerciseId)
+    .put("muscle", muscle)
+    .put("role", role)
+    .put("source", source)
+
+internal fun JSONObject.asBackupExerciseMuscle(): ExerciseMuscleEntity = ExerciseMuscleEntity(
+    exerciseId = getLong("exerciseId"),
+    muscle = getString("muscle"),
+    role = getString("role"),
+    source = optString("source", ExerciseMuscleEntity.SOURCE_USER),
 )
 
 internal fun SetEntity.asBackupJson(): JSONObject = JSONObject()

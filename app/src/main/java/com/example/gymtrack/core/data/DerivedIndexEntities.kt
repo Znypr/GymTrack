@@ -40,16 +40,17 @@ data class ExerciseRecentEntity(
 )
 
 /**
- * Effective working sets per muscle per ISO week (#307), tagged with the workout so an edit or a
- * delete rewrites only that workout's rows.
+ * Effective working sets per muscle, exercise and ISO week (#307, #309), tagged with the workout
+ * so an edit or a delete rewrites only that workout's rows.
  *
- * Until the muscle map lands, [muscle] is a stub: the exercise's `muscleGroup` when set, else
- * `exercise:<exerciseId>`, and [effectiveSets] is the plain working-set count. The muscle-map work
- * replaces [DerivedIndexWriter.muscleKeysFor] and bumps [DerivedIndexWriter.VERSION].
+ * [muscle] is a [com.example.gymtrack.core.muscle.Muscle.id], or
+ * [com.example.gymtrack.core.muscle.WeeklyMuscleSummary.UNMAPPED_KEY] for the working sets of an
+ * exercise with no mapping (then [effectiveSets] is the plain set count). Primary muscles get 1.0
+ * per working set, secondary 0.5 ([com.example.gymtrack.core.muscle.MuscleLoadCalculator]).
  */
 @Entity(
     tableName = "muscle_week",
-    primaryKeys = ["workout_id", "muscle"],
+    primaryKeys = ["workout_id", "muscle", "exercise_id"],
     indices = [Index(value = ["week_key", "muscle"])],
 )
 data class MuscleWeekEntity(
@@ -57,6 +58,8 @@ data class MuscleWeekEntity(
     /** ISO week of the workout in the device zone at write time, e.g. `2026-W45`. */
     @ColumnInfo(name = "week_key") val weekKey: String,
     val muscle: String,
+    /** Legacy `exercises.exerciseId` the sets came from. */
+    @ColumnInfo(name = "exercise_id") val exerciseId: Long,
     @ColumnInfo(name = "effective_sets") val effectiveSets: Float,
 )
 
@@ -70,7 +73,16 @@ data class DerivedIndexStateEntity(
     val complete: Boolean,
 )
 
-data class ExerciseMuscleRow(val exerciseId: Long, val muscleGroup: String?)
+/** Name and parent of one exercise, for the muscle resolver. */
+data class ExerciseMuscleRefRow(val exerciseId: Long, val name: String, val parentId: Long?)
+
+/** Per muscle and exercise sums of one week, with the exercise name. */
+data class MuscleWeekExerciseRow(
+    val muscle: String,
+    @ColumnInfo(name = "exercise_id") val exerciseId: Long,
+    val name: String?,
+    @ColumnInfo(name = "effective_sets") val effectiveSets: Float,
+)
 
 data class MuscleWeekTotal(
     @ColumnInfo(name = "week_key") val weekKey: String,
@@ -141,8 +153,28 @@ interface DerivedIndexDao {
     @Query("DELETE FROM derived_index_state")
     suspend fun clearStates()
 
-    @Query("SELECT exerciseId, muscleGroup FROM exercises WHERE exerciseId IN (:exerciseIds)")
-    suspend fun muscleGroups(exerciseIds: List<Long>): List<ExerciseMuscleRow>
+    /**
+     * Every exercise's name and parent for the muscle resolver (#309). The free-text
+     * `exercises.muscleGroup` is deliberately not read: muscle stats come from the seed and the
+     * user's `exercise_muscles` overrides only.
+     */
+    @Query("SELECT exerciseId, name, parentId FROM exercises")
+    suspend fun exerciseMuscleRefs(): List<ExerciseMuscleRefRow>
+
+    @Query(
+        """
+        SELECT m.muscle AS muscle, m.exercise_id AS exercise_id, e.name AS name,
+               CAST(SUM(m.effective_sets) AS REAL) AS effective_sets
+        FROM muscle_week AS m LEFT JOIN exercises AS e ON e.exerciseId = m.exercise_id
+        WHERE m.week_key = :weekKey
+        GROUP BY m.muscle, m.exercise_id ORDER BY m.muscle, effective_sets DESC
+        """,
+    )
+    suspend fun muscleWeekByExercise(weekKey: String): List<MuscleWeekExerciseRow>
+
+    /** Workouts with set rows of any of [exerciseIds] (re-derive after a mapping edit). */
+    @Query("SELECT DISTINCT workoutId FROM sets WHERE exerciseId IN (:exerciseIds) ORDER BY workoutId")
+    suspend fun workoutIdsForExercises(exerciseIds: List<Long>): List<Long>
 
     /** Next [limit] workout ids with set rows after [after], oldest first (lazy rebuild chunk). */
     @Query("SELECT DISTINCT workoutId FROM sets WHERE workoutId > :after ORDER BY workoutId LIMIT :limit")

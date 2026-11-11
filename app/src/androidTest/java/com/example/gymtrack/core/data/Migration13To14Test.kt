@@ -116,7 +116,10 @@ class Migration13To14Test {
 
                 val sessions = repository.recentSessions(listOf(1L))
                 assertEquals(1, sessions.getValue(1L).size)
-                assertEquals(3f, repository.muscleWeek(DerivedIndexWriter.weekKey(1000)).single().effectiveSets)
+                // Three working bench sets: 3 per chest head (primary), 1.5 triceps (secondary) (#309).
+                val muscles = repository.muscleWeek(DerivedIndexWriter.weekKey(1000)).associate { it.muscle to it.effectiveSets }
+                assertEquals(3f, muscles.getValue("chestLower"))
+                assertEquals(1.5f, muscles.getValue("triceps"))
 
                 repository.deleteWorkout(1000)
                 assertTrue(database.derivedIndexDao().recentForWorkout(1000).isEmpty())

@@ -40,6 +40,8 @@ class CrossVersionBackupFixtureTest {
             assertEquals("0.9.0-schema8-fixture", contents.manifest.appVersion)
             assertEquals(8, contents.manifest.databaseSchemaVersion)
             assertEquals(expectedSchema8Counts(), contents.manifest.counts)
+            // Old backups have no muscle edits (#310): optional field, count 0, exercises use the seed.
+            assertTrue(contents.payload.exerciseMuscles.isEmpty())
 
             val result = repository.restoreBackup(context, context.contentResolver, Uri.fromFile(fixture))
             val restored = repository.snapshot(result.settings)

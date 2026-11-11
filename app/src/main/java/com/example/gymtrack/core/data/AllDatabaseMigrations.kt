@@ -8,4 +8,5 @@ val ALL_DATABASE_MIGRATIONS = arrayOf(
     TrainingSummaryOutboxDatabaseMigration.MIGRATION_11_12,
     CanonicalSetUnitBackfill.MIGRATION_12_13,
     SetTypeDatabaseMigration.MIGRATION_13_14,
+    ExerciseMuscleDatabaseMigration.MIGRATION_14_15,
 )

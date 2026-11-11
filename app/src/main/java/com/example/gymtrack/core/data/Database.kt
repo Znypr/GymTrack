@@ -79,6 +79,8 @@ data class ExerciseEntity(
     @PrimaryKey(autoGenerate = true) val exerciseId: Long = 0,
     val name: String,
     val parentId: Long? = null,
+    /** Free text from early versions. Kept for backups only; muscle stats use `core/muscle` (#309). */
+    @Deprecated("Free text, never read for muscle stats; use MuscleResolver / WorkoutRepository.exerciseMuscleMapping (#309)")
     val muscleGroup: String?,
     val aliases: String,
 )
@@ -353,8 +355,9 @@ interface SetDao {
         ExerciseRecentEntity::class,
         MuscleWeekEntity::class,
         DerivedIndexStateEntity::class,
+        ExerciseMuscleEntity::class,
     ],
-    version = 14,
+    version = 15,
 )
 abstract class NoteDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
@@ -368,6 +371,7 @@ abstract class NoteDatabase : RoomDatabase() {
     abstract fun backupDao(): BackupDao
     abstract fun trainingSummaryOutboxDao(): TrainingSummaryOutboxDao
     abstract fun derivedIndexDao(): DerivedIndexDao
+    abstract fun exerciseMuscleDao(): ExerciseMuscleDao
 
     companion object {
         @Volatile
