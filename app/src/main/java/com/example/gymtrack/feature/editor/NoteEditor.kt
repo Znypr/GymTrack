@@ -45,6 +45,7 @@ import com.example.gymtrack.feature.editor.components.EditorMenuPage
 import com.example.gymtrack.feature.editor.components.EditorSetKeypad
 import com.example.gymtrack.feature.editor.components.EditorTopLine
 import com.example.gymtrack.feature.editor.components.LearningsPopup
+import com.example.gymtrack.feature.editor.components.rememberRestTimer
 import com.example.gymtrack.feature.editor.components.rememberWorkoutTimer
 import kotlinx.coroutines.launch
 
@@ -86,6 +87,11 @@ fun NoteEditor(
     }
 
     LaunchedEffect(isLastNote) { viewModel.isActiveWorkout = isLastNote }
+
+    // #304 / #349: history is parsed once, off the main thread; Enter only looks it up.
+    LaunchedEffect(viewModel) { viewModel.loadSetHistory(settings.defaultWeightUnit, state.noteTimestamp) }
+    val setHistory by viewModel.setHistory.collectAsState()
+    LaunchedEffect(setHistory) { setHistory?.let(state::useHistory) }
 
     LaunchedEffect(saveError) {
         saveError?.let { message ->
@@ -167,6 +173,22 @@ fun NoteEditor(
         }
     }
     val onEditSetAsText: (Int) -> Unit = remember { { index -> editAsTextIndex = index } }
+    val onGuardFix: (Long) -> Unit = remember(state) {
+        { rowId ->
+            state.applyGuardHintFix(rowId)?.let { deleted ->
+                scope.launch {
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    val result = snackbarHostState.showSnackbar(
+                        message = "Set removed",
+                        actionLabel = "Undo",
+                        duration = SnackbarDuration.Short,
+                    )
+                    if (result == SnackbarResult.ActionPerformed) state.undoDelete(deleted)
+                }
+            }
+        }
+    }
+    val rest = rememberRestTimer(state, active = isLastNote)
 
     Scaffold(
         containerColor = GymTrackTheme.tokens.colors.bg,
@@ -195,6 +217,7 @@ fun NoteEditor(
                     hintsEnabled = hintsEnabled,
                     onDeleteSet = onDeleteSet,
                     onEditSetAsText = onEditSetAsText,
+                    onGuardFix = onGuardFix,
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
@@ -215,6 +238,7 @@ fun NoteEditor(
                     },
                     hintsEnabled = hintsEnabled,
                     onHintsToggle = { hintsEnabled = !hintsEnabled },
+                    rest = rest,
                     showFinish = isLastNote,
                     finishEnabled = hasLoggedSet,
                     onFinish = {

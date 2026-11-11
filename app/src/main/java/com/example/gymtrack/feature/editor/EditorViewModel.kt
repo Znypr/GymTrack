@@ -13,6 +13,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import com.example.gymtrack.feature.editor.guardrail.SetHistory
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -125,6 +127,32 @@ class EditorViewModel(
             onComplete = onComplete,
             onError = onError,
         )
+    }
+
+    private val _setHistory = MutableStateFlow<SetHistory?>(null)
+
+    /** The user's per-exercise history for the input guardrails and rest default (#304, #349). */
+    val setHistory = _setHistory.asStateFlow()
+    private var historyRequested = false
+
+    /**
+     * Loads every other workout once per editor, parsed off the main thread, so Enter only does a
+     * map lookup. [excludeTimestamp] is this workout: an edited old workout is not its own history.
+     * A failure leaves the history empty: only the history-free hints run.
+     */
+    fun loadSetHistory(defaultUnit: WeightUnit, excludeTimestamp: Long) {
+        if (historyRequested) return
+        historyRequested = true
+        viewModelScope.launch {
+            val history = runCatching {
+                val notes = noteRepo.getAllNotes().first()
+                withContext(Dispatchers.Default) { SetHistory.build(notes, excludeTimestamp, defaultUnit.storageValue) }
+            }.getOrElse { error ->
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                SetHistory.EMPTY
+            }
+            _setHistory.value = history
+        }
     }
 
     fun clearSaveError() {

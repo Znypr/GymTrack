@@ -44,6 +44,9 @@ import com.example.gymtrack.core.ui.theme.GymTrackTheme
 import com.example.gymtrack.core.ui.theme.SketchShape
 import com.example.gymtrack.core.ui.theme.highlighter
 import com.example.gymtrack.core.ui.theme.sketchBorder
+import com.example.gymtrack.feature.editor.DEFAULT_REST_SECONDS
+import com.example.gymtrack.feature.editor.REST_CHOICES_SECONDS
+import com.example.gymtrack.feature.editor.formatRest
 
 internal const val EDITOR_ACCESSORY_BAR_TEST_TAG = "editor-accessory-bar"
 internal const val EDITOR_BACK_TEST_TAG = "editor-back"
@@ -54,6 +57,11 @@ internal const val EDITOR_MENU_TIMER_TEST_TAG = "editor-menu-timer"
 internal const val EDITOR_MENU_NOTES_TEST_TAG = "editor-menu-notes"
 internal const val EDITOR_MENU_CATEGORY_TEST_TAG = "editor-menu-category"
 internal const val EDITOR_MENU_HINTS_TEST_TAG = "editor-menu-hints"
+internal const val EDITOR_MENU_REST_TEST_TAG = "editor-menu-rest"
+internal const val EDITOR_MENU_REST_SKIP_TEST_TAG = "editor-menu-rest-skip"
+internal const val EDITOR_REST_COUNTDOWN_TEST_TAG = "editor-rest-countdown"
+
+internal fun editorRestChoiceTestTag(seconds: Int?): String = "editor-rest-choice-${seconds ?: "usual"}"
 
 internal fun editorFlagOptionTestTag(flag: ExerciseFlag): String = "editor-flag-option-${flag.name.lowercase()}"
 
@@ -73,7 +81,7 @@ internal fun ExerciseFlag.spokenLabel(): String = when (this) {
 }
 
 /** Which ⋯ menu page is open. Hoisted so a long-press on the top line can open the category page. */
-enum class EditorMenuPage { CLOSED, MAIN, CATEGORIES }
+enum class EditorMenuPage { CLOSED, MAIN, CATEGORIES, REST }
 
 /**
  * Bottom bar in the thumb zone (EDITOR_V2 §4): ‹ Back · flag segment · ⋯ · Finish. It sits right
@@ -98,6 +106,8 @@ fun EditorAccessoryBar(
     onFinish: () -> Unit,
     modifier: Modifier = Modifier,
     currentCategoryName: String? = null,
+    /** The rest countdown (#349); null for a past workout. */
+    rest: RestTimerUi? = null,
 ) {
     val tokens = GymTrackTheme.tokens
     val c = tokens.colors
@@ -127,7 +137,22 @@ fun EditorAccessoryBar(
                     onClick = { onMenuPageChange(EditorMenuPage.MAIN) },
                     modifier = Modifier.testTag(EDITOR_OVERFLOW_TEST_TAG),
                 ) {
-                    EditorGlyphView(EditorGlyph.MORE, contentDescription = "More: notes, timer, category, hints", tint = c.ink)
+                    // A running rest shows its countdown here, so the bar keeps its width on a
+                    // 360 dp phone (#349); the menu behind it has Skip and the rest length.
+                    val restLeft = rest?.remainingSeconds ?: 0
+                    if (restLeft > 0) {
+                        Text(
+                            text = formatRest(restLeft),
+                            style = tokens.type.small,
+                            fontWeight = FontWeight.Bold,
+                            color = c.ink,
+                            modifier = Modifier
+                                .testTag(EDITOR_REST_COUNTDOWN_TEST_TAG)
+                                .semantics { contentDescription = "Rest ${formatRest(restLeft)} left. More options" },
+                        )
+                    } else {
+                        EditorGlyphView(EditorGlyph.MORE, contentDescription = "More: notes, timer, category, hints", tint = c.ink)
+                    }
                 }
                 EditorOverflowMenu(
                     page = menuPage,
@@ -139,6 +164,7 @@ fun EditorAccessoryBar(
                     onCategorySelected = onCategorySelected,
                     hintsEnabled = hintsEnabled,
                     onHintsToggle = onHintsToggle,
+                    rest = rest,
                 )
             }
             if (showFinish) {
@@ -261,6 +287,7 @@ private fun EditorOverflowMenu(
     onCategorySelected: (Category) -> Unit,
     hintsEnabled: Boolean,
     onHintsToggle: () -> Unit,
+    rest: RestTimerUi?,
 ) {
     val tokens = GymTrackTheme.tokens
     val c = tokens.colors
@@ -272,6 +299,16 @@ private fun EditorOverflowMenu(
     ) {
         when (page) {
             EditorMenuPage.MAIN -> {
+                if (rest != null && rest.isRunning) {
+                    DropdownMenuItem(
+                        text = { Text("Skip rest (${formatRest(rest.remainingSeconds)} left)", style = itemStyle, color = c.ink) },
+                        onClick = {
+                            rest.skip()
+                            onPageChange(EditorMenuPage.CLOSED)
+                        },
+                        modifier = Modifier.testTag(EDITOR_MENU_REST_SKIP_TEST_TAG),
+                    )
+                }
                 // #297: notes open from here, with a notes icon (not ☰, which reads as navigation).
                 DropdownMenuItem(
                     text = { Text("Notes & learnings", style = itemStyle, color = c.ink) },
@@ -304,6 +341,61 @@ private fun EditorOverflowMenu(
                         onPageChange(EditorMenuPage.CLOSED)
                     },
                     modifier = Modifier.testTag(EDITOR_MENU_HINTS_TEST_TAG),
+                )
+                if (rest != null) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                if (rest.enabled) "Rest timer: ${formatRest(rest.overrideSeconds ?: rest.usualSeconds ?: DEFAULT_REST_SECONDS)}" else "Rest timer after each set",
+                                style = itemStyle,
+                                color = c.ink,
+                            )
+                        },
+                        onClick = {
+                            if (rest.enabled) {
+                                onPageChange(EditorMenuPage.REST)
+                            } else {
+                                rest.setEnabled(true)
+                                onPageChange(EditorMenuPage.CLOSED)
+                            }
+                        },
+                        modifier = Modifier.testTag(EDITOR_MENU_REST_TEST_TAG),
+                    )
+                }
+            }
+            EditorMenuPage.REST -> if (rest != null) {
+                Text(
+                    "Rest after each set",
+                    style = tokens.type.small,
+                    color = c.inkMuted,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                AppDivider()
+                val usualLabel = rest.usualSeconds?.let { "Usual for this exercise (${formatRest(it)})" } ?: "Default (${formatRest(DEFAULT_REST_SECONDS)})"
+                (listOf<Int?>(null) + REST_CHOICES_SECONDS).forEach { seconds ->
+                    val isCurrent = rest.overrideSeconds == seconds
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                if (seconds == null) usualLabel else formatRest(seconds),
+                                style = itemStyle,
+                                color = c.ink,
+                                fontWeight = if (isCurrent) FontWeight.Bold else null,
+                            )
+                        },
+                        onClick = {
+                            rest.choose(seconds)
+                            onPageChange(EditorMenuPage.CLOSED)
+                        },
+                        modifier = Modifier.testTag(editorRestChoiceTestTag(seconds)),
+                    )
+                }
+                DropdownMenuItem(
+                    text = { Text("Turn rest timer off", style = itemStyle, color = c.ink) },
+                    onClick = {
+                        rest.setEnabled(false)
+                        onPageChange(EditorMenuPage.CLOSED)
+                    },
                 )
             }
             EditorMenuPage.CATEGORIES -> {

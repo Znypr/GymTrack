@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -20,6 +21,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
@@ -32,6 +35,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.gymtrack.core.data.ExerciseFlag
 import com.example.gymtrack.core.data.WeightUnit
+import com.example.gymtrack.core.ui.components.HintRow
 import com.example.gymtrack.core.ui.theme.GymTrackTheme
 import com.example.gymtrack.core.ui.theme.notebookPaper
 import com.example.gymtrack.core.util.CanonicalExerciseVisualTransformation
@@ -44,7 +48,9 @@ import com.example.gymtrack.feature.editor.buildEditorStructure
 import com.example.gymtrack.feature.editor.setRowDisplay
 import com.example.gymtrack.feature.editor.shortTimeLabel
 import com.example.gymtrack.feature.editor.splitSetRow
+import com.example.gymtrack.feature.editor.guardrail.GuardrailHint
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 internal const val EDITOR_FIRST_INPUT_TEST_TAG = "editor-first-input"
 
@@ -58,15 +64,42 @@ internal const val KEYPAD_HINT_NEXT_EXERCISE = "Next on an empty row → next ex
 internal const val KEYPAD_HINT_EDIT = "Editing this set · Next saves, times stay"
 internal const val KEYPAD_HINT_INSERT = "New set · Next on empty closes"
 
-/** Scrolls only when the row is not fully inside the viewport, keeping two rows of context above it. */
+/** The mistake hint (#304) of the set row at [index]. */
+internal fun editorGuardHintTestTag(index: Int): String = "editor-guard-hint-$index"
+
+/** Which scroll brings a row fully inside the viewport (NONE = already inside). */
+internal enum class RevealMove { NONE, TO_ANCHOR, TO_TOP, BY_DELTA }
+
+/**
+ * Where the row stands against the viewport the list has right now: the viewport already ends at
+ * the accessory bar, which sits above the keypad or the IME (#366).
+ */
+internal fun revealMove(itemOffset: Int?, itemSize: Int, viewportStart: Int, viewportEnd: Int): RevealMove = when {
+    itemOffset == null -> RevealMove.TO_ANCHOR
+    itemOffset < viewportStart -> RevealMove.TO_TOP
+    itemOffset + itemSize > viewportEnd -> RevealMove.BY_DELTA
+    else -> RevealMove.NONE
+}
+
+/**
+ * Scrolls only when the row is not fully inside the viewport: a row off screen comes back with two
+ * rows of context above it; a row cut by the bottom edge (under the bar) is pushed up just enough.
+ * Checks twice, a frame apart, because a jump to the anchor can still leave a tall row cut off.
+ */
 private suspend fun LazyListState.revealRow(index: Int) {
     if (index < 0) return
-    val info = layoutInfo
-    val item = info.visibleItemsInfo.firstOrNull { it.index == index }
-    val fullyVisible = item != null &&
-        item.offset >= info.viewportStartOffset &&
-        item.offset + item.size <= info.viewportEndOffset
-    if (!fullyVisible) scrollToItem(activeSetAnchorIndex(index))
+    repeat(2) {
+        val info = layoutInfo
+        val item = info.visibleItemsInfo.firstOrNull { it.index == index }
+        val end = info.viewportEndOffset - info.afterContentPadding
+        when (revealMove(item?.offset, item?.size ?: 0, info.viewportStartOffset, end)) {
+            RevealMove.NONE -> return
+            RevealMove.TO_ANCHOR -> scrollToItem(activeSetAnchorIndex(index))
+            RevealMove.TO_TOP -> scrollToItem(index)
+            RevealMove.BY_DELTA -> scrollBy((item!!.offset + item.size - end).toFloat())
+        }
+        withFrameNanos { }
+    }
 }
 
 /**
@@ -82,6 +115,7 @@ fun EditorListSection(
     onDeleteSet: (index: Int) -> Unit,
     onEditSetAsText: (index: Int) -> Unit,
     modifier: Modifier = Modifier,
+    onGuardFix: (rowId: Long) -> Unit = { },
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
@@ -97,17 +131,34 @@ fun EditorListSection(
         }
     }
 
-    // One input owner at a time: the keypad takes over from the IME, and the active row is kept
-    // visible above it (a second pass absorbs the keypad's own height change).
+    // One input owner at a time: the keypad takes over from the IME.
     LaunchedEffect(state.keypadRowId, state.keypadMode) {
         if (state.keypadRowId == null) return@LaunchedEffect
         focusManager.clearFocus(force = true)
         keyboardController?.hide()
-        delay(60L)
-        state.listState.revealRow(state.indexOfRow(state.keypadRowId))
-        delay(180L)
-        state.listState.revealRow(state.indexOfRow(state.keypadRowId))
+        delay(240L)
         keyboardController?.hide()
+    }
+
+    // #366: the active row (keypad row, else the focused exercise row) stays above the accessory
+    // bar + keypad/IME. Re-checked every time the viewport height changes (IME sliding away, the
+    // keypad appearing, the bar growing) or a hint opens under it, instead of on fixed delays that
+    // lost the race on slow frames. Scrolling by hand changes neither, so it is never fought.
+    val revealTargetId = state.keypadRowId ?: state.focusedRowId
+    LaunchedEffect(revealTargetId) {
+        if (revealTargetId == null) return@LaunchedEffect
+        snapshotFlow {
+            Triple(
+                state.listState.layoutInfo.viewportSize.height,
+                state.indexOfRow(revealTargetId),
+                state.latestHintRowId to state.guardHints.size,
+            )
+        }
+            .distinctUntilChanged()
+            .collect { (_, index, _) ->
+                withFrameNanos { }
+                state.listState.revealRow(index)
+            }
     }
 
     LaunchedEffect(state.releaseFocusTick) {
@@ -156,6 +207,7 @@ fun EditorListSection(
                         keypadInThisBlock = keypadExercise == info.exerciseIndex,
                         onDeleteSet = onDeleteSet,
                         onEditSetAsText = onEditSetAsText,
+                        onGuardFix = onGuardFix,
                     )
                     EditorRowKind.SEPARATOR -> SeparatorRow()
                 }
@@ -266,11 +318,26 @@ private fun SetItem(
     keypadInThisBlock: Boolean,
     onDeleteSet: (Int) -> Unit,
     onEditSetAsText: (Int) -> Unit,
+    onGuardFix: (Long) -> Unit,
 ) {
     val text = row.text.value.text
     val isKeypadRow = state.keypadRowId == row.id
     val mode = state.keypadMode
     val inputTag = editorRowInputTestTag(index)
+    val ownHint = state.guardHints[row.id]
+    val ownHintAtKeypad = ownHint != null && state.hintShownAtKeypad(row.id)
+    // The newest hint is drawn in the keypad row's reserved hint line, right under the set it
+    // is about, so the keypad row itself never moves (#304).
+    val keypadGuard: (@Composable () -> Unit)? = when {
+        !isKeypadRow -> null
+        mode == KeypadMode.LIVE -> state.lines.getOrNull(index - 1)?.let { above ->
+            state.guardHints[above.id]?.takeIf { state.hintShownAtKeypad(above.id) }?.let { hint ->
+                { GuardHint(hint, index - 1, state, onGuardFix, above.id) }
+            }
+        }
+        mode == KeypadMode.INSERT && ownHintAtKeypad -> { { GuardHint(ownHint!!, index, state, onGuardFix, row.id) } }
+        else -> null
+    }
 
     Column(Modifier.fillMaxWidth()) {
         when {
@@ -286,6 +353,7 @@ private fun SetItem(
                     },
                     testTag = inputTag,
                     onTap = {},
+                    guard = keypadGuard,
                 )
             }
             text.isBlank() -> {
@@ -304,7 +372,11 @@ private fun SetItem(
                     onTap = { state.openKeypad(row.id) },
                     onDelete = { onDeleteSet(state.indexOfRow(row.id)) },
                     onEditAsText = { onEditSetAsText(state.indexOfRow(row.id)) },
+                    flagged = ownHint != null,
                 )
+                if (ownHint != null && !ownHintAtKeypad) {
+                    GuardHint(ownHint, index, state, onGuardFix, row.id)
+                }
             }
         }
         if (isKeypadRow && mode == KeypadMode.INSERT) {
@@ -313,6 +385,7 @@ private fun SetItem(
                 hint = if (hintsEnabled) KEYPAD_HINT_INSERT else null,
                 testTag = "editor-insert-row-$index",
                 onTap = {},
+                guard = keypadGuard,
             )
         }
         if (info.isBlockEnd && text.isNotBlank() && !keypadInThisBlock) {
@@ -322,4 +395,36 @@ private fun SetItem(
             )
         }
     }
+}
+
+/**
+ * Whether the hint of [rowId] is drawn in the keypad row's hint line (it is the newest hint and
+ * the keypad row sits right under that set) instead of under the set itself.
+ */
+internal fun NoteEditorState.hintShownAtKeypad(rowId: Long): Boolean {
+    val keypadId = keypadRowId ?: return false
+    if (rowId != latestHintRowId) return false
+    return when (keypadMode) {
+        KeypadMode.LIVE -> indexOfRow(keypadId) == indexOfRow(rowId) + 1
+        KeypadMode.INSERT -> keypadId == rowId
+        KeypadMode.EDIT -> false
+    }
+}
+
+/** "!" + reason + Fix / Keep (#304). Nothing changes without a tap; Keep is remembered. */
+@Composable
+private fun GuardHint(
+    hint: GuardrailHint,
+    setIndex: Int,
+    state: NoteEditorState,
+    onGuardFix: (Long) -> Unit,
+    rowId: Long,
+) {
+    HintRow(
+        text = hint.message,
+        onFix = { onGuardFix(rowId) },
+        onKeep = { state.keepGuardHint(rowId) },
+        fixLabel = hint.fixLabel,
+        modifier = Modifier.padding(vertical = 2.dp).testTag(editorGuardHintTestTag(setIndex)),
+    )
 }

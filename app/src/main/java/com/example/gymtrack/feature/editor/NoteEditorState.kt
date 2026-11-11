@@ -18,6 +18,11 @@ import com.example.gymtrack.core.util.formatElapsedMinutesSeconds
 import com.example.gymtrack.core.util.formatSecondsToMinutesSeconds
 import com.example.gymtrack.core.util.parseDurationSeconds
 import com.example.gymtrack.core.util.parseNoteText
+import com.example.gymtrack.feature.editor.guardrail.GuardrailBlock
+import com.example.gymtrack.feature.editor.guardrail.GuardrailFix
+import com.example.gymtrack.feature.editor.guardrail.GuardrailHint
+import com.example.gymtrack.feature.editor.guardrail.SetGuardrails
+import com.example.gymtrack.feature.editor.guardrail.SetHistory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -81,6 +86,9 @@ private class EditorViewModelPersistence(
 
     override suspend fun stopTimer(noteTimestamp: Long) = NoteTimerStore.stop(context, noteTimestamp)
 }
+
+/** A set just committed by Enter / Next: what the rest countdown (#349) starts from. */
+data class SetCommit(val sequence: Int, val exerciseName: String, val flag: ExerciseFlag)
 
 private val RELATIVE_TIME_SUFFIX = Regex(""".*\(\d+'\d{2}''\)$""")
 
@@ -152,6 +160,33 @@ class NoteEditorState internal constructor(
 
     var saved by mutableStateOf(false)
         private set
+
+    /**
+     * Input guardrails (#304). Starts with no history (only the history-free rules: unparsed line,
+     * double log); [useHistory] swaps in the user's history once it is loaded off the main thread.
+     */
+    private var guardrails = SetGuardrails(SetHistory.EMPTY, settings.defaultWeightUnit.storageValue)
+
+    /** Open mistake hints by row id. Nothing is changed until Fix; Keep dismisses for good. */
+    val guardHints = mutableStateMapOf<Long, GuardrailHint>()
+
+    /** The row of the newest hint: shown under the keypad row, the others under their own row. */
+    var latestHintRowId by mutableStateOf<Long?>(null)
+        private set
+
+    /** Rows whose hint the user answered with Keep: never flagged again in this session. */
+    private val keptRowIds = mutableSetOf<Long>()
+
+    /** The last set committed by Enter, for the rest countdown. */
+    var lastSetCommit by mutableStateOf<SetCommit?>(null)
+        private set
+
+    fun useHistory(history: SetHistory) {
+        guardrails = SetGuardrails(history, settings.defaultWeightUnit.storageValue)
+    }
+
+    /** The current exercise's usual rest from history (#349), or null. */
+    fun usualRestSeconds(exerciseName: String, flag: ExerciseFlag): Int? = guardrails.usualRestSeconds(exerciseName, flag)
 
     init {
         val parsed = parseNoteText(initialNote?.text ?: "", initialNote?.rowMetadata)
@@ -302,8 +337,10 @@ class NoteEditorState internal constructor(
                     if (updated != row.text.value.text) {
                         markDirty()
                         row.text.value = TextFieldValue(updated, TextRange(updated.length))
+                        keptRowIds -= row.id
                         saveNote(isLastNote = false, exit = false)
                     }
+                    checkSet(index, restSeconds = null)
                 }
                 closeKeypad()
             }
@@ -353,6 +390,7 @@ class NoteEditorState internal constructor(
     private fun insertCommittedSet(afterIndex: Int, entry: String) {
         markDirty()
         val now = clock()
+        val restSeconds = ((now - lastEnter) / 1_000L).toInt()
         val text = "      $entry (${formatSecondsToMinutesSeconds((now - lastEnter) / 1_000L)})"
         lastEnter = now
         val flag = lines[exerciseIndexOf(afterIndex)].flag.value
@@ -363,6 +401,8 @@ class NoteEditorState internal constructor(
         flags.add(at, flag)
         timestamps.add(at, formatElapsedMinutesSeconds(noteTimestamp, now, settings))
         committedRowIds += newRow.id
+        checkSet(at, restSeconds)
+        noteSetCommit(at)
         // Next = commit and a new set: stay in INSERT, now after the set just added.
         keypadBuffer = TextFieldValue("")
         keypadRowId = newRow.id
@@ -376,6 +416,7 @@ class NoteEditorState internal constructor(
         if (row.text.value.text.isBlank()) return null
         markDirty()
         if (keypadRowId == row.id) closeKeypad()
+        guardHints.remove(row.id)
         ensureListSize(index)
         val deleted = DeletedEditorRow(index, row, timestamps[index], flags[index], row.id in committedRowIds)
         lines.removeAt(index)
@@ -406,7 +447,72 @@ class NoteEditorState internal constructor(
         if (updated == row.text.value.text) return
         markDirty()
         row.text.value = TextFieldValue(updated, TextRange(updated.length))
+        keptRowIds -= row.id
+        checkSet(index, restSeconds = null)
         saveNote(isLastNote = false, exit = false)
+    }
+
+    /**
+     * The hint's first button (#304). Replaces the entry, opens the set on the keypad, or removes
+     * it; a removed set is returned so the UI can offer Undo.
+     */
+    fun applyGuardHintFix(rowId: Long): DeletedEditorRow? {
+        if (finishing) return null
+        val hint = guardHints[rowId] ?: return null
+        val index = indexOfRow(rowId)
+        if (index < 0) {
+            guardHints.remove(rowId)
+            return null
+        }
+        return when (hint.fix) {
+            GuardrailFix.REPLACE_ENTRY -> {
+                guardHints.remove(rowId)
+                hint.fixEntry?.let { replaceSetEntry(index, it) }
+                null
+            }
+            GuardrailFix.EDIT -> {
+                guardHints.remove(rowId)
+                openKeypad(rowId)
+                null
+            }
+            GuardrailFix.REMOVE -> deleteSetRow(index)
+        }
+    }
+
+    /** Keep: the set is right as typed. Remembered for this row until its entry changes. */
+    fun keepGuardHint(rowId: Long) {
+        guardHints.remove(rowId)
+        keptRowIds += rowId
+    }
+
+    /**
+     * Runs the guardrails on the set at [index] (#304). Synchronous and cheap: one parse of this
+     * exercise block plus a lookup in the history loaded at open. Never edits the row.
+     */
+    private fun checkSet(index: Int, restSeconds: Int?) {
+        val row = lines.getOrNull(index) ?: return
+        guardHints.remove(row.id)
+        if (row.id in keptRowIds || isMainRow(index)) return
+        val entry = splitSetRow(row.text.value.text).entry
+        if (entry.isBlank()) return
+        val ex = exerciseIndexOf(index)
+        val earlierRows = (ex + 1 until index).filter { lines[it].text.value.text.isNotBlank() }
+        val block = GuardrailBlock(
+            exerciseName = lines[ex].text.value.text,
+            flag = lines[ex].flag.value,
+            earlierEntries = earlierRows.map { splitSetRow(lines[it].text.value.text).entry },
+            entry = entry,
+            restSeconds = restSeconds,
+            ignoredEarlier = earlierRows.withIndex().filter { lines[it.value].id in guardHints }.map { it.index }.toSet(),
+        )
+        val hint = runCatching { guardrails.check(block) }.getOrNull() ?: return
+        guardHints[row.id] = hint
+        latestHintRowId = row.id
+    }
+
+    private fun noteSetCommit(index: Int) {
+        val ex = exerciseIndexOf(index)
+        lastSetCommit = SetCommit((lastSetCommit?.sequence ?: 0) + 1, lines[ex].text.value.text, lines[ex].flag.value)
     }
 
     /** An exercise row gained IME focus: the keypad closes (one input owner at a time). */
@@ -454,12 +560,18 @@ class NoteEditorState internal constructor(
             committed || isMain || content.trim().matches(RELATIVE_TIME_SUFFIX) -> content
             else -> "      $content (${formatSecondsToMinutesSeconds((now - lastEnter) / 1_000L)})"
         }
+        val newSet = content.isNotBlank() && !committed && !isMain
+        val restSeconds = ((now - lastEnter) / 1_000L).toInt()
         if (content.isNotBlank() && !committed) {
             lastEnter = now
             timestamps[index] = formatElapsedMinutesSeconds(noteTimestamp, now, settings)
             committedRowIds += row.id
         }
         row.text.value = TextFieldValue(formatted, TextRange(formatted.length))
+        if (newSet) {
+            checkSet(index, restSeconds)
+            noteSetCommit(index)
+        }
 
         val nextIndex = index + 1
         val next = lines.getOrNull(nextIndex)
