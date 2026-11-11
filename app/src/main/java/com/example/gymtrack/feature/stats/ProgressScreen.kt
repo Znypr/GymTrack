@@ -30,6 +30,8 @@ import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.DEFAULT_CATEGORIES
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.data.WorkoutRepository
+import com.example.gymtrack.core.muscle.MuscleLoadSource
+import com.example.gymtrack.core.muscle.UnmappedMuscleLoadSource
 import com.example.gymtrack.core.ui.components.AppCard
 import com.example.gymtrack.core.ui.components.AppDivider
 import com.example.gymtrack.core.ui.components.AppIcon
@@ -81,6 +83,8 @@ const val PROGRESS_SETTINGS_TAG = "progress-settings"
  * @param onStartCategory a Plan row; gets the category name ("Push"). Starts a workout of it.
  * @param exerciseProgress the exercise-progress card; it reads the repository, so the host
  *   provides it ([ProgressRoute] does). Null hides the card (previews, tests).
+ * @param thisWeek the "This week" muscle-map card (#311), e.g. [ThisWeekMuscleRoute]; it ignores
+ *   the range control. Null hides it.
  */
 @Composable
 fun ProgressScreen(
@@ -90,6 +94,7 @@ fun ProgressScreen(
     onStartCategory: (String) -> Unit,
     modifier: Modifier = Modifier,
     exerciseProgress: (@Composable () -> Unit)? = null,
+    thisWeek: (@Composable () -> Unit)? = null,
 ) {
     ProgressContent(
         state = state,
@@ -98,12 +103,14 @@ fun ProgressScreen(
         onStartCategory = onStartCategory,
         modifier = modifier,
         exerciseProgress = exerciseProgress,
+        thisWeek = thisWeek,
     )
 }
 
 /**
  * Ready-made Progress tab for the nav host: collects [viewModel] (which starts the Stats build,
- * #126), keeps the display unit in sync with Settings and wires the exercise-progress card.
+ * #126), keeps the display unit in sync with Settings and wires the exercise-progress card and
+ * the "This week" muscle card ([muscleLoadSource]; unmapped until #309 is connected).
  */
 @Composable
 fun ProgressRoute(
@@ -113,6 +120,7 @@ fun ProgressRoute(
     onOpenSettings: () -> Unit,
     onStartCategory: (String) -> Unit,
     modifier: Modifier = Modifier,
+    muscleLoadSource: MuscleLoadSource = UnmappedMuscleLoadSource,
 ) {
     val stats by viewModel.uiState.collectAsState()
     LaunchedEffect(settings.defaultWeightUnit) { viewModel.setDisplayUnit(settings.defaultWeightUnit) }
@@ -130,6 +138,7 @@ fun ProgressRoute(
                 timedProgress = stats.timedProgress,
             )
         },
+        thisWeek = { ThisWeekMuscleRoute(source = muscleLoadSource, refreshKey = stats.totalNotes) },
     )
 }
 
@@ -141,6 +150,7 @@ internal fun ProgressContent(
     onStartCategory: ((String) -> Unit)?,
     modifier: Modifier = Modifier,
     exerciseProgress: (@Composable () -> Unit)? = null,
+    thisWeek: (@Composable () -> Unit)? = null,
 ) {
     val tokens = GymTrackTheme.tokens
     val stats = state.stats
@@ -160,6 +170,9 @@ internal fun ProgressContent(
                 item { LoadingCard(stats.loadingMessage ?: "Building statistics…", stats.sourceNoteCount) }
             }
             item { WorkoutsCard(stats) }
+            if (thisWeek != null) {
+                item { thisWeek() }
+            }
             item {
                 AdaptiveCard(height = 300.dp) {
                     Column(Modifier.padding(tokens.spacing.md)) {
