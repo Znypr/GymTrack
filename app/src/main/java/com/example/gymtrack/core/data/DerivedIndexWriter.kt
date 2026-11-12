@@ -1,5 +1,9 @@
 package com.example.gymtrack.core.data
 
+import com.example.gymtrack.core.muscle.MuscleLoadCalculator
+import com.example.gymtrack.core.muscle.MuscleMapping
+import com.example.gymtrack.core.muscle.MuscleSetInput
+import com.example.gymtrack.core.muscle.WeeklyMuscleSummary
 import java.time.Instant
 import java.time.ZoneId
 import java.time.temporal.IsoFields
@@ -9,8 +13,11 @@ import java.time.temporal.IsoFields
  * repository calls them inside its transactions; tests call them directly.
  */
 object DerivedIndexWriter {
-    /** Bump when a derived row's meaning changes; the next reader rebuilds lazily. */
-    const val VERSION = 1
+    /**
+     * Bump when a derived row's meaning changes; the next reader rebuilds lazily.
+     * 1: #307 stub muscles. 2: real per-muscle fractional sets (#309).
+     */
+    const val VERSION = 2
     const val INDEX_NAME = "workout_derived"
 
     /** Same weight in kilograms, for comparing loads of sets typed in different units. */
@@ -89,31 +96,29 @@ object DerivedIndexWriter {
                 )
             }
 
-    /** `muscle_week` rows for one workout's classified [rows] (stub muscle keys, see [muscleKeysFor]). */
+    /**
+     * `muscle_week` rows for one workout's classified [rows] (#309): fractional working sets per
+     * muscle and exercise from [MuscleLoadCalculator], plus one [WeeklyMuscleSummary.UNMAPPED_KEY]
+     * row per unmapped exercise with its working-set count.
+     */
     fun muscleWeekRows(
         workoutId: Long,
         rows: List<SetEntity>,
-        muscleGroupOf: (Long) -> String?,
+        mappingFor: (exerciseId: Long, modifier: String?) -> MuscleMapping?,
         zoneId: ZoneId = ZoneId.systemDefault(),
     ): List<MuscleWeekEntity> {
         val weekKey = weekKey(workoutId, zoneId)
-        val totals = LinkedHashMap<String, Float>()
-        rows.filter { it.exerciseId > 0 && SetType.fromStorage(it.setType) == SetType.WORKING }
-            .forEach { row ->
-                muscleKeysFor(row.exerciseId, muscleGroupOf(row.exerciseId)).forEach { (muscle, share) ->
-                    totals[muscle] = (totals[muscle] ?: 0f) + share
-                }
-            }
-        return totals.map { (muscle, sets) -> MuscleWeekEntity(workoutId, weekKey, muscle, sets) }
-    }
-
-    /**
-     * Muscles one working set of an exercise counts for, with its share. Stub until the muscle
-     * map lands: the stored `muscleGroup`, or the exercise itself.
-     */
-    fun muscleKeysFor(exerciseId: Long, muscleGroup: String?): List<Pair<String, Float>> {
-        val group = muscleGroup?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
-        return listOf((group ?: "exercise:$exerciseId") to 1f)
+        val load = MuscleLoadCalculator.calculate(
+            rows.map { MuscleSetInput(it.exerciseId, it.modifier, SetType.fromStorage(it.setType) == SetType.WORKING) },
+            mappingFor,
+        )
+        val mapped = load.setsByMuscleAndExercise.flatMap { (muscle, perExercise) ->
+            perExercise.map { (exerciseId, sets) -> MuscleWeekEntity(workoutId, weekKey, muscle.id, exerciseId, sets) }
+        }
+        val unmapped = load.unmappedSetsByExercise.map { (exerciseId, count) ->
+            MuscleWeekEntity(workoutId, weekKey, WeeklyMuscleSummary.UNMAPPED_KEY, exerciseId, count.toFloat())
+        }
+        return mapped + unmapped
     }
 
     fun weekKey(epochMillis: Long, zoneId: ZoneId = ZoneId.systemDefault()): String {

@@ -30,6 +30,8 @@ import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.DEFAULT_CATEGORIES
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.data.WorkoutRepository
+import com.example.gymtrack.core.muscle.MuscleLoadSource
+import com.example.gymtrack.core.muscle.UnmappedMuscleLoadSource
 import com.example.gymtrack.core.ui.components.AppCard
 import com.example.gymtrack.core.ui.components.AppDivider
 import com.example.gymtrack.core.ui.components.AppIcon
@@ -44,6 +46,12 @@ import com.example.gymtrack.feature.settings.SegmentedChoice
 import com.example.gymtrack.feature.stats.components.charts.ExerciseProgressCard
 import com.example.gymtrack.feature.stats.components.charts.WeeklyConsistencyChart
 import com.example.gymtrack.feature.stats.components.charts.WorkoutDurationTrendChart
+import com.example.gymtrack.feature.suggest.GoalChip
+import com.example.gymtrack.feature.suggest.GoalSheet
+import com.example.gymtrack.feature.suggest.TrainingGoal
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import java.util.Locale
 
 /** What the Progress tab shows: the Stats result plus the categories for the Plan row. */
@@ -81,6 +89,8 @@ const val PROGRESS_SETTINGS_TAG = "progress-settings"
  * @param onStartCategory a Plan row; gets the category name ("Push"). Starts a workout of it.
  * @param exerciseProgress the exercise-progress card; it reads the repository, so the host
  *   provides it ([ProgressRoute] does). Null hides the card (previews, tests).
+ * @param thisWeek the "This week" muscle-map card (#311), e.g. [ThisWeekMuscleRoute]; it ignores
+ *   the range control. Null hides it.
  */
 @Composable
 fun ProgressScreen(
@@ -90,6 +100,9 @@ fun ProgressScreen(
     onStartCategory: (String) -> Unit,
     modifier: Modifier = Modifier,
     exerciseProgress: (@Composable () -> Unit)? = null,
+    thisWeek: (@Composable () -> Unit)? = null,
+    goal: TrainingGoal = TrainingGoal.NONE,
+    onGoalSelected: ((TrainingGoal) -> Unit)? = null,
 ) {
     ProgressContent(
         state = state,
@@ -98,12 +111,16 @@ fun ProgressScreen(
         onStartCategory = onStartCategory,
         modifier = modifier,
         exerciseProgress = exerciseProgress,
+        thisWeek = thisWeek,
+        goal = goal,
+        onGoalSelected = onGoalSelected,
     )
 }
 
 /**
  * Ready-made Progress tab for the nav host: collects [viewModel] (which starts the Stats build,
- * #126), keeps the display unit in sync with Settings and wires the exercise-progress card.
+ * #126), keeps the display unit in sync with Settings and wires the exercise-progress card and
+ * the "This week" muscle card ([muscleLoadSource]; unmapped until #309 is connected).
  */
 @Composable
 fun ProgressRoute(
@@ -113,6 +130,9 @@ fun ProgressRoute(
     onOpenSettings: () -> Unit,
     onStartCategory: (String) -> Unit,
     modifier: Modifier = Modifier,
+    muscleLoadSource: MuscleLoadSource = UnmappedMuscleLoadSource,
+    /** The header goal chip (#312); null hides it. */
+    onGoalSelected: ((TrainingGoal) -> Unit)? = null,
 ) {
     val stats by viewModel.uiState.collectAsState()
     LaunchedEffect(settings.defaultWeightUnit) { viewModel.setDisplayUnit(settings.defaultWeightUnit) }
@@ -122,6 +142,8 @@ fun ProgressRoute(
         onOpenSettings = onOpenSettings,
         onStartCategory = onStartCategory,
         modifier = modifier,
+        goal = settings.trainingGoal,
+        onGoalSelected = onGoalSelected,
         exerciseProgress = {
             ExerciseProgressCard(
                 repository = workoutRepository,
@@ -130,6 +152,7 @@ fun ProgressRoute(
                 timedProgress = stats.timedProgress,
             )
         },
+        thisWeek = { ThisWeekMuscleRoute(source = muscleLoadSource, refreshKey = stats.totalNotes) },
     )
 }
 
@@ -141,9 +164,13 @@ internal fun ProgressContent(
     onStartCategory: ((String) -> Unit)?,
     modifier: Modifier = Modifier,
     exerciseProgress: (@Composable () -> Unit)? = null,
+    thisWeek: (@Composable () -> Unit)? = null,
+    goal: TrainingGoal = TrainingGoal.NONE,
+    onGoalSelected: ((TrainingGoal) -> Unit)? = null,
 ) {
     val tokens = GymTrackTheme.tokens
     val stats = state.stats
+    var goalSheetOpen by rememberSaveable { mutableStateOf(false) }
     val rangeIndex = PROGRESS_RANGES.indexOfFirst { it.first == stats.currentRange }
     Column(modifier.fillMaxSize().background(tokens.colors.bg)) {
         LazyColumn(
@@ -151,15 +178,24 @@ internal fun ProgressContent(
             verticalArrangement = Arrangement.spacedBy(tokens.spacing.md),
         ) {
             item {
-                ScreenHeader(
-                    title = "Progress",
-                    subtitle = RANGE_SPOKEN.getOrNull(rangeIndex) ?: stats.currentRange.label,
-                )
+                Column {
+                    ScreenHeader(
+                        title = "Progress",
+                        subtitle = RANGE_SPOKEN.getOrNull(rangeIndex) ?: stats.currentRange.label,
+                    )
+                    // #312: opt-in coaching goal, one tap from the stats it is about.
+                    if (onGoalSelected != null) {
+                        GoalChip(goal = goal, onClick = { goalSheetOpen = true })
+                    }
+                }
             }
             if (stats.isLoading) {
                 item { LoadingCard(stats.loadingMessage ?: "Building statistics…", stats.sourceNoteCount) }
             }
             item { WorkoutsCard(stats) }
+            if (thisWeek != null) {
+                item { thisWeek() }
+            }
             item {
                 AdaptiveCard(height = 300.dp) {
                     Column(Modifier.padding(tokens.spacing.md)) {
@@ -210,6 +246,9 @@ internal fun ProgressContent(
                 .background(tokens.colors.bg)
                 .padding(horizontal = tokens.spacing.md, vertical = tokens.spacing.xxs),
         )
+    }
+    if (goalSheetOpen && onGoalSelected != null) {
+        GoalSheet(selected = goal, onSelect = onGoalSelected, onDismiss = { goalSheetOpen = false })
     }
 }
 

@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gymtrack.core.data.ExerciseGroupWithCount
+import com.example.gymtrack.core.data.ExerciseMuscleMappingState
 import com.example.gymtrack.core.data.ExerciseProgressSeries
 import com.example.gymtrack.core.data.ExerciseProgressVariant
 import com.example.gymtrack.core.data.GraphPoint
@@ -30,6 +31,7 @@ import com.example.gymtrack.feature.stats.calculateExerciseOutliers
 import com.example.gymtrack.feature.stats.kilogramsToDisplay
 import com.example.gymtrack.core.data.WeightUnit
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -197,6 +199,16 @@ fun ExerciseProgressCard(
         focusedVariantKey = null
     }
 
+    // Muscles of the selected exercise group and the "Edit muscles" sheet (#310).
+    val scope = rememberCoroutineScope()
+    var muscleState by remember { mutableStateOf<ExerciseMuscleMappingState?>(null) }
+    var muscleRefresh by remember { mutableIntStateOf(0) }
+    var editingMuscles by remember { mutableStateOf(false) }
+    val selectedIds = selectedExercise?.exerciseIds.orEmpty()
+    LaunchedEffect(selectedIds, muscleRefresh) {
+        muscleState = if (selectedIds.isEmpty()) null else repository?.exerciseMuscleMapping(selectedIds)
+    }
+
     val seriesCacheKey = remember(selectedExercise) {
         selectedExercise?.exerciseIds?.sorted()?.joinToString(",")
     }
@@ -323,6 +335,21 @@ fun ExerciseProgressCard(
                 )
             }
 
+            if (selectedExercise != null && repository != null) {
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        muscleSummaryText(muscleState),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { editingMuscles = true }, enabled = muscleState != null) {
+                        Text("Edit muscles")
+                    }
+                }
+            }
+
             if (anomalies.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 Text(
@@ -363,6 +390,30 @@ fun ExerciseProgressCard(
                 )
             }
         }
+    }
+
+    val sheetState = muscleState
+    val sheetExercise = selectedExercise
+    if (editingMuscles && repository != null && sheetExercise != null) {
+        EditMusclesSheet(
+            exerciseName = sheetExercise.name,
+            state = sheetState ?: ExerciseMuscleMappingState(mapping = null, seed = null, isUserEdit = false),
+            onSave = { primary, secondary ->
+                editingMuscles = false
+                scope.launch {
+                    repository.setExerciseMuscles(sheetExercise.exerciseIds, primary, secondary)
+                    muscleRefresh++
+                }
+            },
+            onResetToDefault = {
+                editingMuscles = false
+                scope.launch {
+                    repository.resetExerciseMusclesToSeed(sheetExercise.exerciseIds)
+                    muscleRefresh++
+                }
+            },
+            onDismiss = { editingMuscles = false },
+        )
     }
 }
 

@@ -4,6 +4,7 @@ import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.data.ThemeChoice
 import com.example.gymtrack.core.data.WeightUnit
+import com.example.gymtrack.feature.suggest.TrainingGoal
 import org.json.JSONObject
 
 internal fun Settings.asBackupJson(): JSONObject = JSONObject()
@@ -13,6 +14,8 @@ internal fun Settings.asBackupJson(): JSONObject = JSONObject()
     // Kept so older app versions (which require it) can still restore this backup.
     .put("darkMode", themeChoice.isDark(systemDark = true))
     .put("defaultWeightUnit", defaultWeightUnit.storageValue)
+    // Optional since #312; older versions ignore it, older backups lack it (= no goal).
+    .put("trainingGoal", trainingGoal.storageValue)
     .put("categories", categories.asJsonArray { value ->
         JSONObject().put("name", value.name).put("color", value.color)
     })
@@ -29,4 +32,5 @@ internal fun JSONObject.asBackupSettings(): Settings = Settings(
         Category(value.getString("name"), value.getLong("color"))
     },
     defaultWeightUnit = WeightUnit.fromStorage(optString("defaultWeightUnit", "KG")),
+    trainingGoal = TrainingGoal.fromStorage(optString("trainingGoal", "").ifEmpty { null }),
 )

@@ -1,5 +1,7 @@
 package com.example.gymtrack.core.data
 
+import com.example.gymtrack.core.muscle.MuscleExerciseRef
+import com.example.gymtrack.core.muscle.MuscleResolver
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
@@ -69,16 +71,19 @@ class DerivedIndexWriterTest {
     }
 
     @Test
-    fun muscleWeekCountsWorkingSetsPerStubMuscle() {
+    fun muscleWeekCountsFractionalWorkingSetsPerMuscle() {
         val classified = DerivedIndexWriter.classify(bench + curl)
-        val rows = DerivedIndexWriter.muscleWeekRows(
-            workoutId,
-            classified,
-            muscleGroupOf = { id -> if (id == 2L) "Biceps" else null },
-            zoneId = ZoneOffset.UTC,
-        ).associateBy { it.muscle }
-        assertEquals(2f, rows.getValue("exercise:1").effectiveSets)
-        assertEquals(2f, rows.getValue("biceps").effectiveSets)
+        val resolver = MuscleResolver(
+            mapOf(1L to MuscleExerciseRef(1, "Bench Press", null), 2L to MuscleExerciseRef(2, "Biceps Curl", null)),
+            emptyMap(),
+        )
+        val rows = DerivedIndexWriter.muscleWeekRows(workoutId, classified, resolver::resolve, zoneId = ZoneOffset.UTC)
+            .associateBy { it.muscle to it.exerciseId }
+        // Two working bench sets (the ramp is warm-up): 2 chest, 1 triceps; two curls: 2 biceps, 1 brachialis.
+        assertEquals(2f, rows.getValue("chestLower" to 1L).effectiveSets)
+        assertEquals(1f, rows.getValue("triceps" to 1L).effectiveSets)
+        assertEquals(2f, rows.getValue("biceps" to 2L).effectiveSets)
+        assertEquals(1f, rows.getValue("brachialis" to 2L).effectiveSets)
         assertTrue(rows.values.all { it.weekKey == "2026-W46" && it.workoutId == workoutId })
     }
 

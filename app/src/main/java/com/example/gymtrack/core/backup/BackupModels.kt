@@ -7,6 +7,7 @@ import com.example.gymtrack.core.data.CanonicalWorkoutEntity
 import com.example.gymtrack.core.data.CanonicalWorkoutExerciseEntity
 import com.example.gymtrack.core.data.CanonicalWorkoutSetEntity
 import com.example.gymtrack.core.data.ExerciseEntity
+import com.example.gymtrack.core.data.ExerciseMuscleEntity
 import com.example.gymtrack.core.data.NoteEntity
 import com.example.gymtrack.core.data.SetEntity
 import com.example.gymtrack.core.data.Settings
@@ -22,6 +23,8 @@ data class GymTrackBackupPayload(
     val canonicalWorkouts: List<CanonicalWorkoutEntity>,
     val canonicalWorkoutExercises: List<CanonicalWorkoutExerciseEntity>,
     val canonicalWorkoutSets: List<CanonicalWorkoutSetEntity>,
+    /** The user's muscle edits (#310). Optional: backups from before v15 have none. */
+    val exerciseMuscles: List<ExerciseMuscleEntity> = emptyList(),
 )
 
 data class BackupCounts(
@@ -34,11 +37,13 @@ data class BackupCounts(
     val canonicalWorkouts: Int,
     val canonicalWorkoutExercises: Int,
     val canonicalWorkoutSets: Int,
+    /** Optional in manifests (#310); 0 for backups from before v15. */
+    val exerciseMuscles: Int = 0,
 ) {
     val totalRecords: Int
         get() = legacyNotes + legacyExercises + legacySets + canonicalCategories +
             canonicalExercises + canonicalExerciseAliases + canonicalWorkouts +
-            canonicalWorkoutExercises + canonicalWorkoutSets
+            canonicalWorkoutExercises + canonicalWorkoutSets + exerciseMuscles
 
     companion object {
         fun from(payload: GymTrackBackupPayload) = BackupCounts(
@@ -51,6 +56,7 @@ data class BackupCounts(
             canonicalWorkouts = payload.canonicalWorkouts.size,
             canonicalWorkoutExercises = payload.canonicalWorkoutExercises.size,
             canonicalWorkoutSets = payload.canonicalWorkoutSets.size,
+            exerciseMuscles = payload.exerciseMuscles.size,
         )
     }
 }

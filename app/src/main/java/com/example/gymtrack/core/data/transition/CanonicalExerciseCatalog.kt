@@ -4,6 +4,8 @@ import com.example.gymtrack.core.data.CanonicalExerciseAliasEntity
 import com.example.gymtrack.core.data.CanonicalExerciseEntity
 import com.example.gymtrack.core.data.ExerciseEntity
 
+// Copies the legacy free-text muscleGroup into the canonical projection unchanged (#309: no reads for stats).
+@Suppress("DEPRECATION")
 internal class CanonicalExerciseCatalog(
     legacyExercises: List<ExerciseEntity>,
 ) {

@@ -1,6 +1,9 @@
 package com.example.gymtrack.feature.finish
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -24,6 +27,12 @@ import com.example.gymtrack.core.ui.components.AppBottomSheet
 import com.example.gymtrack.core.ui.components.AppDivider
 import com.example.gymtrack.core.ui.components.AppIcon
 import com.example.gymtrack.core.ui.components.AppIconView
+import com.example.gymtrack.core.ui.components.BodyMap
+import com.example.gymtrack.core.ui.components.BodyMapLegend
+import com.example.gymtrack.core.ui.components.BodyMapLevelList
+import com.example.gymtrack.core.ui.components.BodyMapView
+import com.example.gymtrack.core.muscle.MuscleLevel
+import com.example.gymtrack.core.ui.components.setsPhrase
 import com.example.gymtrack.core.ui.components.CategoryKind
 import com.example.gymtrack.core.ui.components.CategoryMark
 import com.example.gymtrack.core.ui.components.PrimaryButton
@@ -32,6 +41,8 @@ import com.example.gymtrack.core.ui.theme.sketchUnderline
 
 const val FINISH_SHEET_DONE_TAG = "finish-sheet-done"
 const val FINISH_SHEET_EDIT_TAG = "finish-sheet-edit"
+const val FINISH_SHEET_NEXT_TAG = "finish-sheet-next"
+const val FINISH_SHEET_MUSCLES_TAG = "finish-sheet-muscles"
 
 /**
  * Shown after Finish (DESIGN_LANGUAGE_V2 "Finish sheet": torn paper in Notebook). Read-only
@@ -61,7 +72,9 @@ fun FinishSummaryContent(
 ) {
     val tokens = GymTrackTheme.tokens
     val c = tokens.colors
-    androidx.compose.foundation.layout.Column(modifier.fillMaxWidth().padding(bottom = tokens.spacing.md)) {
+    androidx.compose.foundation.layout.Column(
+        modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = tokens.spacing.md),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             AppIconView(AppIcon.CHECK, contentDescription = null, tint = c.ink, size = 22.dp)
             Spacer(Modifier.width(tokens.spacing.xs))
@@ -103,6 +116,7 @@ fun FinishSummaryContent(
                 }
             }
         }
+        MusclesSection(summary)
         Spacer(Modifier.height(tokens.spacing.sm))
         Text(summary.weekLine, style = tokens.type.small, color = c.inkMuted, modifier = Modifier.testTag("finish-week"))
         Spacer(Modifier.height(tokens.spacing.lg))
@@ -134,4 +148,95 @@ fun FinishSummaryContent(
             )
         }
     }
+}
+
+/**
+ * Body map of this workout (#311): the map with the "next" muscle outlined, sets per muscle and
+ * a "Next time: …" line. Honest when nothing is mapped yet: dotted map plus one sentence.
+ */
+@Composable
+private fun MusclesSection(summary: FinishSummary) {
+    val tokens = GymTrackTheme.tokens
+    val c = tokens.colors
+    val week = summary.muscles
+    androidx.compose.foundation.layout.Column(
+        Modifier.fillMaxWidth().testTag(FINISH_SHEET_MUSCLES_TAG),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Spacer(Modifier.height(tokens.spacing.sm))
+        Text(
+            text = if (tokens.isNotebook) "Muscles" else "MUSCLES",
+            style = if (tokens.isNotebook) tokens.type.title else tokens.type.label,
+            color = c.inkMuted,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(tokens.spacing.xs))
+        BodyMap(
+            levels = week.levels,
+            view = BodyMapView.BOTH,
+            highlight = summary.nextTime,
+            modifier = Modifier.widthIn(max = 260.dp).fillMaxWidth(),
+        )
+        Spacer(Modifier.height(tokens.spacing.xs))
+        BodyMapLegend(showUnmapped = week.levels.values.any { it == MuscleLevel.UNMAPPED })
+        Spacer(Modifier.height(tokens.spacing.xs))
+        androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth()) {
+            if (week.isAllUnmapped) {
+                Text(
+                    text = "Muscles aren't mapped for these exercises yet, so the map shows dotted outlines.",
+                    style = tokens.type.small,
+                    color = c.inkMuted,
+                )
+            } else {
+                val trained = summary.setsPerMuscle
+                Text(
+                    text = if (trained.isEmpty()) {
+                        "No mapped muscle trained in this workout."
+                    } else {
+                        trained.joinToString(" · ") { (m, sets) -> "${m.label} ${setsPhrase(sets)}" }
+                    },
+                    style = tokens.type.body,
+                    color = c.ink,
+                )
+                BodyMapLevelList(week.levels, Modifier.padding(top = tokens.spacing.xxs))
+            }
+            summary.nextTime?.let { next ->
+                Spacer(Modifier.height(tokens.spacing.xxs))
+                Text(
+                    text = "Next time: ${next.label} (outlined on the map)",
+                    style = tokens.type.body,
+                    color = c.ink,
+                    modifier = Modifier.testTag(FINISH_SHEET_NEXT_TAG),
+                )
+            }
+        }
+    }
+}
+
+private val previewSummary = FinishSummary(
+    title = "Push",
+    durationMinutes = 64,
+    exerciseCount = 3,
+    setCount = 9,
+    topSets = listOf(TopSet("Bench Press", "8 × 85"), TopSet("Lateral Raise", "15 × 10")),
+    workoutsThisWeek = 3,
+)
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Finish · muscles", widthDp = 360, heightDp = 1100)
+@Composable
+private fun FinishMusclesPreview(
+    @androidx.compose.ui.tooling.preview.PreviewParameter(com.example.gymtrack.core.ui.components.ThemeTokensProvider::class)
+    tokens: com.example.gymtrack.core.ui.theme.GymTrackTokens,
+) = GymTrackTheme(tokens = tokens) {
+    val week = com.example.gymtrack.core.ui.components.BodyMapDemoWeek
+    FinishSummaryContent(previewSummary.copy(muscles = week, nextTime = nextMuscleSuggestion(week)), onDone = {}, onEdit = {})
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "Finish · unmapped", widthDp = 360, heightDp = 900)
+@Composable
+private fun FinishUnmappedPreview(
+    @androidx.compose.ui.tooling.preview.PreviewParameter(com.example.gymtrack.core.ui.components.ThemeTokensProvider::class)
+    tokens: com.example.gymtrack.core.ui.theme.GymTrackTokens,
+) = GymTrackTheme(tokens = tokens) {
+    FinishSummaryContent(previewSummary, onDone = {}, onEdit = {})
 }

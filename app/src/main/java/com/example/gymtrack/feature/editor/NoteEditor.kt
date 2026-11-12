@@ -92,6 +92,10 @@ fun NoteEditor(
     LaunchedEffect(viewModel) { viewModel.loadSetHistory(settings.defaultWeightUnit, state.noteTimestamp) }
     val setHistory by viewModel.setHistory.collectAsState()
     LaunchedEffect(setHistory) { setHistory?.let(state::useHistory) }
+    // #308: last sessions from the derived index, once per editor; the pill only reads them.
+    LaunchedEffect(viewModel) { viewModel.loadSuggestionHistory(beforeTimestamp = state.noteTimestamp) }
+    val suggestionHistory by viewModel.suggestionHistory.collectAsState()
+    LaunchedEffect(suggestionHistory) { suggestionHistory?.let(state::useSuggestionHistory) }
 
     LaunchedEffect(saveError) {
         saveError?.let { message ->

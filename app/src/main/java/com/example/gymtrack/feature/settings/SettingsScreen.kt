@@ -56,6 +56,7 @@ import com.example.gymtrack.core.util.presetColors
 import com.example.gymtrack.feature.about.AboutScreen
 import com.example.gymtrack.feature.help.HelpScreen
 import com.example.gymtrack.feature.help.sendFeedback
+import com.example.gymtrack.feature.suggest.GoalOptions
 
 const val SETTINGS_ADD_CATEGORY_TAG = "settings-add-category"
 const val SETTINGS_RESTORE_DEFAULTS_TAG = "settings-restore-default-categories"
@@ -154,6 +155,16 @@ private fun SettingsMain(
                 }
                 RowDivider(12)
                 ThemeChoiceBlock(settings.themeChoice) { choice -> update { copy(themeChoice = choice) } }
+            }
+        }
+
+        item {
+            SettingsGroup("Training goal") {
+                InfoText("Off by default. Suggestions from your history work without a goal.")
+                GoalOptions(
+                    selected = settings.trainingGoal,
+                    onSelect = { goal -> update { copy(trainingGoal = goal) } },
+                )
             }
         }
 

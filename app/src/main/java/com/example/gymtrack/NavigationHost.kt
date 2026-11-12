@@ -22,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -38,10 +39,13 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.gymtrack.core.backup.BackupManifest
 import com.example.gymtrack.core.backup.BackupRepository
 import com.example.gymtrack.core.data.Category
+import com.example.gymtrack.core.data.DerivedIndexWriter
 import com.example.gymtrack.core.data.NoteLine
+import com.example.gymtrack.core.data.RepositoryMuscleLoadSource
 import com.example.gymtrack.core.data.Settings
 import com.example.gymtrack.core.data.WorkoutRepository
 import com.example.gymtrack.core.data.repository.NoteRepository
+import com.example.gymtrack.core.muscle.MuscleWeek
 import com.example.gymtrack.core.time.AppClock
 import com.example.gymtrack.core.timer.NoteTimerState
 import com.example.gymtrack.core.timer.NoteTimerStore
@@ -120,6 +124,7 @@ fun NavigationHost(
 
     var pendingStart by remember { mutableStateOf<PendingStart?>(null) }
     // Workout whose Finish summary sheet is showing (survives rotation).
+    val muscleLoadSource = remember(workoutRepository) { RepositoryMuscleLoadSource(workoutRepository) }
     var finishSummaryFor by rememberSaveable { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(importSummary) {
@@ -290,6 +295,8 @@ fun NavigationHost(
                     onStartCategory = { name ->
                         requestStart(settings.categories.firstOrNull { it.name == name })
                     },
+                    onGoalSelected = { goal -> onSettingsUpdate(settings.copy(trainingGoal = goal)) },
+                    muscleLoadSource = muscleLoadSource,
                 )
             }
 
@@ -539,12 +546,21 @@ fun NavigationHost(
     finishSummaryFor?.let { timestamp ->
         val workout = notes.firstOrNull { it.timestamp == timestamp }
         if (workout != null) {
-            val summary = remember(workout, finished, settings.defaultWeightUnit) {
+            // Muscles come from the derived rows written at Finish (#309); unmapped until loaded.
+            val muscles by produceState(MuscleWeek.unmapped to (null as MuscleWeek?), workout) {
+                value = runCatching {
+                    muscleLoadSource.workoutLevels(workout) to
+                        muscleLoadSource.weekLevels(DerivedIndexWriter.weekKey(AppClock.nowMillis()))
+                }.getOrDefault(MuscleWeek.unmapped to null)
+            }
+            val summary = remember(workout, finished, settings.defaultWeightUnit, muscles) {
                 buildFinishSummary(
                     workout = workout,
                     defaultUnit = settings.defaultWeightUnit,
                     finishedWorkoutStarts = finished + timestamp,
                     nowMillis = AppClock.nowMillis(),
+                    muscles = muscles.first,
+                    weekMuscles = muscles.second,
                 )
             }
             FinishSummarySheet(

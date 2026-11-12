@@ -2,6 +2,10 @@ package com.example.gymtrack.feature.finish
 
 import com.example.gymtrack.core.data.NoteLine
 import com.example.gymtrack.core.data.WeightUnit
+import com.example.gymtrack.core.muscle.Muscle
+import com.example.gymtrack.core.muscle.MuscleLevel
+import com.example.gymtrack.core.muscle.MuscleLoadSource
+import com.example.gymtrack.core.muscle.MuscleWeek
 import com.example.gymtrack.core.util.ParsedSetDTO
 import com.example.gymtrack.core.util.WorkoutParser
 import com.example.gymtrack.core.util.noteWorkoutDuration
@@ -29,7 +33,16 @@ data class FinishSummary(
     val topSets: List<TopSet>,
     /** Finished workouts in the current week (Mon–Sun), this one included. */
     val workoutsThisWeek: Int,
+    /** This workout's muscle load (#311); all unmapped until the mapping (#309) is connected. */
+    val muscles: MuscleWeek = MuscleWeek.unmapped,
+    /** The least-trained mapped muscle, for the "Next time: …" line; null when nothing is mapped. */
+    val nextTime: Muscle? = null,
 ) {
+    /** Muscles this workout trained, most sets first (ties in [Muscle] order). */
+    val setsPerMuscle: List<Pair<Muscle, Float>>
+        get() = muscles.sets.filterValues { it > 0f }.toList()
+            .sortedWith(compareByDescending<Pair<Muscle, Float>> { it.second }.thenBy { it.first.ordinal })
+
     /** "Push · 64 min · 4 exercises · 10 sets"; unknown parts are left out. */
     val headline: String
         get() = listOfNotNull(
@@ -57,7 +70,9 @@ data class TopSet(val exercise: String, val display: String)
  *   kg × reps: a timed-only exercise shows its longest hold (load breaks ties);
  * - a weight shows its unit only when it differs from [defaultUnit] (README rule 3);
  * - "this week" counts [finishedWorkoutStarts] (start timestamps of finished workouts) plus this
- *   one, in the Monday-start week that holds [nowMillis].
+ *   one, in the Monday-start week that holds [nowMillis];
+ * - [muscles] are loaded by the host from a [MuscleLoadSource] (unmapped when unknown); "Next time" is the
+ *   least-trained mapped muscle of [weekMuscles] when the host has the week, else of this workout.
  */
 fun buildFinishSummary(
     workout: NoteLine,
@@ -67,6 +82,8 @@ fun buildFinishSummary(
     finishedAtMillis: Long? = null,
     zone: ZoneId = ZoneId.systemDefault(),
     parser: WorkoutParser = WorkoutParser(),
+    muscles: MuscleWeek = MuscleWeek.unmapped,
+    weekMuscles: MuscleWeek? = null,
 ): FinishSummary {
     val sets = parser.parseWorkout(workout.text, defaultUnit.storageValue, workout.rowMetadata)
     val byExercise = LinkedHashMap<String, MutableList<ParsedSetDTO>>()
@@ -90,7 +107,31 @@ fun buildFinishSummary(
         setCount = sets.size,
         topSets = topSets,
         workoutsThisWeek = countThisWeek(finishedWorkoutStarts + workout.timestamp, nowMillis, zone),
+        muscles = muscles,
+        nextTime = nextMuscleSuggestion(weekMuscles ?: muscles),
     )
+}
+
+/**
+ * Tie-break for [nextMuscleSuggestion]: big movers first, so "Next time" names something worth a
+ * session rather than the first id in the enum. Muscles not listed follow in [Muscle] order.
+ */
+internal val NEXT_TIME_PRIORITY: List<Muscle> = listOf(
+    Muscle.QUADS, Muscle.HAMSTRINGS, Muscle.GLUTE_MAX, Muscle.CHEST_LOWER, Muscle.LATS,
+    Muscle.CHEST_UPPER, Muscle.RHOMBOIDS_TERES, Muscle.DELT_SIDE, Muscle.DELT_REAR, Muscle.TRICEPS,
+    Muscle.BICEPS, Muscle.GASTROCNEMIUS, Muscle.ABS, Muscle.TRAPS_MID_LOWER, Muscle.ERECTORS,
+    Muscle.DELT_FRONT, Muscle.ADDUCTORS, Muscle.GLUTE_MED, Muscle.TRAPS_UPPER, Muscle.OBLIQUES,
+)
+
+/**
+ * The least-trained mapped muscle in [week] (fewest sets; ties by [NEXT_TIME_PRIORITY]).
+ * Unmapped muscles are never suggested: we don't know they're untrained.
+ */
+fun nextMuscleSuggestion(week: MuscleWeek): Muscle? {
+    val rank = { m: Muscle -> NEXT_TIME_PRIORITY.indexOf(m).let { if (it < 0) NEXT_TIME_PRIORITY.size + m.ordinal else it } }
+    return Muscle.entries
+        .filter { week.levelOf(it) != MuscleLevel.UNMAPPED }
+        .minWithOrNull(compareBy<Muscle> { week.setsOf(it) }.thenBy(rank))
 }
 
 /** Distinct starts that fall in the Monday-start week holding [nowMillis]. */

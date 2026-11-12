@@ -114,6 +114,7 @@ class BackupRepository(
             canonicalWorkouts = backupDao.getCanonicalWorkouts(),
             canonicalWorkoutExercises = backupDao.getCanonicalWorkoutExercises(),
             canonicalWorkoutSets = backupDao.getCanonicalWorkoutSets(),
+            exerciseMuscles = database.exerciseMuscleDao().getAll(),
         )
     }
 
@@ -128,6 +129,7 @@ class BackupRepository(
             backupDao.deleteCanonicalExercises()
             backupDao.deleteCanonicalCategories()
             database.setDao().deleteAllForRestore()
+            database.exerciseMuscleDao().deleteAll()
             database.exerciseDao().deleteAllForRestore()
             database.noteDao().deleteAllForRestore()
             restoreInterruptionProbe(RestoreInterruptionPoint.AFTER_EXISTING_ROWS_DELETED)
@@ -143,6 +145,7 @@ class BackupRepository(
             database.noteDao().insertAllForRestore(payload.legacyNotes)
             database.exerciseDao().insertAllForRestore(payload.legacyExercises)
             database.setDao().insertSets(payload.legacySets)
+            if (payload.exerciseMuscles.isNotEmpty()) database.exerciseMuscleDao().insertAll(payload.exerciseMuscles)
             // Derived rows (#307) are not in backups: drop them and the version stamp so the next
             // reader rebuilds them lazily from the restored sets (and infers old backups' set types).
             database.derivedIndexDao().deleteAllRecent()
