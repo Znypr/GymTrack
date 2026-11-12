@@ -31,7 +31,7 @@ fun CategoryChart(
 
     val theme = rememberChartTheme()
     val density = LocalDensity.current
-    val textPaint = makeTextPaint(theme.label, with(density) { 10.sp.toPx() })
+    val textPaint = makeTextPaint(theme.label, with(density) { ChartLabelSize.toPx() })
 
     val scaleY = buildScaleY(data.map { it.second.toFloat() })
 

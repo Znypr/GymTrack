@@ -253,7 +253,7 @@ fun BottomNavBar(
                         AppIconView(item.icon, contentDescription = null, tint = color)
                         Text(
                             item.label,
-                            style = tokens.type.small.copy(fontSize = 12.sp),
+                            style = tokens.type.small,
                             color = color,
                             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                         )

@@ -55,8 +55,8 @@ fun LearningsOverview(notes: List<NoteLine>, settings: Settings) {
                 }
                 Spacer(Modifier.width(8.dp))
                 Column {
-                    Text(time, style = MaterialTheme.typography.bodySmall)
-                    Text(cat, style = MaterialTheme.typography.bodySmall)
+                    Text(time, style = com.example.gymtrack.core.ui.theme.GymTrackTheme.tokens.type.small)
+                    Text(cat, style = com.example.gymtrack.core.ui.theme.GymTrackTheme.tokens.type.small)
                 }
             }
         }

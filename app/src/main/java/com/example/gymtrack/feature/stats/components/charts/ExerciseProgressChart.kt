@@ -72,7 +72,7 @@ private fun ExerciseProgressChartGraph(
     val seriesColors = exerciseProgressPalette()
     val dateFormatter = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
     val density = LocalDensity.current
-    val textPaint = makeTextPaint(theme.label, with(density) { 10.sp.toPx() })
+    val textPaint = makeTextPaint(theme.label, with(density) { ChartLabelSize.toPx() })
     val anomalyColor = MaterialTheme.colorScheme.error
     val anomalyInnerColor = MaterialTheme.colorScheme.surface
 
@@ -283,7 +283,7 @@ fun ExerciseProgressCard(
             Spacer(Modifier.height(4.dp))
             Text(
                 if (showWeightChart || timedGroup == null) "Weighted avg working weight · $weightUnitLabel" else timedGroup.axisTitle,
-                style = MaterialTheme.typography.labelSmall,
+                style = com.example.gymtrack.core.ui.theme.GymTrackTheme.tokens.type.small,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
             )
             Spacer(Modifier.height(12.dp))
@@ -341,7 +341,7 @@ fun ExerciseProgressCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         muscleSummaryText(muscleState),
-                        style = MaterialTheme.typography.labelSmall,
+                        style = com.example.gymtrack.core.ui.theme.GymTrackTheme.tokens.type.small,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
                         modifier = Modifier.weight(1f),
                     )
@@ -377,7 +377,7 @@ fun ExerciseProgressCard(
                     Spacer(Modifier.height(16.dp))
                     Text(
                         "Timed sets · ${timedGroup.axisTitle}",
-                        style = MaterialTheme.typography.labelSmall,
+                        style = com.example.gymtrack.core.ui.theme.GymTrackTheme.tokens.type.small,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
                     )
                     Spacer(Modifier.height(8.dp))
@@ -460,7 +460,7 @@ private fun CompactVariantSummaryChip(label: String, accent: Color) {
         Text(
             text = label,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
-            fontSize = 9.sp,
+            fontSize = ChartLabelSize,
             lineHeight = 10.sp,
             fontWeight = FontWeight.SemiBold,
         )
@@ -509,7 +509,7 @@ private fun VariantLabelChip(
         Text(
             text = variant.label,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
-            style = MaterialTheme.typography.labelSmall,
+            style = com.example.gymtrack.core.ui.theme.GymTrackTheme.tokens.type.small,
             fontWeight = FontWeight.SemiBold,
         )
     }

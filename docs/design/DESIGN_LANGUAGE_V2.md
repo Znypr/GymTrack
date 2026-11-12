@@ -18,7 +18,7 @@ n> **Override (lead, 2026-11-10):** set grammar is REPS × WEIGHT (`8 × 80`), n
 3. **The thumb zone carries the primary action.** Bottom area: Start / Resume / Next / Finish. Nothing important sits only top-right.
 4. **State = shape + icon + text**, never colour alone.
 5. **Spacing:** 4-pt grid (4, 8, 12, 16, 24, 32). Radii: 8 small, 14 cards, 24 sheets. Touch targets ≥44 px.
-6. **Type scale:** display 28, title 22, body 15, small 13, label 11 (uppercase tracking 0.08em).
+6. **Type scale:** display 28, title 22, body 15, small 14, label 12 (raised 2026-11-12: text read too small; Notebook small 16, label 14) (uppercase tracking 0.08em).
 
 ## New navigation (information architecture)
 Today the app has a Home grid with top-right icons (Stats, Settings), the editor and back buttons. Proposal:

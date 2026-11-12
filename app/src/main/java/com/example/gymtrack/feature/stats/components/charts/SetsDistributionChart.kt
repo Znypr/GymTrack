@@ -27,8 +27,8 @@ fun SetsDistributionChart(
 
     val theme = rememberChartTheme()
     val density = LocalDensity.current
-    val labelPaint = makeTextPaint(theme.label, with(density) { 11.sp.toPx() })
-    val countPaint = makeTextPaint(theme.label, with(density) { 10.sp.toPx() })
+    val labelPaint = makeTextPaint(theme.label, with(density) { ChartLabelSize.toPx() })
+    val countPaint = makeTextPaint(theme.label, with(density) { ChartLabelSize.toPx() })
 
     // Scale based on max count
     val maxCount = topExercises.maxOf { it.second }.toFloat()

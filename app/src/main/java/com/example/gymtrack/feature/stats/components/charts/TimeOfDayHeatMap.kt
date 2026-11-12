@@ -22,7 +22,7 @@ fun TimeOfDayHeatmap(
 ) {
     val theme = rememberChartTheme()
     val density = LocalDensity.current
-    val labelPaint = makeTextPaint(theme.label, with(density) { 10.sp.toPx() })
+    val labelPaint = makeTextPaint(theme.label, with(density) { ChartLabelSize.toPx() })
     val maxCount = data.maxOf { it.maxOrNull() ?: 0 }.coerceAtLeast(1)
     val emptyCellColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
 

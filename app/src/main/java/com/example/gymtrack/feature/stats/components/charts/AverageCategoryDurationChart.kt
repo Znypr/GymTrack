@@ -52,7 +52,7 @@ fun AverageCategoryDurationChart(
 
         val theme = rememberChartTheme()
         val density = LocalDensity.current
-        val textPaint = makeTextPaint(theme.label, with(density) { 10.sp.toPx() })
+        val textPaint = makeTextPaint(theme.label, with(density) { ChartLabelSize.toPx() })
         val scaleY = buildScaleY(data.map { it.second })
 
         Canvas(modifier = Modifier.fillMaxWidth().height(200.dp)) {
