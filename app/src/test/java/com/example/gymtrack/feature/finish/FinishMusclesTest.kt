@@ -69,4 +69,15 @@ class FinishMusclesTest {
         assertEquals("Every mapped muscle trained this week.", ThisWeekText.notTrainedLine(everything))
     }
 
+    @Test
+    fun todayLineIsShortAndOnlyShowsMappedUntrainedMuscles() {
+        assertNull(ThisWeekText.todayLine(MuscleWeek.unmapped))
+        assertNull(ThisWeekText.todayLine(week(Muscle.entries.associateWith { 3f })))
+        val w = week(Muscle.entries.associateWith { 3f } - Muscle.GASTROCNEMIUS, unmapped = setOf(Muscle.TIBIALIS))
+        assertEquals("Not trained yet: calves", ThisWeekText.todayLine(w))
+        assertEquals("No muscles trained this week yet", ThisWeekText.todayLine(week(emptyMap())))
+        val line = ThisWeekText.todayLine(week(mapOf(Muscle.QUADS to 3f)))!!
+        assertTrue(line, line.endsWith(" +${Muscle.entries.size - 5} more"))
+    }
+
 }

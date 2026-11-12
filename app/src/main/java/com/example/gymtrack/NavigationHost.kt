@@ -62,6 +62,7 @@ import com.example.gymtrack.feature.home.WorkoutStartSheet
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.example.gymtrack.feature.finish.FinishSummarySheet
 import com.example.gymtrack.feature.finish.buildFinishSummary
+import com.example.gymtrack.feature.stats.rememberTodayNotTrainedLine
 import com.example.gymtrack.feature.stats.ProgressRoute
 import com.example.gymtrack.feature.home.activeWorkoutInfo
 import com.example.gymtrack.feature.home.decideWorkoutStart
@@ -232,6 +233,7 @@ fun NavigationHost(
                     onOpen = { note -> openWorkout(note.timestamp) },
                     onSeeAll = { openTab(AppRoutes.HISTORY) },
                     onRestoreBackup = { navController.navigate(AppRoutes.SETTINGS) },
+                    notTrainedLine = rememberTodayNotTrainedLine(muscleLoadSource, notes.size to notes.firstOrNull()?.timestamp),
                 )
             }
 
