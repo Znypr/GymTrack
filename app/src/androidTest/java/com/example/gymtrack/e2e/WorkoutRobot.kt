@@ -23,6 +23,7 @@ import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import com.example.gymtrack.MainActivity
 import com.example.gymtrack.core.data.ExerciseFlag
+import com.example.gymtrack.feature.editor.components.EDITOR_ACCESSORY_BAR_TEST_TAG
 import com.example.gymtrack.feature.editor.components.EDITOR_FLAG_SEGMENT_TEST_TAG
 import com.example.gymtrack.feature.editor.components.EDITOR_MENU_CATEGORY_TEST_TAG
 import com.example.gymtrack.feature.editor.components.EDITOR_OVERFLOW_TEST_TAG
@@ -240,11 +241,14 @@ class WorkoutRobot(
         return row
     }
 
-    /** Opens any workout from its History row. */
+    /**
+     * Opens any workout from its History row. Waits for the editor, not for row 0: a long open
+     * workout reopens scrolled to its active row (#293), so row 0 may not be composed (#366).
+     */
     fun openWorkoutCard(timestamp: Long) {
         val row = showHistoryRow(timestamp)
         rule.onNodeWithTag(row).performClick()
-        waitForTag(editorRowInputTestTag(0))
+        waitForTag(EDITOR_ACCESSORY_BAR_TEST_TAG)
     }
 
     /**
