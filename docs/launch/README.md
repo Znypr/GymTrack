@@ -14,7 +14,7 @@ Policy facts come from web sources seen on 2026-11-10. Items the reports mark *u
 ## Critical path (ranked)
 1. **Data safety of the app itself.** Fix the P1 data-loss and corruption bugs: #291, #292, #299, #300, #301, #320, #325. Wrong-stats bugs follow: #321, #322, #323, #326.
 2. **Target API 36.** New apps and updates must target API 36 since 2026-08-31; the repo targets 35. A first upload would be rejected.
-3. **Name and brand clearance.** "GymTrack" already exists on Google Play (another developer) and on iOS. A distinctive name is needed before any assets are made; check EUIPO/DPMA. **[decision]**
+3. **Name and brand clearance.** "GymTrack" already exists on Google Play (another developer) and on iOS. A distinctive name is needed before any assets are made; check EUIPO/DPMA. **[decision]** **Resolved 2026-11-12: ZnyprFit (#342).**
 4. **Account type and trader status.** Personal vs organization account (health-app ambiguity; D-U-N-S lead time for an organization). DSA trader declaration: traders' address and phone are shown publicly. **[decision, pro]**
 5. **Privacy policy** at a public URL plus an in-app link. Add an About/Legal screen with privacy policy, Impressum link and open-source licence notices (Apache-2.0 requires notices).
 6. **Auto Backup decision.** `allowBackup=true` with the template's empty rules sends data to the user's Google Drive by default. Decide, configure, and declare it consistently in the Data safety form (#199).

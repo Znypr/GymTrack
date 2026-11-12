@@ -1,4 +1,4 @@
-# GymTrack Play Store marketing and launch plan (2026-11-10)
+# ZnyprFit Play Store marketing and launch plan (2026-11-10)
 
 Verified/unverified: limits (title 30, short 80, full 4000, icon 512x512, feature graphic 1024x500) come from third-party 2026 guides (inspiringapps.com/blog/google-play-store-listing, seen 2026-11-10); one guide claimed a 50-char title, so confirm in Play Console. Closed-test rule (personal account created after 2023-11-13: 12 testers opted in 14 continuous days) is from Google help support.google.com/googleplay/android-developer/answer/14151465, seen via search 2026-11-10. r/Fitness: mirrored wiki says discuss with mods first, ads only in Self-Promotion Saturday thread; re-read the live wiki before posting (unverified). Screenshot min/max counts, current Play ASO ranking factors: UNVERIFIED, check Console.
 
@@ -6,7 +6,7 @@ Verified/unverified: limits (title 30, short 80, full 4000, icon 512x512, featur
 Muscle map, smart suggestions, Notebook theme are still planned (#309/#311, #308/#312, #333). Listing text, screenshots and videos below mark each with **[if shipped]**. Drop any line whose feature is not in the release build. Same for "no data collected": confirm Data safety form matches (no network = nothing collected).
 
 ## 1. Positioning
-**Statement:** For lifters who hate fiddly logging apps, GymTrack is the fastest note-style gym logger on Android: type a set like a note, one thumb, offline, no account, no ads.
+**Statement:** For lifters who hate fiddly logging apps, ZnyprFit is the fastest note-style gym logger on Android: type a set like a note, one thumb, offline, no account, no ads.
 
 **3 key messages vs Strong / Hevy / JEFIT**
 1. **Speed:** log like a note, custom keypad, one-handed; fewer taps per set than form-based loggers (back this with a measured tap count, record it before claiming a number).
@@ -17,21 +17,21 @@ Audience: intermediate lifters, privacy-minded, German + English. Not for: socia
 
 ## 2. Name and subtitle check
 - Play has **no subtitle**; the short description does that job.
-- "GymTrack" is generic; many similarly named apps exist. UNVERIFIED: do trademark/Play-name search (Play search "GymTrack", DPMA/EUIPO register) before committing.
-- Title (<=30): **GymTrack: Gym Workout Log** (25). Alt: **GymTrack - Fast Gym Logger** (25). Keyword in title is the strongest ASO lever.
+- Name: **ZnyprFit** (decided 2026-11-12, #342; TMview check found no conflicting mark). "GymTrack" was taken on Play and iOS.
+- Title (<=30): **ZnyprFit: Gym Workout Log** (25). Alt: **ZnyprFit - Fast Gym Logger** (25). Keyword in title is the strongest ASO lever.
 - Package app.znypr.gymtrack cannot change after publish; fine.
 
 ## 3. Store listing drafts
 
 ### EN
-**Title:** GymTrack: Gym Workout Log
+**Title:** ZnyprFit: Gym Workout Log
 **Short (<=80):** Log sets like a note. Fast, offline, one-handed. No account, no ads. (71)
 
 **Full:**
 ```
 Log your workout as fast as you can type a note.
 
-GymTrack is a strength-training logger built for the gym floor: one hand, sweaty thumbs, no waiting for a spinner. Write an exercise, tap reps and weight on a custom keypad, move on. That's it.
+ZnyprFit is a strength-training logger built for the gym floor: one hand, sweaty thumbs, no waiting for a spinner. Write an exercise, tap reps and weight on a custom keypad, move on. That's it.
 
 WHY LIFTERS SWITCH
 - Note-style logging: an exercise line, then your sets. No forms, no menus per set.
@@ -57,19 +57,19 @@ MAKE IT YOURS
 
 No subscription needed to log a workout. [adjust to the final pricing decision]
 
-GymTrack is built by one independent developer who lifts. Feedback goes straight to me: <support email>.
+ZnyprFit is built by one independent developer who lifts. Feedback goes straight to me: <support email>.
 ```
 (~1,500 chars, room to grow.)
 
 ### DE
-**Titel:** GymTrack: Gym Trainingstagebuch (30, count exactly in Console; alt: GymTrack: Workout Tagebuch)
+**Titel:** ZnyprFit: Trainingstagebuch (27; alt: ZnyprFit: Gym Tagebuch, 22)
 **Kurz (<=80):** Sätze tippen wie eine Notiz. Schnell, offline, einhändig. Ohne Konto. (72)
 
 **Lang:**
 ```
 Trainiere, notiere, fertig: so schnell wie eine Notiz.
 
-GymTrack ist das Trainingstagebuch für den Kraftraum. Eine Hand, kein Warten, keine Formulare. Übung schreiben, Wiederholungen und Gewicht auf der eigenen Tastatur tippen, weiter.
+ZnyprFit ist das Trainingstagebuch für den Kraftraum. Eine Hand, kein Warten, keine Formulare. Übung schreiben, Wiederholungen und Gewicht auf der eigenen Tastatur tippen, weiter.
 
 DARUM GYMTRACK
 - Logging wie eine Notiz: eine Zeile pro Übung, darunter deine Sätze.
@@ -138,7 +138,7 @@ Storyboard (45 s, Resolve timeline 30 fps, timecodes TC:frame):
 - 00:00:24:00-00:00:30:00 Muscle map [if shipped].
 - 00:00:30:00-00:00:36:00 Notebook theme swap (hard cut, paper texture) [if shipped].
 - 00:00:36:00-00:00:42:00 Progress chart, backup icon, "offline, no account".
-- 00:00:42:00-00:00:45:00 Logo, "GymTrack - free on Google Play", URL.
+- 00:00:42:00-00:00:45:00 Logo, "ZnyprFit - free on Google Play", URL.
 Practical: record phone with scrcpy (`scrcpy --record file.mp4 --no-audio`), screen-recording at native 60 fps then conform to 30; use an actual gym clip (hand, barbell) for hook B-roll; music low and licence-free. Export H.264 1080p. Reuse same cut as base for Shorts (crop 9:16, reframe).
 
 ## 8. Long-form YouTube: "I built my own gym app (and put it on the Play Store)" 8-12 min
