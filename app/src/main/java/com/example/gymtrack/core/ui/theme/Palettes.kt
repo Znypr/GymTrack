@@ -27,6 +27,10 @@ val NormalDarkColors = GymTrackColors(
     navBar = Color(0xFF0B0B0C),
     paperRule = Color.Transparent,
     paperMargin = Color.Transparent,
+    series = listOf(
+        Color(0xFFF2B705), Color(0xFF64D2FF), Color(0xFFBF5AF2),
+        Color(0xFF30D158), Color(0xFFFF6482), Color(0xFFD0A77B),
+    ),
 )
 
 /**
@@ -56,6 +60,10 @@ val NormalLightColors = GymTrackColors(
     navBar = Color(0xFFFFFFFF),
     paperRule = Color.Transparent,
     paperMargin = Color.Transparent,
+    series = listOf(
+        Color(0xFF7F5C00), Color(0xFF0071A4), Color(0xFF8944AB),
+        Color(0xFF248A3D), Color(0xFFC2185B), Color(0xFF6D4C41),
+    ),
 )
 
 /** Notebook: cream paper, graphite, blue fountain pen, highlighter, red pen. */
@@ -83,6 +91,11 @@ val NotebookColors = GymTrackColors(
     navBar = Color(0xFFF6F1E4),
     paperRule = Color(0xFFC9DAEA),
     paperMargin = Color(0xFFE3A6A6),
+    // Pens on paper: blue fountain pen, graphite, red pen, green pen, violet, sepia.
+    series = listOf(
+        Color(0xFF1F4FB5), Color(0xFF2B2A28), Color(0xFFC62828),
+        Color(0xFF2E7D32), Color(0xFF7E57C2), Color(0xFF8D6E63),
+    ),
 )
 
 val NormalDarkTokens = GymTrackTokens(Skin.NORMAL, isDark = true, colors = NormalDarkColors, type = NormalType)

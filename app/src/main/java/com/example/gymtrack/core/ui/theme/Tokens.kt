@@ -59,6 +59,8 @@ data class GymTrackColors(
     val paperRule: Color,
     /** Notebook margin line; transparent in Normal. */
     val paperMargin: Color,
+    /** Chart lines when several exercises share one chart; always paired with a legend label. */
+    val series: List<Color>,
 )
 
 /** 4-pt grid. */
