@@ -42,6 +42,19 @@ class ThemeTokensTest {
     }
 
     @Test
+    fun `chart series reach 3 to 1 on page and surface and stay distinct`() {
+        all.forEach { (name, tokens) ->
+            val c = tokens.colors
+            assertTrue("$name has at least 6 series", c.series.size >= 6)
+            assertEquals("$name series are distinct", c.series.size, c.series.toSet().size)
+            c.series.forEachIndexed { i, color ->
+                assertContrast("$name series $i on page", color, c.bg, 3.0)
+                assertContrast("$name series $i on surface", color, c.surface, 3.0)
+            }
+        }
+    }
+
+    @Test
     fun `ink stays readable on the Notebook highlighter`() {
         val c = NotebookColors
         assertContrast("ink on highlighter", c.ink, c.active.compositeOver(c.bg), 4.5)

@@ -1,5 +1,6 @@
 package com.example.gymtrack.feature.stats.components.charts
 
+import com.example.gymtrack.core.ui.theme.GymTrackTheme
 import com.example.gymtrack.core.time.AppClock
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -546,15 +547,7 @@ private fun dropdownLabelPriority(label: String): Int {
 }
 
 @Composable
-private fun exerciseProgressPalette(): List<Color> = listOf(
-    MaterialTheme.colorScheme.primary,
-    Color(0xFF8E24AA),
-    Color(0xFF00897B),
-    Color(0xFFEF6C00),
-    Color(0xFFD81B60),
-    Color(0xFF5E35B1),
-    Color(0xFF6D4C41),
-)
+private fun exerciseProgressPalette(): List<Color> = GymTrackTheme.tokens.colors.series
 
 @Composable
 private fun compactSummaryColor(index: Int): Color {
