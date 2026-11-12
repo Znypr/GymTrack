@@ -217,27 +217,49 @@ private fun MusclesSection(summary: FinishSummary) {
                 )
             } else {
                 val trained = summary.setsPerMuscle
-                Text(
-                    text = if (trained.isEmpty()) {
-                        "No mapped muscle trained in this workout."
-                    } else {
-                        trained.joinToString(" · ") { (m, sets) -> "${m.label} ${setsPhrase(sets)}" }
-                    },
-                    style = tokens.type.body,
-                    color = c.ink,
-                )
-                BodyMapLevelList(week.levels, Modifier.padding(top = tokens.spacing.xxs))
+                if (trained.isEmpty()) {
+                    Text("No mapped muscle trained in this workout.", style = tokens.type.small, color = c.inkMuted)
+                } else {
+                    // One row per muscle, most sets first: the map's text alternative (#311 a11y).
+                    trained.forEachIndexed { index, (muscle, sets) ->
+                        if (index > 0) AppDivider(seed = 140 + index)
+                        MuscleSetsRow(muscle.label, setsPhrase(sets), Modifier.testTag("finish-muscle-${muscle.id}"))
+                    }
+                }
             }
             summary.nextTime?.let { next ->
-                Spacer(Modifier.height(tokens.spacing.xxs))
+                Spacer(Modifier.height(tokens.spacing.md))
                 Text(
-                    text = "Next time: ${next.label} (outlined on the map)",
-                    style = tokens.type.body,
-                    color = c.ink,
-                    modifier = Modifier.testTag(FINISH_SHEET_NEXT_TAG),
+                    text = if (tokens.isNotebook) "Next time" else "NEXT TIME",
+                    style = if (tokens.isNotebook) tokens.type.title else tokens.type.label,
+                    color = c.inkMuted,
                 )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 44.dp)
+                        .semantics(mergeDescendants = true) {}
+                        .testTag(FINISH_SHEET_NEXT_TAG),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(next.label, style = tokens.type.body, color = c.ink, modifier = Modifier.weight(1f))
+                    Text("outlined on the map", style = tokens.type.small, color = c.inkMuted)
+                }
             }
         }
+    }
+}
+
+/** "Upper chest ······ 2 sets": muscle on the left, sets on the right. */
+@Composable
+private fun MuscleSetsRow(muscle: String, sets: String, modifier: Modifier = Modifier) {
+    val tokens = GymTrackTheme.tokens
+    Row(
+        modifier = modifier.fillMaxWidth().heightIn(min = 40.dp).semantics(mergeDescendants = true) {},
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(muscle, style = tokens.type.body, color = tokens.colors.ink, modifier = Modifier.weight(1f))
+        Text(sets, style = tokens.type.small, color = tokens.colors.inkMuted)
     }
 }
 
