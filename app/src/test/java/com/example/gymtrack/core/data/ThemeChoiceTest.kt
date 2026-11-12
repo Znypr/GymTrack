@@ -24,7 +24,7 @@ class ThemeChoiceTest {
     @Test
     fun `fresh install uses the model default`() {
         assertEquals(Settings.DEFAULT_THEME, ThemeChoice.fromStorage(null, legacyDarkMode = null))
-        assertEquals(ThemeChoice.NORMAL_DARK, Settings.DEFAULT_THEME)
+        assertEquals(ThemeChoice.NOTEBOOK, Settings.DEFAULT_THEME)
     }
 
     @Test

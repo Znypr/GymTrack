@@ -196,9 +196,9 @@ class LongHorizonAppSimulationTest {
             driver.findings.report(
                 "UI-STEP-FAILED-${workout.tags.sorted().joinToString("+").ifEmpty { "PLAIN" }}", Severity.HIGH,
                 "The scripted user could not complete a workout in the real UI",
-                driverHistory(driver), workout.day, workout.index, "${error.javaClass.simpleName}: ${error.message?.take(300)}",
+                driverHistory(driver), workout.day, workout.index, "${error.javaClass.simpleName}: ${error.message?.take(300)} at ${robotStep(error)}",
             )
-            Log.w(WorkoutRobot.TAG, "UI step failed for workout ${workout.index} at row ${robot.activeRow}: ${error.message}")
+            Log.w(WorkoutRobot.TAG, "UI step failed for workout ${workout.index} at row ${robot.activeRow} in ${robotStep(error)}: ${error.message}")
             runCatching {
                 composeRule.onAllNodes(isRoot()).fetchSemanticsNodes().forEachIndexed { i, _ ->
                     composeRule.onAllNodes(isRoot())[i].printToString(maxDepth = 40)
@@ -275,4 +275,11 @@ class LongHorizonAppSimulationTest {
     }
 
     private fun driverHistory(driver: DeviceHistoryDriver) = driver.history
+
+    /** The robot steps that were running when a UI step failed (#366), innermost first. */
+    private fun robotStep(error: Throwable): String = error.stackTrace
+        .filter { it.className.contains("WorkoutRobot") || it.className.contains("LongHorizonAppSimulationTest") }
+        .take(3)
+        .joinToString(" < ") { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }
+        .ifEmpty { "unknown step" }
 }
