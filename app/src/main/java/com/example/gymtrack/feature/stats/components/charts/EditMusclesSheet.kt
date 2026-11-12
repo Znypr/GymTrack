@@ -85,10 +85,10 @@ internal fun EditMusclesSheet(
         Text("Edit muscles", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Text(exerciseName, style = MaterialTheme.typography.bodyMedium, color = muted)
         Spacer(Modifier.height(8.dp))
-        Text(sourceLine(state), style = MaterialTheme.typography.labelSmall, color = muted)
+        Text(sourceLine(state), style = com.example.gymtrack.core.ui.theme.GymTrackTheme.tokens.type.small, color = muted)
         Text(
             "Each working set counts 1 set for a primary muscle and ½ set for a secondary one.",
-            style = MaterialTheme.typography.labelSmall,
+            style = com.example.gymtrack.core.ui.theme.GymTrackTheme.tokens.type.small,
             color = muted,
         )
         Spacer(Modifier.height(8.dp))
@@ -120,7 +120,7 @@ internal fun EditMusclesSheet(
 
         if (primary.isEmpty()) {
             Spacer(Modifier.height(8.dp))
-            Text("Pick at least one primary muscle to save.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+            Text("Pick at least one primary muscle to save.", style = com.example.gymtrack.core.ui.theme.GymTrackTheme.tokens.type.small, color = MaterialTheme.colorScheme.error)
         }
         Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

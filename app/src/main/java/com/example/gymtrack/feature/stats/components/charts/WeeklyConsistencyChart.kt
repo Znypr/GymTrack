@@ -48,7 +48,7 @@ fun WeeklyConsistencyChart(
         val weeklyAverage = data.map { it.count }.average()
         Text(
             "Sessions per ISO week · $totalSessions total · ${String.format(Locale.getDefault(), "%.1f", weeklyAverage)}/week",
-            style = MaterialTheme.typography.labelSmall,
+            style = com.example.gymtrack.core.ui.theme.GymTrackTheme.tokens.type.small,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
         )
         Spacer(Modifier.height(16.dp))
@@ -56,7 +56,7 @@ fun WeeklyConsistencyChart(
         val theme = rememberChartTheme()
         val scaleY = buildScaleY(data.map { it.count.toFloat() })
         val density = LocalDensity.current
-        val textPaint = makeTextPaint(theme.label, with(density) { 10.sp.toPx() })
+        val textPaint = makeTextPaint(theme.label, with(density) { ChartLabelSize.toPx() })
         val dateFormatter = remember { SimpleDateFormat("dd MMM", Locale.getDefault()) }
 
         Canvas(modifier = Modifier.fillMaxWidth().height(200.dp)) {

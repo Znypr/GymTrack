@@ -83,7 +83,7 @@ class ThemeTokensTest {
         val r = GymTrackRadii()
         assertEquals(listOf(8f, 14f, 24f), listOf(r.small, r.card, r.sheet).map { it.value })
         val n = NormalType
-        assertEquals(listOf(28f, 22f, 15f, 13f, 11f), listOf(n.display, n.title, n.body, n.small, n.label).map { it.fontSize.value })
+        assertEquals(listOf(28f, 22f, 15f, 14f, 12f), listOf(n.display, n.title, n.body, n.small, n.label).map { it.fontSize.value })
         all.values.forEach { assertTrue(it.type.setNumber.fontSize.value >= 17f) }
     }
 

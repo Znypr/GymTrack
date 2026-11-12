@@ -46,10 +46,11 @@ internal val NormalType = GymTrackType(
     display = TextStyle(fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold),
     title = TextStyle(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold),
     body = TextStyle(fontSize = 15.sp, lineHeight = 21.sp),
-    small = TextStyle(fontSize = 13.sp, lineHeight = 18.sp),
+    // Raised 2026-11-12 (user: text too small): small 13→14, label 11→12.
+    small = TextStyle(fontSize = 14.sp, lineHeight = 19.sp),
     label = TextStyle(
-        fontSize = 11.sp,
-        lineHeight = 14.sp,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
         fontWeight = FontWeight.Medium,
         letterSpacing = 0.08.em,
     ),
@@ -65,11 +66,12 @@ internal val NotebookType = GymTrackType(
     display = TextStyle(fontFamily = CaveatFamily, fontWeight = FontWeight.Bold, fontSize = 32.sp, lineHeight = 36.sp),
     title = TextStyle(fontFamily = CaveatFamily, fontWeight = FontWeight.SemiBold, fontSize = 26.sp, lineHeight = 30.sp),
     body = TextStyle(fontFamily = PatrickHandFamily, fontSize = 17.sp, lineHeight = 22.sp),
-    small = TextStyle(fontFamily = PatrickHandFamily, fontSize = 15.sp, lineHeight = 19.sp),
+    // Handwriting runs small: small 15→16, label 13→14 (2026-11-12).
+    small = TextStyle(fontFamily = PatrickHandFamily, fontSize = 16.sp, lineHeight = 20.sp),
     label = TextStyle(
         fontFamily = PatrickHandFamily,
-        fontSize = 13.sp,
-        lineHeight = 16.sp,
+        fontSize = 14.sp,
+        lineHeight = 18.sp,
         letterSpacing = 0.06.em,
     ),
     // Readability over style: Patrick Hand's figures stay clear at 18 sp.
@@ -101,6 +103,6 @@ internal fun notebookMaterialTypography(): Typography {
         bodySmall = base.bodySmall.hand().copy(fontSize = 14.sp),
         labelLarge = base.labelLarge.hand(),
         labelMedium = base.labelMedium.hand(),
-        labelSmall = base.labelSmall.hand(),
+        labelSmall = base.labelSmall.hand().copy(fontSize = 13.sp),
     )
 }

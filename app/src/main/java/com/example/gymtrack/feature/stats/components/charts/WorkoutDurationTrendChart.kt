@@ -39,7 +39,7 @@ fun WorkoutDurationTrendChart(
     val scaleY = buildScaleY(weekly.map { it.second })
     val theme = rememberChartTheme()
     val density = LocalDensity.current
-    val textPaint = makeTextPaint(theme.label, with(density) { 10.sp.toPx() })
+    val textPaint = makeTextPaint(theme.label, with(density) { ChartLabelSize.toPx() })
     val df = SimpleDateFormat("dd MMM", Locale.getDefault())
 
     Column(modifier.fillMaxWidth()) {
@@ -52,14 +52,14 @@ fun WorkoutDurationTrendChart(
         Spacer(Modifier.height(4.dp))
         Text(
             if (showRollingAvg) "Weekly average · minutes" else "Workout duration · minutes",
-            style = MaterialTheme.typography.labelSmall,
+            style = com.example.gymtrack.core.ui.theme.GymTrackTheme.tokens.type.small,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
         )
         if (filteredOutliers > 0) {
             Spacer(Modifier.height(4.dp))
             Text(
                 "Ignoring $filteredOutliers duration outlier${if (filteredOutliers == 1) "" else "s"} over 5h",
-                style = MaterialTheme.typography.labelSmall,
+                style = com.example.gymtrack.core.ui.theme.GymTrackTheme.tokens.type.small,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
             )
         }

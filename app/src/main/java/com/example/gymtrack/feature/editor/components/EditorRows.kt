@@ -319,7 +319,7 @@ internal fun setDisplayText(display: SetRowDisplay, colors: GymTrackColors, note
             withStyle(SpanStyle(color = if (display.weightIsCarried) muted else ink)) { append(" ${display.unit}") }
         }
         if (display.myoTotal != null) {
-            withStyle(SpanStyle(color = muted, fontSize = 12.sp)) { append("  =${display.myoTotal}") }
+            withStyle(SpanStyle(color = muted, fontSize = 13.sp)) { append("  =${display.myoTotal}") }
         }
     }
 }

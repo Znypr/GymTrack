@@ -1,5 +1,6 @@
 package com.example.gymtrack.feature.stats.components.charts
 
+import androidx.compose.ui.unit.sp
 import android.graphics.Paint
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -65,6 +66,9 @@ fun buildScaleY(values: List<Float>): ScaleY {
     val top = if (maxVal == 0f) 10f else ceil(maxVal * 1.2f / 5f) * 5f
     return ScaleY(0f, top, top, top)
 }
+
+/** Axis and value labels drawn on chart canvases: never below 12 sp (user feedback 2026-11-12: text too small). */
+val ChartLabelSize = 12.sp
 
 fun makeTextPaint(color: Color, textSizePx: Float): Paint {
     return Paint().apply {
