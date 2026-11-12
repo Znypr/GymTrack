@@ -35,7 +35,7 @@ jobs:
 
       - name: Synchronize issue metadata
         if: github.event_name != 'pull_request'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           github-token: ${{ secrets.CREATOR_OS_PROJECT_TOKEN || secrets.GYMTRACK_PROJECT_TOKEN }}
           script: |

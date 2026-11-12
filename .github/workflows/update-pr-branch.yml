@@ -24,7 +24,7 @@ jobs:
     steps:
       - name: Read pull request
         id: pr
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const pull_number = Number(core.getInput('pr_number'));
@@ -51,7 +51,7 @@ jobs:
             core.setOutput('head_sha', pr.head.sha);
 
       - name: Check out PR head branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.pr.outputs.head_ref }}
           fetch-depth: 0
