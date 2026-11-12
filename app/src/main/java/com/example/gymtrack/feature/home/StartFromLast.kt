@@ -2,6 +2,8 @@ package com.example.gymtrack.feature.home
 
 import com.example.gymtrack.core.data.Category
 import com.example.gymtrack.core.data.NoteLine
+import com.example.gymtrack.core.data.WorkoutTemplate
+import com.example.gymtrack.core.data.uniqueTemplateName
 import com.example.gymtrack.core.util.parseNoteText
 
 /*
@@ -106,3 +108,21 @@ fun NoteLine.hasLoggedSet(): Boolean {
 }
 
 private const val FALLBACK_CATEGORY_COLOR = 0xFF808080
+
+/**
+ * A template from [note] (#314): its exercise names in order, named after its category
+ * ("Push", "Push 2" when taken). Null when the workout has no exercise.
+ */
+fun templateFromNote(note: NoteLine, existing: List<WorkoutTemplate>): WorkoutTemplate? {
+    val names = exerciseNames(note)
+    if (names.isEmpty()) return null
+    val category = note.categoryName?.trim().orEmpty()
+    return WorkoutTemplate(uniqueTemplateName(category.ifEmpty { note.title.trim() }, existing), category, names)
+}
+
+/** The category a template starts: the user's category of that name, else one rebuilt from it, else none. */
+fun WorkoutTemplate.startCategory(categories: List<Category>): Category? {
+    if (categoryName.isBlank()) return null
+    return categories.firstOrNull { it.name.equals(categoryName, ignoreCase = true) }
+        ?: Category(categoryName, 0xFF808080)
+}

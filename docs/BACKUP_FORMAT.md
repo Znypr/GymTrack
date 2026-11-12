@@ -150,6 +150,8 @@ Top-level fields:
 
 `settings.trainingGoal` (#312) is optional: `NONE`, `BUILD_MUSCLE`, `LOSE_FAT` or `GET_STRONGER`. Backups without it, or with an unknown value, restore as `NONE` (no goal). Older app versions ignore it.
 
+`settings.templates` (#314) is optional: an array of `{ "name", "category", "exercises": [string] }`. Templates hold exercise names only, never set values. Backups without it restore with no templates; entries with no name or no exercises are skipped. Older app versions ignore it.
+
 Legacy set records include `weightUnit` when available. Older v1 backup files that do not contain this field are still readable and default missing legacy set units to `KG` during decode because previous legacy rows had no source-unit column.
 
 The canonical records are the long-term source for workout history. Legacy records remain in the backup while the app still needs them for compatibility with existing note-based storage and migration paths.

@@ -53,12 +53,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import java.util.Locale
+import androidx.compose.runtime.remember
+import com.example.gymtrack.core.data.WorkoutTemplate
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 
 /** What the Progress tab shows: the Stats result plus the categories for the Plan row. */
 @Immutable
 data class ProgressState(
     val stats: StatsState = StatsState(),
     val categories: List<Category> = DEFAULT_CATEGORIES,
+    /** Saved templates for the Plan section (#314), in the user's order. */
+    val templates: List<WorkoutTemplate> = emptyList(),
 )
 
 /** The range control's choices, in order: 4W · 3M · 1Y · All. */
@@ -70,6 +78,16 @@ val PROGRESS_RANGES: List<Pair<TimeRange, String>> = listOf(
 )
 
 private val RANGE_SPOKEN = listOf("Last 4 weeks", "Last 3 months", "Last year", "All time")
+
+const val PROGRESS_TEMPLATES_TAG = "progress-templates"
+const val PROGRESS_TEMPLATE_DELETE_CONFIRM_TAG = "progress-template-delete-confirm"
+
+/** Tag on a template row, e.g. `progress-template-Push`. */
+fun progressTemplateTestTag(name: String): String = "progress-template-$name"
+
+/** "Bench Press · Incline DB · Fly +2": the first three exercise names. */
+internal fun templatePreview(exercises: List<String>): String =
+    exercises.take(3).joinToString(" · ") + if (exercises.size > 3) " +${exercises.size - 3}" else ""
 
 /** Tag on the Plan row of a category, e.g. `progress-start-Push`. */
 fun progressStartTestTag(category: String): String = "progress-start-$category"
@@ -103,6 +121,8 @@ fun ProgressScreen(
     thisWeek: (@Composable () -> Unit)? = null,
     goal: TrainingGoal = TrainingGoal.NONE,
     onGoalSelected: ((TrainingGoal) -> Unit)? = null,
+    onStartTemplate: ((WorkoutTemplate) -> Unit)? = null,
+    onDeleteTemplate: ((WorkoutTemplate) -> Unit)? = null,
 ) {
     ProgressContent(
         state = state,
@@ -114,6 +134,8 @@ fun ProgressScreen(
         thisWeek = thisWeek,
         goal = goal,
         onGoalSelected = onGoalSelected,
+        onStartTemplate = onStartTemplate,
+        onDeleteTemplate = onDeleteTemplate,
     )
 }
 
@@ -133,17 +155,22 @@ fun ProgressRoute(
     muscleLoadSource: MuscleLoadSource = UnmappedMuscleLoadSource,
     /** The header goal chip (#312); null hides it. */
     onGoalSelected: ((TrainingGoal) -> Unit)? = null,
+    templates: List<WorkoutTemplate> = emptyList(),
+    onStartTemplate: ((WorkoutTemplate) -> Unit)? = null,
+    onDeleteTemplate: ((WorkoutTemplate) -> Unit)? = null,
 ) {
     val stats by viewModel.uiState.collectAsState()
     LaunchedEffect(settings.defaultWeightUnit) { viewModel.setDisplayUnit(settings.defaultWeightUnit) }
     ProgressScreen(
-        state = ProgressState(stats = stats, categories = settings.categories),
+        state = ProgressState(stats = stats, categories = settings.categories, templates = templates),
         onRangeSelected = viewModel::setTimeRange,
         onOpenSettings = onOpenSettings,
         onStartCategory = onStartCategory,
         modifier = modifier,
         goal = settings.trainingGoal,
         onGoalSelected = onGoalSelected,
+        onStartTemplate = onStartTemplate,
+        onDeleteTemplate = onDeleteTemplate,
         exerciseProgress = {
             ExerciseProgressCard(
                 repository = workoutRepository,
@@ -167,6 +194,8 @@ internal fun ProgressContent(
     thisWeek: (@Composable () -> Unit)? = null,
     goal: TrainingGoal = TrainingGoal.NONE,
     onGoalSelected: ((TrainingGoal) -> Unit)? = null,
+    onStartTemplate: ((WorkoutTemplate) -> Unit)? = null,
+    onDeleteTemplate: ((WorkoutTemplate) -> Unit)? = null,
 ) {
     val tokens = GymTrackTheme.tokens
     val stats = state.stats
@@ -218,7 +247,7 @@ internal fun ProgressContent(
                 }
             }
             if (onStartCategory != null && state.categories.isNotEmpty()) {
-                item { PlanSection(state.categories, onStartCategory) }
+                item { PlanSection(state.categories, onStartCategory, state.templates, onStartTemplate, onDeleteTemplate) }
             }
             if (onOpenSettings != null) {
                 item {
@@ -324,10 +353,83 @@ private fun MiniStat(label: String, value: String, modifier: Modifier, tagLabel:
 }
 
 @Composable
-private fun PlanSection(categories: List<Category>, onStartCategory: (String) -> Unit) {
+@OptIn(ExperimentalFoundationApi::class)
+private fun PlanSection(
+    categories: List<Category>,
+    onStartCategory: (String) -> Unit,
+    templates: List<WorkoutTemplate> = emptyList(),
+    onStartTemplate: ((WorkoutTemplate) -> Unit)? = null,
+    onDeleteTemplate: ((WorkoutTemplate) -> Unit)? = null,
+) {
     val tokens = GymTrackTheme.tokens
+    var deleting by remember { mutableStateOf<WorkoutTemplate?>(null) }
     Column {
         SectionLabel("Plan")
+        if (onStartTemplate != null) {
+            AppCard(Modifier.fillMaxWidth().testTag(PROGRESS_TEMPLATES_TAG), seed = 53) {
+                Text("Templates", style = tokens.type.small, color = tokens.colors.inkMuted)
+                if (templates.isEmpty()) {
+                    Text(
+                        "Save a workout as a template from its Finish summary.",
+                        style = tokens.type.small,
+                        color = tokens.colors.inkMuted,
+                        modifier = Modifier.padding(vertical = tokens.spacing.xs),
+                    )
+                }
+                templates.forEachIndexed { index, template ->
+                    if (index > 0) AppDivider(seed = 90 + index)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 56.dp)
+                            .combinedClickable(
+                                role = Role.Button,
+                                onClickLabel = "Start ${template.name}",
+                                onLongClickLabel = if (onDeleteTemplate != null) "Delete template" else null,
+                                onLongClick = onDeleteTemplate?.let { { deleting = template } },
+                                onClick = { onStartTemplate(template) },
+                            )
+                            .testTag(progressTemplateTestTag(template.name)),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                template.name,
+                                style = tokens.type.body,
+                                color = tokens.colors.ink,
+                                fontWeight = if (tokens.isNotebook) null else FontWeight.Medium,
+                            )
+                            Text(
+                                templatePreview(template.exercises),
+                                style = tokens.type.small,
+                                color = tokens.colors.inkMuted,
+                                maxLines = 1,
+                            )
+                        }
+                        Text("Start", style = tokens.type.small, color = tokens.colors.action)
+                        AppIconView(AppIcon.CHEVRON, contentDescription = null, tint = tokens.colors.action, size = 20.dp)
+                    }
+                }
+            }
+            Spacer(Modifier.height(tokens.spacing.sm))
+        }
+        deleting?.let { template ->
+            AlertDialog(
+                onDismissRequest = { deleting = null },
+                title = { Text("Delete “${template.name}”?") },
+                text = { Text("Your logged workouts stay as they are.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            onDeleteTemplate?.invoke(template)
+                            deleting = null
+                        },
+                        modifier = Modifier.testTag(PROGRESS_TEMPLATE_DELETE_CONFIRM_TAG),
+                    ) { Text("Delete") }
+                },
+                dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
+            )
+        }
         AppCard(Modifier.fillMaxWidth(), seed = 47) {
             Text("Start from", style = tokens.type.small, color = tokens.colors.inkMuted)
             categories.forEachIndexed { index, category ->

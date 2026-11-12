@@ -41,6 +41,8 @@ import com.example.gymtrack.core.ui.theme.sketchUnderline
 
 const val FINISH_SHEET_DONE_TAG = "finish-sheet-done"
 const val FINISH_SHEET_EDIT_TAG = "finish-sheet-edit"
+const val FINISH_SHEET_SAVE_TEMPLATE_TAG = "finish-sheet-save-template"
+const val FINISH_SHEET_TEMPLATE_SAVED_TAG = "finish-sheet-template-saved"
 const val FINISH_SHEET_NEXT_TAG = "finish-sheet-next"
 const val FINISH_SHEET_MUSCLES_TAG = "finish-sheet-muscles"
 
@@ -56,9 +58,11 @@ fun FinishSummarySheet(
     summary: FinishSummary,
     onDone: () -> Unit,
     onEdit: () -> Unit,
+    onSaveTemplate: (() -> Unit)? = null,
+    savedTemplateName: String? = null,
 ) {
     AppBottomSheet(onDismissRequest = onDone) {
-        FinishSummaryContent(summary, onDone, onEdit)
+        FinishSummaryContent(summary, onDone, onEdit, onSaveTemplate = onSaveTemplate, savedTemplateName = savedTemplateName)
     }
 }
 
@@ -69,6 +73,10 @@ fun FinishSummaryContent(
     onDone: () -> Unit,
     onEdit: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Planner v1 (#314): saves this workout's exercise names as a template; null hides it. */
+    onSaveTemplate: (() -> Unit)? = null,
+    /** Set once saved: the row then says "Saved as template "Push"" instead of the button. */
+    savedTemplateName: String? = null,
 ) {
     val tokens = GymTrackTheme.tokens
     val c = tokens.colors
@@ -119,6 +127,26 @@ fun FinishSummaryContent(
         MusclesSection(summary)
         Spacer(Modifier.height(tokens.spacing.sm))
         Text(summary.weekLine, style = tokens.type.small, color = c.inkMuted, modifier = Modifier.testTag("finish-week"))
+        if (savedTemplateName != null) {
+            Spacer(Modifier.height(tokens.spacing.sm))
+            Text(
+                "Saved as template “$savedTemplateName”",
+                style = tokens.type.small,
+                color = c.inkMuted,
+                modifier = Modifier.heightIn(min = 48.dp).testTag(FINISH_SHEET_TEMPLATE_SAVED_TAG),
+            )
+        } else if (onSaveTemplate != null) {
+            Spacer(Modifier.height(tokens.spacing.xs))
+            Box(
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .clickable(role = Role.Button, onClickLabel = "Save these exercises as a template", onClick = onSaveTemplate)
+                    .testTag(FINISH_SHEET_SAVE_TEMPLATE_TAG),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Text("Save as template", style = tokens.type.body, color = c.action)
+            }
+        }
         Spacer(Modifier.height(tokens.spacing.lg))
         Row(
             modifier = Modifier.fillMaxWidth(),
