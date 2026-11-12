@@ -1,5 +1,7 @@
 package com.example.gymtrack.feature.stats
 
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -149,20 +151,84 @@ fun ThisWeekMuscleCard(week: MuscleWeek?, modifier: Modifier = Modifier) {
             RegionDetail(week, selected)
         }
         Spacer(Modifier.height(tokens.spacing.sm))
-        Text(
-            text = ThisWeekText.notTrainedLine(week),
-            style = tokens.type.body,
-            color = c.ink,
-            modifier = Modifier.testTag(THIS_WEEK_NOT_TRAINED_TAG),
-        )
-        if (!week.isAllUnmapped) {
-            BodyMapLevelList(levels, Modifier.padding(top = tokens.spacing.xxs))
+        if (week.isAllUnmapped) {
+            Text(
+                text = ThisWeekText.notTrainedLine(week),
+                style = tokens.type.small,
+                color = c.inkMuted,
+                modifier = Modifier.testTag(THIS_WEEK_NOT_TRAINED_TAG),
+            )
+            return@AppCard
         }
-        if (selected == null && bodyMapMuscles(BodyMapView.BOTH).isNotEmpty()) {
-            Spacer(Modifier.height(tokens.spacing.xxs))
-            Text("Tap a muscle to see its exercises.", style = tokens.type.small, color = c.inkMuted)
+        // Trained: one row per muscle, most sets first; a row opens its exercises like a map tap.
+        val trained = remember(week) {
+            Muscle.entries.filter { week.setsOf(it) > 0f }.sortedByDescending { week.setsOf(it) }
+        }
+        if (trained.isNotEmpty()) {
+            SectionHeading("Trained")
+            trained.forEachIndexed { index, muscle ->
+                if (index > 0) AppDivider(seed = 200 + index)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 44.dp)
+                        .clickable(role = Role.Button, onClickLabel = "Show ${muscle.label} exercises") {
+                            selectedId = if (selectedId == muscle.id) null else muscle.id
+                        }
+                        .testTag("progress-this-week-row-${muscle.id}"),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(muscle.label, style = tokens.type.body, color = c.ink, modifier = Modifier.weight(1f))
+                    Text(setsPhrase(week.setsOf(muscle)), style = tokens.type.small, color = c.inkMuted)
+                }
+            }
+            Spacer(Modifier.height(tokens.spacing.sm))
+        }
+        val untrained = remember(week) { ThisWeekText.notTrained(week) }
+        if (untrained.isEmpty()) {
+            Text(
+                "Every mapped muscle trained this week.",
+                style = tokens.type.small,
+                color = c.inkMuted,
+                modifier = Modifier.testTag(THIS_WEEK_NOT_TRAINED_TAG),
+            )
+        } else {
+            var showAll by rememberSaveable { mutableStateOf(false) }
+            SectionHeading("Not trained yet")
+            val shown = if (showAll) untrained else untrained.take(NOT_TRAINED_PREVIEW)
+            Text(
+                text = shown.joinToString(", ") { it.label },
+                style = tokens.type.body,
+                color = c.ink,
+                modifier = Modifier.testTag(THIS_WEEK_NOT_TRAINED_TAG),
+            )
+            if (untrained.size > NOT_TRAINED_PREVIEW) {
+                Text(
+                    text = if (showAll) "Show less" else "Show all ${untrained.size}",
+                    style = tokens.type.small,
+                    color = c.action,
+                    modifier = Modifier
+                        .heightIn(min = 44.dp)
+                        .clickable(role = Role.Button) { showAll = !showAll }
+                        .padding(vertical = tokens.spacing.xs),
+                )
+            }
         }
     }
+}
+
+/** How many untrained muscles the card names before "Show all". */
+private const val NOT_TRAINED_PREVIEW = 4
+
+@Composable
+private fun SectionHeading(text: String) {
+    val tokens = GymTrackTheme.tokens
+    Text(
+        text = if (tokens.isNotebook) text else text.uppercase(),
+        style = if (tokens.isNotebook) tokens.type.title else tokens.type.label,
+        color = tokens.colors.inkMuted,
+        modifier = Modifier.padding(bottom = tokens.spacing.xxs).semantics { heading() },
+    )
 }
 
 @Composable
