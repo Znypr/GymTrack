@@ -49,11 +49,14 @@ data class SimEvent(
 
 data class SimCategory(val name: String, val color: Long)
 
-/** One set as the user taps it on the keypad, e.g. "8x80", "6+2x80", "10x32.5", "60s". */
-data class SimSet(val keys: String, val restBeforeSeconds: Long) {
+/**
+ * One set as the user taps it on the keypad, e.g. "8x80", "6+2x80", "10x32.5", "60s", or "8x"
+ * when the weight repeats ([carriedWeight] is then the weight the editor carries over).
+ */
+data class SimSet(val keys: String, val restBeforeSeconds: Long, val carriedWeight: Double = 0.0) {
     val durationSeconds: Int? = Regex("""^(\d+)s$""").matchEntire(keys)?.groupValues?.get(1)?.toInt()
     val reps: Int = if (durationSeconds != null) 0 else keys.substringBefore('x').split('+').sumOf { it.toInt() }
-    val weight: Double = if (durationSeconds != null) 0.0 else keys.substringAfter('x').toDouble()
+    val weight: Double = if (durationSeconds != null) 0.0 else keys.substringAfter('x').toDoubleOrNull() ?: carriedWeight
 
     /** What the editor row shows before " (rest)": "8x 80", "60s ". */
     val editorText: String = keys.replace("x", "x ").replace("s", "s ")
@@ -244,7 +247,7 @@ class WorkoutHistoryGenerator(
                 if (index == 61) tags += EdgeTag.NEXT_DAY_WHILE_OLD_ACTIVE
                 val partial = if (index == 20) { tags += EdgeTag.KILLED_MID_SET; "8x8" } else null
                 val lateSet = if (finishMode == FinishMode.BACK_THEN_FINISH_NEXT_MORNING) {
-                    SimSet(exercises.last().sets.last().keys, restBeforeSeconds = 13L * 3600L)
+                    exercises.last().sets.last().copy(restBeforeSeconds = 13L * 3600L)
                 } else null
 
                 workouts += SimWorkout(
@@ -312,6 +315,8 @@ class WorkoutHistoryGenerator(
             val flagAfterEnter = spec.flag != ExerciseFlag.BILATERAL && random.nextInt(10) < 3
             if (flagAfterEnter) tags += EdgeTag.FLAG_AFTER_ENTER
             val setCount = random.nextInt(spec.sets.first, spec.sets.last + 1)
+            // A real user types only the reps when the weight repeats ("8x" carries it, EDITOR_BEHAVIOUR §5.1).
+            var lastWeight: String? = null
             val sets = (0 until setCount).map { setIndex ->
                 val rest = when {
                     setIndex == 0 -> random.nextLong(6, 25) * 5
@@ -323,9 +328,11 @@ class WorkoutHistoryGenerator(
                 } else {
                     val reps = random.nextInt(spec.reps.first, spec.reps.last + 1)
                     val weight = fmt(weightFor(spec.baseKg, spec.incrementKg, week, unit, deload))
-                    if (setIndex == setCount - 1 && random.nextInt(8) == 0) "$reps+${random.nextInt(2, 4)}x$weight" else "${reps}x$weight"
+                    val typedWeight = if (weight == lastWeight) "" else weight
+                    lastWeight = weight
+                    if (setIndex == setCount - 1 && random.nextInt(8) == 0) "$reps+${random.nextInt(2, 4)}x$typedWeight" else "${reps}x$typedWeight"
                 }
-                SimSet(keys, rest)
+                SimSet(keys, rest, carriedWeight = lastWeight?.toDoubleOrNull() ?: 0.0)
             }
             val walk = if (position == 0) lateStartSeconds else random.nextLong(12, 37) * 5
             SimExercise(spec.key, name, spec.flag, flagAfterEnter, walk, sets)

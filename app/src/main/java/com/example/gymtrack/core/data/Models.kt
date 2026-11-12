@@ -79,7 +79,8 @@ data class Settings(
 
     companion object {
         /** Single source of truth for the theme default; [SettingsStore] falls back to it too. */
-        val DEFAULT_THEME = ThemeChoice.NORMAL_DARK
+        /** New installs open in Notebook (user decision 2026-11-12). Stored choices are kept. */
+        val DEFAULT_THEME = ThemeChoice.NOTEBOOK
     }
 }
 
