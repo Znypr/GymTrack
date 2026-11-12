@@ -68,6 +68,8 @@ data class Settings(
     val defaultWeightUnit: WeightUnit = WeightUnit.KG,
     /** Opt-in coaching (#312): NONE (the default) = history suggestions only, no policy. */
     val trainingGoal: com.example.gymtrack.feature.suggest.TrainingGoal = com.example.gymtrack.feature.suggest.TrainingGoal.NONE,
+    /** Planner v1 (#314): saved workout templates, in the user's order. */
+    val templates: List<WorkoutTemplate> = emptyList(),
 ) {
     /**
      * Legacy flag kept for code that still reads it (the old editor's status-bar colour).

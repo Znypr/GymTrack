@@ -23,6 +23,8 @@ object SettingsStore {
     private val THEME_CHOICE = stringPreferencesKey("theme_choice")
     /** #312: optional; missing = no goal. */
     private val TRAINING_GOAL = stringPreferencesKey("training_goal")
+    /** #314: optional; missing = no templates. */
+    private val TEMPLATES = stringPreferencesKey("templates_v1")
 
     suspend fun load(context: Context): Settings {
         val prefs = context.settingsDataStore.data.first()
@@ -38,6 +40,7 @@ object SettingsStore {
             categories = cats,
             defaultWeightUnit = WeightUnit.fromStorage(prefs[DEFAULT_WEIGHT_UNIT]),
             trainingGoal = TrainingGoal.fromStorage(prefs[TRAINING_GOAL]),
+            templates = TemplatePrefs.decode(prefs[TEMPLATES]),
         )
     }
 
@@ -52,6 +55,7 @@ object SettingsStore {
             prefs[CATEGORIES] = CategoryPrefs.encodeLegacy(settings.categories)
             prefs[DEFAULT_WEIGHT_UNIT] = settings.defaultWeightUnit.storageValue
             prefs[TRAINING_GOAL] = settings.trainingGoal.storageValue
+            prefs[TEMPLATES] = TemplatePrefs.encode(settings.templates)
         }
     }
 }

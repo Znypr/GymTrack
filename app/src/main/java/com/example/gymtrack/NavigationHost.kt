@@ -56,6 +56,11 @@ import com.example.gymtrack.feature.editor.shouldShowActiveWorkoutControls
 import com.example.gymtrack.feature.history.HistoryScreen
 import com.example.gymtrack.feature.history.workoutCount
 import com.example.gymtrack.feature.home.HomeViewModel
+import com.example.gymtrack.feature.home.startCategory
+import com.example.gymtrack.feature.home.prefillText
+import com.example.gymtrack.feature.home.templateFromNote
+import com.example.gymtrack.core.data.WorkoutTemplate
+import com.example.gymtrack.core.data.withSaved
 import com.example.gymtrack.feature.home.OrphanChoice
 import com.example.gymtrack.feature.home.WorkoutStartDecision
 import com.example.gymtrack.feature.home.WorkoutStartSheet
@@ -127,6 +132,8 @@ fun NavigationHost(
     // Workout whose Finish summary sheet is showing (survives rotation).
     val muscleLoadSource = remember(workoutRepository) { RepositoryMuscleLoadSource(workoutRepository) }
     var finishSummaryFor by rememberSaveable { mutableStateOf<Long?>(null) }
+    // Template name saved from the open Finish sheet (#314); reset when the sheet closes.
+    var savedTemplateName by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(importSummary) {
         val summary = importSummary ?: return@LaunchedEffect
@@ -188,6 +195,11 @@ fun NavigationHost(
         }
     }
 
+    fun startTemplate(template: WorkoutTemplate) =
+        requestStart(template.startCategory(settings.categories), prefillText(template.exercises))
+    fun deleteTemplate(template: WorkoutTemplate) =
+        onSettingsUpdate(settings.copy(templates = settings.templates.filterNot { it.name.equals(template.name, ignoreCase = true) }))
+
     fun resolveStart(request: PendingStart, choice: OrphanChoice) {
         pendingStart = null
         scope.launch {
@@ -230,6 +242,7 @@ fun NavigationHost(
                     hasActiveWorkout = active != null,
                     onStart = { category -> requestStart(category) },
                     onStartFromLast = { prefill -> requestStart(prefill.category, prefill.text) },
+                    onStartTemplate = ::startTemplate,
                     onOpen = { note -> openWorkout(note.timestamp) },
                     onSeeAll = { openTab(AppRoutes.HISTORY) },
                     onRestoreBackup = { navController.navigate(AppRoutes.SETTINGS) },
@@ -299,6 +312,9 @@ fun NavigationHost(
                     },
                     onGoalSelected = { goal -> onSettingsUpdate(settings.copy(trainingGoal = goal)) },
                     muscleLoadSource = muscleLoadSource,
+                    templates = settings.templates,
+                    onStartTemplate = ::startTemplate,
+                    onDeleteTemplate = ::deleteTemplate,
                 )
             }
 
@@ -567,11 +583,25 @@ fun NavigationHost(
             }
             FinishSummarySheet(
                 summary = summary,
-                onDone = { finishSummaryFor = null },
+                onDone = {
+                    finishSummaryFor = null
+                    savedTemplateName = null
+                },
                 onEdit = {
                     finishSummaryFor = null
+                    savedTemplateName = null
                     openWorkout(timestamp)
                 },
+                onSaveTemplate = templateFromNote(workout, settings.templates)?.let { template ->
+                    {
+                        val updated = settings.templates.withSaved(template)
+                        if (updated != null) {
+                            onSettingsUpdate(settings.copy(templates = updated))
+                            savedTemplateName = template.name
+                        }
+                    }
+                },
+                savedTemplateName = savedTemplateName,
             )
         }
     }

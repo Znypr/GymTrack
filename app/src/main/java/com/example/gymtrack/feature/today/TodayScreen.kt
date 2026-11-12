@@ -95,6 +95,8 @@ fun TodayScreen(
     onRestoreBackup: () -> Unit,
     modifier: Modifier = Modifier,
     notTrainedLine: String? = null,
+    /** Starts a saved template (#314); listed first in "Other workout". */
+    onStartTemplate: ((com.example.gymtrack.core.data.WorkoutTemplate) -> Unit)? = null,
 ) {
     val tokens = GymTrackTheme.tokens
     val zone = remember { ZoneId.systemDefault() }
@@ -225,6 +227,21 @@ fun TodayScreen(
         if (showOther) {
             AppBottomSheet(onDismissRequest = { showOther = false }) {
                 Column(Modifier.fillMaxWidth().padding(bottom = tokens.spacing.lg)) {
+                    if (onStartTemplate != null) {
+                        settings.templates.forEach { template ->
+                            val category = settings.categories.firstOrNull { it.name.equals(template.categoryName, ignoreCase = true) }
+                                ?: Category(template.categoryName.ifBlank { template.name }, 0xFF808080)
+                            CategoryChoiceRow(
+                                category,
+                                label = "Start ${template.name}",
+                                detail = prefillPreview(template.exercises),
+                                onClick = {
+                                    showOther = false
+                                    onStartTemplate(template)
+                                },
+                            )
+                        }
+                    }
                     settings.categories
                         .filterNot { it.name.equals(nextCategory?.name, ignoreCase = true) }
                         .forEach { category ->
