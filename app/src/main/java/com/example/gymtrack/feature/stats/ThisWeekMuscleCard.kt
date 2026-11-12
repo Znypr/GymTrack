@@ -58,10 +58,36 @@ fun ThisWeekMuscleRoute(source: MuscleLoadSource, refreshKey: Any?, modifier: Mo
     ThisWeekMuscleCard(week, modifier)
 }
 
+/** This ISO week's "Not trained yet" line for the Today tab, or null (see [ThisWeekText.todayLine]). */
+@Composable
+fun rememberTodayNotTrainedLine(source: MuscleLoadSource, refreshKey: Any?): String? {
+    val line by produceState<String?>(null, source, refreshKey) {
+        value = ThisWeekText.todayLine(source.weekLevels(DerivedIndexWriter.weekKey(AppClock.nowMillis())))
+    }
+    return line
+}
+
 /** Lines the card says in words; pure so tests can check them (#311). */
 internal object ThisWeekText {
     /** Mapped regions with no sets this week, in [Muscle] order. */
     fun notTrained(week: MuscleWeek): List<Muscle> = Muscle.entries.filter { week.levelOf(it) == MuscleLevel.NONE }
+
+    /**
+     * Today tab's mini line under the week strip (DESIGN_LANGUAGE_V2): "Not trained yet: calves,
+     * rear delts". Null when nothing is mapped or every mapped muscle was trained; at most [max]
+     * names, then "+N more".
+     */
+    fun todayLine(week: MuscleWeek, max: Int = 4): String? {
+        if (week.isAllUnmapped) return null
+        val list = notTrained(week)
+        if (list.isEmpty()) return null
+        if (Muscle.entries.none { week.levelOf(it) != MuscleLevel.NONE && week.levelOf(it) != MuscleLevel.UNMAPPED }) {
+            return "No muscles trained this week yet"
+        }
+        val names = list.take(max).joinToString { it.label.lowercase() }
+        val more = if (list.size > max) " +${list.size - max} more" else ""
+        return "Not trained yet: $names$more"
+    }
 
     fun notTrainedLine(week: MuscleWeek): String {
         if (week.isAllUnmapped) return "Muscles aren't mapped for your exercises yet, so nothing is marked as trained."

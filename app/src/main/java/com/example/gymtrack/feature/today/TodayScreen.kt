@@ -66,6 +66,7 @@ const val TODAY_START_PREVIEW_TEST_TAG = "today-start-preview"
 const val TODAY_OTHER_WORKOUT_TEST_TAG = "today-other-workout"
 const val TODAY_SEE_ALL_TEST_TAG = "today-see-all"
 const val TODAY_RESTORE_BACKUP_TEST_TAG = "today-restore-backup"
+const val TODAY_NOT_TRAINED_TEST_TAG = "today-not-trained"
 const val TODAY_WEEK_STRIP_TEST_TAG = "today-week-strip"
 
 /**
@@ -93,6 +94,7 @@ fun TodayScreen(
     onSeeAll: () -> Unit,
     onRestoreBackup: () -> Unit,
     modifier: Modifier = Modifier,
+    notTrainedLine: String? = null,
 ) {
     val tokens = GymTrackTheme.tokens
     val zone = remember { ZoneId.systemDefault() }
@@ -118,6 +120,15 @@ fun TodayScreen(
         val week = remember(notes, today) { weekStrip(notes, today, zone) }
         Spacer(Modifier.height(tokens.spacing.sm))
         WeekStrip(week, locale)
+        if (notTrainedLine != null) {
+            Spacer(Modifier.height(tokens.spacing.xs))
+            Text(
+                notTrainedLine,
+                style = tokens.type.small,
+                color = tokens.colors.inkMuted,
+                modifier = Modifier.fillMaxWidth().testTag(TODAY_NOT_TRAINED_TEST_TAG),
+            )
+        }
 
         val categoryNames = remember(settings.categories) { settings.categories.map { it.name } }
         val next = remember(notes, categoryNames, today) { nextUp(notes, categoryNames, today, zone) }
