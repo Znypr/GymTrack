@@ -1,4 +1,4 @@
-# 03 Legal / compliance review: GymTrack on Google Play (2026-11-10)
+# 03 Legal / compliance review: ZnyprFit (formerly GymTrack) on Google Play (2026-11-10)
 
 This is not legal advice. Items marked **[pro]** need a German lawyer or tax adviser. The sources were seen on 2026-11-10. **[unverified]** means my own knowledge, not re-checked on the web today.
 
@@ -23,7 +23,7 @@ Repo facts: no INTERNET permission, no account, no analytics. `allowBackup=true`
 
 ## C. IP
 - [ ] **Open-source licence notices** — Must · Missing · Apache-2.0 §4 requires shipping a copy of the licence and any NOTICE files. Add the `com.google.android.gms:oss-licenses-plugin` or the AboutLibraries library, and an "Open-source licences" screen. If you later use the OFL fonts (Caveat, Patrick Hand), bundle the OFL.txt and don't sell the fonts on their own. · S
-- [ ] **Name "GymTrack"** — Should · Risky · Existing apps: "GymTrack – Workout & Fitness" (CuriosCode, `com.cc_musculation`, on Play via AppBrain) and iOS "GymTrack: Workout Tracker", also offline-first ([App Store](https://apps.apple.com/us/app/gymtrack-workout-tracker/id6739433398)). The web search found no EUIPO/DPMA "GYMTRACK" mark, but **official registers were not searched** (do it on EUIPO eSearch, DPMAregister and TMview, classes 9/41/42). The name is descriptive, so registering it is hard and store-search discoverability is poor. Recommendation: use a distinctive brand ("GymTrack" only as a subtitle). **[pro]** for clearance. · S
+- [x] **Name "GymTrack"** — Resolved 2026-11-12: renamed to ZnyprFit (#342). Was: — Should · Risky · Existing apps: "GymTrack – Workout & Fitness" (CuriosCode, `com.cc_musculation`, on Play via AppBrain) and iOS "GymTrack: Workout Tracker", also offline-first ([App Store](https://apps.apple.com/us/app/gymtrack-workout-tracker/id6739433398)). The web search found no EUIPO/DPMA "GYMTRACK" mark, but **official registers were not searched** (do it on EUIPO eSearch, DPMAregister and TMview, classes 9/41/42). The name is descriptive, so registering it is hard and store-search discoverability is poor. Recommendation: use a distinctive brand ("GymTrack" only as a subtitle). **[pro]** for clearance. · S
 - [ ] **Icon and artwork originality** — Should · Partial · The intake already requires provenance (`docs/intake/2026-11-10-feature-intake.md`). Keep the source files and dates for the icon, screenshots and muscle map. Don't use Google or Material marks in the listing. · S
 - [ ] **Repo licence** — Nice · Missing · No LICENSE file. If the repo is public, that means "all rights reserved". Decide deliberately. · S
 

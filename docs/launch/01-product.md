@@ -49,7 +49,7 @@ Stranger's test: install, understand in 30 s, log a full workout without losing 
 - [ ] **Should** | Missing | Undo for destructive actions everywhere (#292, #330 delete in editing rows) | S-M
 
 ## 8. Identity
-- [ ] **Must** | Partial | Name "GymTrack" is generic and probably crowded on Play (many "Gym Track" apps). Check store search for collision; consider a distinctive subtitle. Namespace is `com.example.gymtrack` internally; applicationId already `app.znypr.gymtrack` (fine, permanent) | S
+- [x] Resolved 2026-11-12, renamed to ZnyprFit (#342). Was: **Must** | Partial | Name "GymTrack" is generic and probably crowded on Play (many "Gym Track" apps). Check store search for collision; consider a distinctive subtitle. Namespace is `com.example.gymtrack` internally; applicationId already `app.znypr.gymtrack` (fine, permanent) | S
 - [ ] **Should** | Partial | Launcher icon padding/notebook mark (#246); check adaptive + monochrome themed icon | S
 - [ ] **Must** | Missing | Store assets: screenshots showing the keypad flow (video-friendly: the developer can cut a 30 s demo), feature graphic, short copy | M
 
